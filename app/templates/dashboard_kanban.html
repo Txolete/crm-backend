@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Dashboard - Kanban</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar {
+            background-color: #fff;
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        
+        .kanban-container {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 20px;
+            min-height: calc(100vh - 180px);
+        }
+        
+        .kanban-column {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 320px;
+            max-width: 320px;
+            flex-shrink: 0;
+        }
+        
+        .kanban-column-header {
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #495057;
+        }
+        
+        .kanban-column-count {
+            background-color: #6c757d;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .kanban-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 100px;
+        }
+        
+        .kanban-card {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .kanban-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .kanban-card.sortable-ghost {
+            opacity: 0.4;
+        }
+        
+        .kanban-card.sortable-chosen {
+            transform: scale(1.02);
+        }
+        
+        .card-account-name {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            color: #212529;
+        }
+        
+        .card-opp-name {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 8px;
+        }
+        
+        .card-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #0d6efd;
+            margin-bottom: 4px;
+        }
+        
+        .card-weighted {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        
+        .card-task {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 6px 8px;
+            margin-top: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .card-task.overdue {
+            background-color: #fff3cd;
+            border-left: 3px solid #ffc107;
+        }
+        
+        .card-task-title {
+            font-weight: 500;
+            color: #212529;
+        }
+        
+        .card-task-date {
+            color: #6c757d;
+            font-size: 0.75rem;
+        }
+        
+        .card-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+        }
+        
+        .badge-custom {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        
+        .kpi-section {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .kpi-card {
+            text-align: center;
+            padding: 16px;
+        }
+        
+        .kpi-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0d6efd;
+        }
+        
+        .kpi-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-top: 4px;
+        }
+        
+        .offcanvas-drawer {
+            width: 600px !important;
+        }
+        
+        .drawer-section {
+            margin-bottom: 24px;
+        }
+        
+        .drawer-section-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: 12px;
+        }
+        
+        .activity-item {
+            border-left: 3px solid #dee2e6;
+            padding-left: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .activity-type-status_change {
+            border-left-color: #0d6efd;
+        }
+        
+        .activity-type-note {
+            border-left-color: #6c757d;
+        }
+        
+        .activity-time {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+        
+        .filters-section {
+            background-color: white;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 0 20px 20px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .stage-new .kanban-column-header { color: #198754; }
+        .stage-contacted .kanban-column-header { color: #0dcaf0; }
+        .stage-qualified .kanban-column-header { color: #0d6efd; }
+        .stage-proposal .kanban-column-header { color: #6610f2; }
+        .stage-negotiation .kanban-column-header { color: #fd7e14; }
+        .stage-won .kanban-column-header { color: #198754; }
+        .stage-lost .kanban-column-header { color: #dc3545; }
+        
+        /* HOTFIX 4.1 - Part C: Closed columns visual */
+        .kanban-column.closed {
+            background-color: #e9ecef;
+            opacity: 0.85;
+        }
+        
+        .kanban-column.closed .kanban-card {
+            opacity: 0.75;
+            background-color: #f8f9fa;
+        }
+        
+        .kanban-card .badge-closed {
+            background-color: #6c757d;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="/dashboard">
+                <i class="bi bi-kanban me-2"></i>CRM Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="nav-item text-muted me-3">
+                    <i class="bi bi-person-circle me-1"></i>
+                    {{ user.name }} ({{ user.role }})
+                </span>
+                <a class="nav-link" href="/auth/logout">
+                    <i class="bi bi-box-arrow-right"></i> Salir
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- KPIs Section (Placeholder) -->
+    <div class="kpi-section">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="kpi-card">
+                    <div class="kpi-value" id="kpi-total">-</div>
+                    <div class="kpi-label">Pipeline Total</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="kpi-card">
+                    <div class="kpi-value" id="kpi-weighted">-</div>
+                    <div class="kpi-label">Pipeline Ponderado</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="kpi-card">
+                    <div class="kpi-value" id="kpi-closed">-</div>
+                    <div class="kpi-label">Cerrado Anual</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="kpi-card">
+                    <div class="kpi-value" id="kpi-count">0</div>
+                    <div class="kpi-label">Oportunidades</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters and Controls -->
+    <div class="filters-section">
+        <div class="row align-items-center">
+            <div class="col-md-3">
+                <input type="text" class="form-control form-control-sm" id="filter-search" placeholder="Buscar cuenta...">
+            </div>
+            <div class="col-md-auto">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="toggle-closed">
+                    <label class="form-check-label" for="toggle-closed">
+                        Ocultar cerradas
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-auto ms-auto">
+                <button class="btn btn-primary btn-sm" id="btn-new-opp">
+                    <i class="bi bi-plus-lg me-1"></i>Nueva Oportunidad
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="kanban-container" id="kanban-board">
+        <!-- Columns will be rendered here by JavaScript -->
+    </div>
+
+    <!-- Drawer Offcanvas -->
+    <div class="offcanvas offcanvas-end offcanvas-drawer" tabindex="-1" id="oppDrawer">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="drawer-title">Detalles de Oportunidad</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body">
+            <div id="drawer-content">
+                <div class="text-center text-muted py-5">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Opportunity Modal -->
+    <div class="modal fade" id="newOppModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva Oportunidad</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-new-opp">
+                        <div class="mb-3">
+                            <label class="form-label">Cuenta *</label>
+                            <select class="form-select" id="new-opp-account" required>
+                                <option value="">Seleccionar cuenta...</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nombre de Oportunidad</label>
+                            <input type="text" class="form-control" id="new-opp-name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Stage *</label>
+                            <select class="form-select" id="new-opp-stage" required>
+                                <option value="">Seleccionar stage...</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Valor Esperado (EUR) *</label>
+                            <input type="number" class="form-control" id="new-opp-value" min="0" step="0.01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Forecast Close Month</label>
+                            <input type="month" class="form-control" id="new-opp-forecast">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-new-opp">Crear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- SortableJS for Drag & Drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.1/Sortable.min.js"></script>
+    
+    <!-- Dashboard JavaScript -->
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

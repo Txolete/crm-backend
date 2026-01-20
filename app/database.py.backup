@@ -1,0 +1,44 @@
+from sqlalchemy import create_engine, event
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from app.config import get_settings
+
+settings = get_settings()
+
+# SQLite connection with proper settings
+engine = create_engine(
+    settings.database_url,
+    connect_args={"check_same_thread": False},
+    echo=True  # Log SQL queries for debugging
+)
+
+# Enable foreign key constraints for SQLite
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
+
+def get_db():
+    """Dependency for getting DB session"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def init_db():
+    """Initialize database - create all tables"""
+    # Import all models to register them with Base
+    from app.models import (
+        User, CfgRegion, CfgCustomerType, CfgLeadSource, CfgContactRole,
+        CfgTaskTemplate, CfgStage, CfgStageProbability, Account, Contact,
+        ContactChannel, Opportunity, Task, Activity, Target, AuditLog, AppVersion
+    )
+    Base.metadata.create_all(bind=engine)

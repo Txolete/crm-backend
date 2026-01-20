@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clientes - CRM</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        :root {
+            --primary-color: #0066cc;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            --card-shadow-hover: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        body {
+            background-color: var(--light-bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 14px;
+        }
+        
+        .navbar {
+            background-color: #fff;
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            padding: 0.75rem 1rem;
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+            color: var(--primary-color) !important;
+            font-size: 1.25rem;
+        }
+        
+        .nav-link {
+            color: #6c757d;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            transition: color 0.2s;
+        }
+        
+        .nav-link:hover {
+            color: var(--primary-color);
+        }
+        
+        .nav-link.active {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+        
+        /* Main container */
+        .main-container {
+            padding: 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .page-header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #212529;
+            margin: 0;
+        }
+        
+        /* Filters bar */
+        .filters-bar {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .filters-bar .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .filters-bar .form-control,
+        .filters-bar .form-select {
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid #ced4da;
+            padding: 8px 12px;
+        }
+        
+        .filters-bar .form-control:focus,
+        .filters-bar .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.1);
+        }
+        
+        /* Table */
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .table {
+            margin: 0;
+        }
+        
+        .table thead th {
+            border-bottom: 2px solid #dee2e6;
+            color: #495057;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 12px;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .table thead th:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .table thead th i {
+            margin-left: 4px;
+            opacity: 0.4;
+        }
+        
+        .table thead th.sorted-asc i.bi-arrow-up,
+        .table thead th.sorted-desc i.bi-arrow-down {
+            opacity: 1;
+            color: var(--primary-color);
+        }
+        
+        .table tbody td {
+            padding: 12px;
+            vertical-align: middle;
+            font-size: 14px;
+        }
+        
+        .table tbody tr {
+            transition: background-color 0.2s;
+        }
+        
+        .table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .account-name {
+            font-weight: 500;
+            color: #212529;
+        }
+        
+        .account-name:hover {
+            color: var(--primary-color);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        
+        /* Badges */
+        .badge {
+            font-weight: 500;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        
+        .badge-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-archived {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        /* Pagination */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .pagination-info {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .pagination {
+            margin: 0;
+        }
+        
+        .page-link {
+            color: var(--primary-color);
+            border: 1px solid #dee2e6;
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        
+        .page-link:hover {
+            background-color: #e9ecef;
+            border-color: #dee2e6;
+        }
+        
+        .page-item.active .page-link {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .page-item.disabled .page-link {
+            color: #6c757d;
+        }
+        
+        /* Buttons */
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 6px;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0052a3;
+            border-color: #0052a3;
+        }
+        
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 6px;
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-sm {
+            padding: 4px 12px;
+            font-size: 13px;
+        }
+        
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+        
+        .empty-state i {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+        
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: #495057;
+        }
+        
+        .empty-state p {
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        
+        /* Modal */
+        .modal-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .modal-title {
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .modal-body {
+            padding: 24px;
+        }
+        
+        .modal-body h6 {
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .modal-body label {
+            display: block;
+            margin-bottom: 4px;
+        }
+        
+        .modal-body .card {
+            transition: all 0.2s;
+        }
+        
+        .modal-body .card:hover {
+            box-shadow: var(--card-shadow-hover);
+        }
+        
+        .modal-footer {
+            background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        /* Tour Styles */
+        #tour-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 2000;
+        }
+        #tour-bubble {
+            position: fixed;
+            max-width: 360px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            padding: 12px 14px;
+            z-index: 9999;
+            font-size: 0.9rem;
+        }
+        #tour-bubble .tour-title { 
+            font-weight: 600; 
+            margin-bottom: 6px; 
+        }
+        #tour-bubble .tour-text { 
+            color: #333; 
+        }
+        .tour-highlight {
+            position: relative;
+            z-index: 9998 !important;
+            box-shadow: 0 0 0 4px #ffc107, 0 0 20px rgba(255,193,7,0.4) !important;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/dashboard">
+                <i class="bi bi-bar-chart-line-fill"></i> CRM
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/accounts/page">
+                            <i class="bi bi-building"></i> Clientes
+                        </a>
+                    </li>
+                    <li class="nav-item" id="nav-users" style="display: none;">
+                        <a class="nav-link" href="/admin/users-page">
+                            <i class="bi bi-people"></i> Usuarios
+                        </a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="startAccountsTour()" title="Ver tour de Clientes">
+                            <i class="bi bi-question-circle"></i> Tour
+                        </button>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> <span id="user-name">Usuario</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/logout">
+                                <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Header -->
+        <div class="page-header">
+            <h1>
+                <i class="bi bi-building"></i> Clientes
+            </h1>
+            <button class="btn btn-primary" id="btn-new-account">
+                <i class="bi bi-plus-circle"></i> Nuevo Cliente
+            </button>
+        </div>
+
+        <!-- Filters Bar -->
+        <div class="filters-bar">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Buscar</label>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="filter-search" placeholder="Nombre del cliente...">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Estado</label>
+                    <select class="form-select" id="filter-status">
+                        <option value="active">Activos</option>
+                        <option value="archived">Archivados</option>
+                        <option value="all">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Tipo</label>
+                    <select class="form-select" id="filter-customer-type">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Región</label>
+                    <select class="form-select" id="filter-region">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Responsable</label>
+                    <select class="form-select" id="filter-owner">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="table-container">
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+                <p class="mt-3">Cargando clientes...</p>
+            </div>
+
+            <div id="table-content" style="display: none;">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th data-sort="name">
+                                    Nombre
+                                    <i class="bi bi-arrow-down-up"></i>
+                                </th>
+                                <th data-sort="customer_type">
+                                    Tipo
+                                    <i class="bi bi-arrow-down-up"></i>
+                                </th>
+                                <th data-sort="region">
+                                    Región
+                                    <i class="bi bi-arrow-down-up"></i>
+                                </th>
+                                <th data-sort="owner">
+                                    Responsable
+                                    <i class="bi bi-arrow-down-up"></i>
+                                </th>
+                                <th class="text-center">
+                                    Oportunidades
+                                </th>
+                                <th class="text-center">
+                                    Contactos
+                                </th>
+                                <th data-sort="updated_at">
+                                    Actualización
+                                    <i class="bi bi-arrow-down-up"></i>
+                                </th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accounts-table-body">
+                            <!-- Rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        Mostrando <span id="showing-from">0</span> a <span id="showing-to">0</span> 
+                        de <span id="total-accounts">0</span> clientes
+                    </div>
+                    <nav>
+                        <ul class="pagination" id="pagination">
+                            <!-- Pagination will be inserted here -->
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <i class="bi bi-building"></i>
+                <h3>No hay clientes</h3>
+                <p>Comienza creando tu primer cliente</p>
+                <button class="btn btn-primary" onclick="showCreateModal()">
+                    <i class="bi bi-plus-circle"></i> Crear Cliente
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Account Detail Modal -->
+    <div class="modal fade" id="accountDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-building"></i> <span id="detail-account-name">Cliente</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Loading -->
+                    <div id="detail-loading" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-3 text-muted">Cargando detalles...</p>
+                    </div>
+
+                    <!-- Content -->
+                    <div id="detail-content" style="display: none;">
+                        <!-- Basic Info -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-info-circle"></i> Información Básica
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="small text-muted">Nombre</label>
+                                    <div id="detail-name" class="fw-bold">-</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="small text-muted">Estado</label>
+                                    <div id="detail-status">-</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Info -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-telephone"></i> Información de Contacto
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="small text-muted">Sitio Web</label>
+                                    <div id="detail-website">-</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="small text-muted">Teléfono</label>
+                                    <div id="detail-phone">-</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="small text-muted">Email</label>
+                                    <div id="detail-email">-</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="small text-muted">CIF/NIF</label>
+                                    <div id="detail-tax-id">-</div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="small text-muted">Dirección</label>
+                                    <div id="detail-address">-</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Classification -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-tag"></i> Clasificación
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="small text-muted">Tipo</label>
+                                    <div id="detail-customer-type">-</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted">Región</label>
+                                    <div id="detail-region">-</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted">Fuente</label>
+                                    <div id="detail-lead-source">-</div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="small text-muted">Responsable</label>
+                                    <div id="detail-owner">-</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-4" id="detail-notes-section" style="display: none;">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-sticky"></i> Notas
+                            </h6>
+                            <div class="p-3 bg-light rounded">
+                                <div id="detail-notes" class="text-muted">-</div>
+                            </div>
+                        </div>
+
+                        <!-- Stats -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-graph-up"></i> Estadísticas
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="card bg-info bg-opacity-10 border-0">
+                                        <div class="card-body text-center">
+                                            <div class="h3 mb-0" id="detail-opps-count">0</div>
+                                            <small class="text-muted">Oportunidades</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-success bg-opacity-10 border-0">
+                                        <div class="card-body text-center">
+                                            <div class="h3 mb-0" id="detail-contacts-count">0</div>
+                                            <small class="text-muted">Contactos</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-warning bg-opacity-10 border-0">
+                                        <div class="card-body text-center">
+                                            <div class="h3 mb-0" id="detail-pipeline">€0</div>
+                                            <small class="text-muted">Pipeline</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contacts -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-people"></i> Contactos
+                                <button class="btn btn-sm btn-outline-primary float-end" onclick="showAddContactModal()">
+                                    <i class="bi bi-plus"></i> Añadir
+                                </button>
+                            </h6>
+                            <div id="detail-contacts-list">
+                                <p class="text-muted text-center py-3">No hay contactos</p>
+                            </div>
+                        </div>
+
+                        <!-- Opportunities -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-briefcase"></i> Oportunidades
+                                <a href="#" id="btn-view-in-kanban" class="btn btn-sm btn-outline-primary float-end">
+                                    <i class="bi bi-kanban"></i> Ver en Kanban
+                                </a>
+                            </h6>
+                            <div id="detail-opportunities-list">
+                                <p class="text-muted text-center py-3">No hay oportunidades</p>
+                            </div>
+                        </div>
+
+                        <!-- Tasks (PASO 5) -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-list-check"></i> Tareas 
+                                <span id="account-tasks-count" class="badge bg-primary ms-2">0</span>
+                                <button class="btn btn-sm btn-success float-end" onclick="showCreateTaskFromAccount()">
+                                    <i class="bi bi-plus"></i> Nueva Tarea
+                                </button>
+                            </h6>
+                            <div id="account-tasks-loading" class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <span class="ms-2">Cargando tareas...</span>
+                            </div>
+                            <div id="account-tasks-content" style="display: none;"></div>
+                            <div id="account-tasks-empty" style="display: none;" class="text-muted text-center py-3">
+                                <i class="bi bi-inbox"></i> No hay tareas asociadas
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger me-auto" id="btn-archive-account">
+                        <i class="bi bi-archive"></i> Archivar
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cerrar
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btn-edit-account">
+                        <i class="bi bi-pencil"></i> Editar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Create/Edit Modal -->
+    <div class="modal fade" id="accountFormModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-building"></i> <span id="form-modal-title">Nuevo Cliente</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="account-form">
+                    <div class="modal-body">
+                        <!-- Basic Info -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-info-circle"></i> Información Básica
+                            </h6>
+                            <div class="mb-3">
+                                <label for="form-name" class="form-label">Nombre <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="form-name" required>
+                                <div class="invalid-feedback">El nombre es obligatorio</div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Info -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-telephone"></i> Información de Contacto
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="form-website" class="form-label">Sitio Web</label>
+                                    <input type="text" class="form-control" id="form-website" placeholder="www.ejemplo.com">
+                                    <div class="form-text small">Se añadirá https:// automáticamente si es necesario</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="form-phone" class="form-label">Teléfono</label>
+                                    <input type="tel" class="form-control" id="form-phone" placeholder="+34 ...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="form-email" class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="form-email" placeholder="contacto@...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="form-tax-id" class="form-label">CIF/NIF</label>
+                                    <input type="text" class="form-control" id="form-tax-id" placeholder="B12345678">
+                                </div>
+                                <div class="col-12">
+                                    <label for="form-address" class="form-label">Dirección</label>
+                                    <textarea class="form-control" id="form-address" rows="2"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Classification -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-tag"></i> Clasificación
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="form-customer-type" class="form-label">Tipo de Cliente</label>
+                                    <select class="form-select" id="form-customer-type">
+                                        <option value="">Seleccionar...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="form-region" class="form-label">Región</label>
+                                    <select class="form-select" id="form-region">
+                                        <option value="">Seleccionar...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="form-lead-source" class="form-label">Fuente de Lead</label>
+                                    <select class="form-select" id="form-lead-source">
+                                        <option value="">Seleccionar...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="form-lead-source-detail" class="form-label">Detalle de Fuente</label>
+                                    <input type="text" class="form-control" id="form-lead-source-detail" placeholder="Opcional...">
+                                </div>
+                                <div class="col-12">
+                                    <label for="form-owner" class="form-label">Responsable</label>
+                                    <select class="form-select" id="form-owner">
+                                        <option value="">Sin asignar</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-3">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-sticky"></i> Notas
+                            </h6>
+                            <textarea class="form-control" id="form-notes" rows="3" placeholder="Notas adicionales..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="btn-save-account">
+                            <i class="bi bi-save"></i> Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Create/Edit Modal -->
+    <div class="modal fade" id="contactFormModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-person"></i> <span id="contact-form-modal-title">Nuevo Contacto</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="contact-form">
+                    <div class="modal-body">
+                        <!-- Basic Info -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-info-circle"></i> Información Básica
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="contact-first-name" class="form-label">Nombre</label>
+                                    <input type="text" class="form-control" id="contact-first-name" placeholder="Nombre">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="contact-last-name" class="form-label">Apellidos</label>
+                                    <input type="text" class="form-control" id="contact-last-name" placeholder="Apellidos">
+                                </div>
+                                <div class="col-12">
+                                    <label for="contact-role" class="form-label">Rol</label>
+                                    <select class="form-select" id="contact-role">
+                                        <option value="">Seleccionar...</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Emails -->
+                        <div class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-envelope"></i> Emails
+                                <button type="button" class="btn btn-sm btn-outline-primary float-end" onclick="addEmailField()">
+                                    <i class="bi bi-plus"></i> Añadir
+                                </button>
+                            </h6>
+                            <div id="emails-container">
+                                <!-- Email fields will be added here dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Phones -->
+                        <div class="mb-3">
+                            <h6 class="text-uppercase text-muted mb-3">
+                                <i class="bi bi-telephone"></i> Teléfonos
+                                <button type="button" class="btn btn-sm btn-outline-primary float-end" onclick="addPhoneField()">
+                                    <i class="bi bi-plus"></i> Añadir
+                                </button>
+                            </h6>
+                            <div id="phones-container">
+                                <!-- Phone fields will be added here dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="btn-save-contact">
+                            <i class="bi bi-save"></i> Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tour Elements -->
+    <div id="tour-overlay" style="display:none;"></div>
+    <div id="tour-bubble" style="display:none;">
+        <div class="tour-title" id="tour-title"></div>
+        <div class="tour-text" id="tour-text" style="margin-bottom:10px;"></div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" id="tour-prev">Anterior</button>
+            <button class="btn btn-sm btn-primary flex-grow-1" id="tour-next">Siguiente</button>
+            <button class="btn btn-sm btn-outline-secondary" id="tour-skip">Saltar</button>
+        </div>
+    </div>
+
+    <!-- Task Modal (for creating tasks from account) -->
+    <div class="modal fade" id="taskModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="taskModalTitle">
+                        <i class="bi bi-plus-circle"></i> Nueva Tarea
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="taskForm">
+                        <input type="hidden" id="task-id">
+                        
+                        <div class="row g-3">
+                            <!-- Title -->
+                            <div class="col-12">
+                                <label for="task-title" class="form-label">Título <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="task-title" required maxlength="200">
+                            </div>
+                            
+                            <!-- Description -->
+                            <div class="col-12">
+                                <label for="task-description" class="form-label">Descripción</label>
+                                <textarea class="form-control" id="task-description" rows="3" maxlength="2000"></textarea>
+                            </div>
+                            
+                            <!-- Task Template -->
+                            <div class="col-12">
+                                <label for="task-template" class="form-label">Tipo/Plantilla de Tarea</label>
+                                <select class="form-select" id="task-template" onchange="onTaskTemplateChange()">
+                                    <option value="">Sin tipo específico</option>
+                                </select>
+                                <small class="text-muted">
+                                    <i class="bi bi-tag"></i> Selecciona un tipo para etiquetar y organizar la tarea
+                                </small>
+                            </div>
+                            
+                            <!-- Opportunity -->
+                            <div class="col-md-6">
+                                <label for="task-opportunity" class="form-label">Oportunidad</label>
+                                <select class="form-select" id="task-opportunity">
+                                    <option value="">Sin oportunidad</option>
+                                </select>
+                                <small class="text-muted">Vincula esta tarea a una oportunidad específica</small>
+                            </div>
+                            
+                            <!-- Account -->
+                            <div class="col-md-6">
+                                <label for="task-account" class="form-label">Cuenta</label>
+                                <select class="form-select" id="task-account">
+                                    <option value="">Sin cuenta</option>
+                                </select>
+                                <small class="text-muted">O vincúlala directamente a una cuenta</small>
+                            </div>
+                            
+                            <!-- Priority -->
+                            <div class="col-md-4">
+                                <label for="task-priority" class="form-label">Prioridad <span class="text-danger">*</span></label>
+                                <select class="form-select" id="task-priority" required>
+                                    <option value="low">🟢 Baja</option>
+                                    <option value="medium" selected>🟡 Media</option>
+                                    <option value="high">🔴 Alta</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Due Date -->
+                            <div class="col-md-4">
+                                <label for="task-due-date" class="form-label">Fecha vencimiento</label>
+                                <input type="date" class="form-control" id="task-due-date">
+                            </div>
+                            
+                            <!-- Assigned To -->
+                            <div class="col-md-4">
+                                <label for="task-assigned-to" class="form-label">Asignado a</label>
+                                <select class="form-select" id="task-assigned-to">
+                                    <option value="">Sin asignar</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Validation Warning -->
+                            <div class="col-12">
+                                <div class="alert alert-info d-flex align-items-center" role="alert">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <small>Debes vincular la tarea a una <strong>oportunidad</strong> o a una <strong>cuenta</strong> (o ambas)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="saveTask()">
+                        <i class="bi bi-check-lg"></i> Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Onboarding JS -->
+    <script src="/static/js/onboarding.js"></script>
+    <!-- Tasks JS (for modal) -->
+    <script src="/static/js/tasks.js"></script>
+    <!-- Accounts JS -->
+    <script src="/static/js/accounts.js"></script>
+    
+    <!-- Auth check and navbar -->
+    <script>
+        // Check authentication and show/hide nav links based on role
+        (async function() {
+            try {
+                const response = await fetch('/auth/me', { credentials: 'include' });
+                if (!response.ok) {
+                    window.location.href = '/login';
+                    return;
+                }
+                const user = await response.json();
+                
+                // Update user info in dropdown
+                document.getElementById('user-name').textContent = user.name;
+                
+                // Show Users nav link only for admin
+                if (user.role === 'admin') {
+                    const navUsers = document.getElementById('nav-users');
+                    if (navUsers) {
+                        navUsers.style.display = 'block';
+                    }
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/login';
+            }
+        })();
+    </script>
+</body>
+</html>

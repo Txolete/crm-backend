@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test - Crear Oportunidad</title>
+    <style>
+        body { 
+            font-family: Arial; 
+            padding: 20px; 
+            max-width: 800px; 
+            margin: 0 auto;
+        }
+        button { 
+            padding: 10px 20px; 
+            margin: 10px 0; 
+            font-size: 16px; 
+            cursor: pointer;
+            background: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #0b5ed7;
+        }
+        pre { 
+            background: #f5f5f5; 
+            padding: 15px; 
+            overflow: auto; 
+            border-radius: 4px;
+            border-left: 4px solid #0d6efd;
+        }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .info { color: blue; }
+        h2 { border-bottom: 2px solid #dee2e6; padding-bottom: 10px; }
+        .step { 
+            margin: 20px 0; 
+            padding: 15px; 
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .result.success-bg { background: #d4edda; border: 1px solid #c3e6cb; }
+        .result.error-bg { background: #f8d7da; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <h1>🔍 TEST - Crear Oportunidad</h1>
+    
+    <div class="step">
+        <h2>Paso 1: Obtener Datos</h2>
+        <button onclick="testStep1()">▶ Ejecutar Paso 1</button>
+        <div id="step1-result"></div>
+    </div>
+
+    <div class="step">
+        <h2>Paso 2: Crear Oportunidad</h2>
+        <button onclick="testStep2()" id="btn-step2" disabled>▶ Ejecutar Paso 2</button>
+        <div id="step2-result"></div>
+    </div>
+
+    <div class="step">
+        <h2>Paso 3: Verificar en Kanban</h2>
+        <button onclick="testStep3()" id="btn-step3" disabled>▶ Ejecutar Paso 3</button>
+        <div id="step3-result"></div>
+    </div>
+
+    <div class="step">
+        <h2>📊 Resultado Final</h2>
+        <div id="final-result"></div>
+    </div>
+
+    <script>
+        let testData = {
+            accountId: null,
+            accountName: null,
+            stageId: null,
+            stageName: null,
+            userId: null,
+            createdOppId: null
+        };
+
+        async function testStep1() {
+            const resultDiv = document.getElementById('step1-result');
+            resultDiv.innerHTML = '<p class="info">⏳ Ejecutando...</p>';
+
+            try {
+                // Get accounts
+                console.log('[TEST] Fetching accounts...');
+                const accountsResponse = await fetch('/accounts?status=active', {
+                    credentials: 'include'
+                });
+
+                if (!accountsResponse.ok) {
+                    throw new Error(`Error al obtener cuentas: ${accountsResponse.status}`);
+                }
+
+                const accountsData = await accountsResponse.json();
+                const accounts = accountsData.accounts || accountsData;
+
+                if (!accounts || accounts.length === 0) {
+                    resultDiv.innerHTML = '<div class="result error-bg"><p class="error">❌ No hay cuentas disponibles</p><p>Necesitas importar el Excel primero o crear una cuenta.</p></div>';
+                    return;
+                }
+
+                testData.accountId = accounts[0].id;
+                testData.accountName = accounts[0].name;
+
+                // Get stages
+                console.log('[TEST] Fetching stages...');
+                const stagesResponse = await fetch('/config/stages', {
+                    credentials: 'include'
+                });
+
+                if (!stagesResponse.ok) {
+                    throw new Error(`Error al obtener stages: ${stagesResponse.status}`);
+                }
+
+                const stages = await stagesResponse.json();
+                const openStages = stages.filter(s => s.outcome === 'open');
+
+                if (openStages.length === 0) {
+                    resultDiv.innerHTML = '<div class="result error-bg"><p class="error">❌ No hay stages abiertos</p></div>';
+                    return;
+                }
+
+                testData.stageId = openStages[0].id;
+                testData.stageName = openStages[0].name;
+
+                // Get current user
+                console.log('[TEST] Getting current user...');
+                const userResponse = await fetch('/auth/me', {
+                    credentials: 'include'
+                });
+
+                if (userResponse.ok) {
+                    const user = await userResponse.json();
+                    testData.userId = user.id;
+                }
+
+                // Success
+                resultDiv.innerHTML = `
+                    <div class="result success-bg">
+                        <p class="success">✅ Datos obtenidos correctamente</p>
+                        <pre>Cuentas disponibles: ${accounts.length}
+Primera cuenta: ${testData.accountName}
+ID: ${testData.accountId.substring(0, 8)}...
+
+Stages abiertos: ${openStages.length}
+Primer stage: ${testData.stageName}
+ID: ${testData.stageId.substring(0, 8)}...
+
+Usuario: ${testData.userId ? testData.userId.substring(0, 8) + '...' : 'null'}</pre>
+                    </div>
+                `;
+
+                // Enable step 2
+                document.getElementById('btn-step2').disabled = false;
+
+            } catch (error) {
+                console.error('[TEST] Error:', error);
+                resultDiv.innerHTML = `<div class="result error-bg"><p class="error">❌ Error: ${error.message}</p></div>`;
+            }
+        }
+
+        async function testStep2() {
+            const resultDiv = document.getElementById('step2-result');
+            resultDiv.innerHTML = '<p class="info">⏳ Creando oportunidad...</p>';
+
+            try {
+                const opportunityData = {
+                    account_id: testData.accountId,
+                    name: "TEST - Oportunidad Automática",
+                    stage_id: testData.stageId,
+                    expected_value_eur: 3000.0,
+                    forecast_close_month: "2026-03",
+                    owner_user_id: testData.userId
+                };
+
+                console.log('[TEST] Creating opportunity...', opportunityData);
+
+                const response = await fetch('/opportunities', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(opportunityData)
+                });
+
+                console.log('[TEST] Response status:', response.status);
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData)}`);
+                }
+
+                const createdOpp = await response.json();
+                testData.createdOppId = createdOpp.id;
+
+                console.log('[TEST] Opportunity created:', createdOpp);
+
+                resultDiv.innerHTML = `
+                    <div class="result success-bg">
+                        <p class="success">✅ Oportunidad creada exitosamente!</p>
+                        <pre>ID: ${createdOpp.id.substring(0, 8)}...
+Nombre: ${createdOpp.name || 'Sin nombre'}
+Cuenta: ${testData.accountName}
+Stage: ${testData.stageName}
+Valor: €${createdOpp.expected_value_eur}
+Status: ${createdOpp.status}
+Outcome: ${createdOpp.close_outcome}</pre>
+                    </div>
+                `;
+
+                // Enable step 3
+                document.getElementById('btn-step3').disabled = false;
+
+            } catch (error) {
+                console.error('[TEST] Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="result error-bg">
+                        <p class="error">❌ Error al crear oportunidad</p>
+                        <pre>${error.message}</pre>
+                        <p><strong>Posibles causas:</strong></p>
+                        <ul>
+                            <li>Problema de validación en el backend</li>
+                            <li>Permisos insuficientes</li>
+                            <li>Error en el servidor</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        async function testStep3() {
+            const resultDiv = document.getElementById('step3-result');
+            resultDiv.innerHTML = '<p class="info">⏳ Verificando en Kanban...</p>';
+
+            try {
+                console.log('[TEST] Fetching kanban...');
+                const response = await fetch('/kanban?include_closed=false', {
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error al cargar Kanban: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const totalOpps = data.columns.reduce((sum, col) => sum + col.opportunities.length, 0);
+
+                console.log('[TEST] Kanban loaded:', totalOpps, 'opportunities');
+
+                // Find our opportunity
+                let found = false;
+                let foundInColumn = null;
+
+                for (const col of data.columns) {
+                    for (const opp of col.opportunities) {
+                        if (opp.opportunity_id === testData.createdOppId) {
+                            found = true;
+                            foundInColumn = col.stage_name;
+                            break;
+                        }
+                    }
+                    if (found) break;
+                }
+
+                if (found) {
+                    resultDiv.innerHTML = `
+                        <div class="result success-bg">
+                            <p class="success">✅ Oportunidad encontrada en Kanban!</p>
+                            <pre>Columna: ${foundInColumn}
+Total oportunidades en Kanban: ${totalOpps}</pre>
+                        </div>
+                    `;
+
+                    // Final result
+                    document.getElementById('final-result').innerHTML = `
+                        <div class="result success-bg">
+                            <h3 class="success">✅ TODOS LOS TESTS PASARON</h3>
+                            <p><strong>Conclusión:</strong> El backend funciona correctamente.</p>
+                            <p><strong>Si el botón "Nueva Oportunidad" no funciona en la UI:</strong></p>
+                            <ul>
+                                <li>El problema está en el JavaScript del frontend</li>
+                                <li>O el modal no se está mostrando</li>
+                                <li>O no recarga el Kanban después de crear</li>
+                            </ul>
+                            <p><strong>Siguiente paso:</strong> Diagnóstico del frontend en el navegador.</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error-bg">
+                            <p class="error">⚠️ Oportunidad NO encontrada en Kanban</p>
+                            <pre>Total oportunidades: ${totalOpps}
+Oportunidad buscada: ${testData.createdOppId.substring(0, 8)}...</pre>
+                            <p>La oportunidad se creó pero no aparece en Kanban.</p>
+                        </div>
+                    `;
+
+                    // Final result
+                    document.getElementById('final-result').innerHTML = `
+                        <div class="result error-bg">
+                            <h3 class="error">⚠️ PROBLEMA IDENTIFICADO</h3>
+                            <p>La oportunidad se crea en la BD pero no aparece en Kanban.</p>
+                            <p><strong>Posibles causas:</strong></p>
+                            <ul>
+                                <li>Filtrado del endpoint /kanban está excluyendo la oportunidad</li>
+                                <li>Stage_id no coincide con los stages configurados</li>
+                                <li>Close_outcome no es 'open'</li>
+                            </ul>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                console.error('[TEST] Error:', error);
+                resultDiv.innerHTML = `<div class="result error-bg"><p class="error">❌ Error: ${error.message}</p></div>`;
+            }
+        }
+
+        console.log('[TEST] Página de test cargada. Ejecuta los pasos en orden.');
+    </script>
+</body>
+</html>

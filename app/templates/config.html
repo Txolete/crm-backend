@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración - CRM</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        :root {
+            --primary-color: #0066cc;
+            --light-bg: #f8f9fa;
+        }
+        
+        body {
+            background-color: var(--light-bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px;
+        }
+        
+        .navbar {
+            background-color: #fff;
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+            color: var(--primary-color) !important;
+        }
+        
+        .main-container {
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .config-card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            margin-bottom: 24px;
+        }
+        
+        .nav-pills .nav-link {
+            color: #6c757d;
+            font-weight: 500;
+        }
+        
+        .nav-pills .nav-link.active {
+            background-color: var(--primary-color);
+        }
+        
+        .table-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .badge-active {
+            background-color: #28a745;
+        }
+        
+        .badge-inactive {
+            background-color: #6c757d;
+        }
+        
+        /* Tour Styles */
+        #tour-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 2000;
+        }
+        #tour-bubble {
+            position: fixed;
+            max-width: 360px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            padding: 12px 14px;
+            z-index: 9999;
+            font-size: 0.9rem;
+        }
+        #tour-bubble .tour-title { 
+            font-weight: 600; 
+            margin-bottom: 6px; 
+        }
+        #tour-bubble .tour-text { 
+            color: #333; 
+        }
+        .tour-highlight {
+            position: relative;
+            z-index: 9998 !important;
+            box-shadow: 0 0 0 4px #ffc107, 0 0 20px rgba(255,193,7,0.4) !important;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/dashboard">
+                <i class="bi bi-bar-chart-line-fill"></i> CRM
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/accounts/page">
+                            <i class="bi bi-building"></i> Clientes
+                        </a>
+                    </li>
+                    <li class="nav-item" id="nav-users" style="display: none;">
+                        <a class="nav-link" href="/admin/users-page">
+                            <i class="bi bi-people"></i> Usuarios
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <button class="btn btn-outline-secondary btn-sm me-2" onclick="startConfigTour()" title="Ver tour de Configuración">
+                        <i class="bi bi-question-circle"></i> Tour
+                    </button>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle"></i> <span id="user-name">Usuario</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="/logout">
+                            <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+                        </a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <div class="row">
+            <!-- Sidebar Nav -->
+            <div class="col-md-3">
+                <div class="config-card">
+                    <ul class="nav nav-pills flex-column" id="config-tabs">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" data-entity="regions">
+                                <i class="bi bi-geo-alt-fill"></i> Provincias
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-entity="customer-types">
+                                <i class="bi bi-building"></i> Tipos de Cliente
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-entity="lead-sources">
+                                <i class="bi bi-funnel"></i> Canales
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-entity="contact-roles">
+                                <i class="bi bi-person-badge"></i> Roles de Contacto
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-entity="task-templates">
+                                <i class="bi bi-list-check"></i> Plantillas de Tareas
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-entity="stages">
+                                <i class="bi bi-diagram-3"></i> Etapas (Stages)
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-entity="stage-probabilities">
+                                <i class="bi bi-percent"></i> Probabilidades
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="col-md-9">
+                <div class="config-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 id="entity-title">Provincias</h5>
+                        <button class="btn btn-primary btn-sm" id="btn-create">
+                            <i class="bi bi-plus-lg"></i> Crear
+                        </button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead id="table-header">
+                                <!-- Dynamic headers -->
+                            </thead>
+                            <tbody id="table-body">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="loading" style="display:none;" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div class="modal fade" id="entityModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modal-title">Crear</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="entity-form">
+                        <!-- Dynamic form fields -->
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btn-save">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tour Elements -->
+    <div id="tour-overlay" style="display:none;"></div>
+    <div id="tour-bubble" style="display:none;">
+        <div class="tour-title" id="tour-title"></div>
+        <div class="tour-text" id="tour-text" style="margin-bottom:10px;"></div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" id="tour-prev">Anterior</button>
+            <button class="btn btn-sm btn-primary flex-grow-1" id="tour-next">Siguiente</button>
+            <button class="btn btn-sm btn-outline-secondary" id="tour-skip">Saltar</button>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Onboarding JS -->
+    <script src="/static/js/onboarding.js"></script>
+    
+    <!-- Config JS -->
+    <script src="/static/js/config.js"></script>
+    
+    <!-- Auth check and navbar -->
+    <script>
+        // Check authentication and show/hide nav links based on role
+        (async function() {
+            try {
+                const response = await fetch('/auth/me', { credentials: 'include' });
+                if (!response.ok) {
+                    window.location.href = '/login';
+                    return;
+                }
+                const user = await response.json();
+                
+                // Update user info in dropdown
+                document.getElementById('user-name').textContent = user.name;
+                
+                // Show Users nav link only for admin
+                if (user.role === 'admin') {
+                    const navUsers = document.getElementById('nav-users');
+                    if (navUsers) {
+                        navUsers.style.display = 'block';
+                    }
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/login';
+            }
+        })();
+    </script>
+</body>
+</html>

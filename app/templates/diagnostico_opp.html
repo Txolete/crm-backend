@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Diagnóstico - Oportunidades</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+        pre { background: #f5f5f5; padding: 10px; overflow: auto; max-height: 400px; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #4CAF50; color: white; }
+        tr:nth-child(even) { background: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Diagnóstico de Oportunidades</h1>
+    
+    <h2>Test 1: Verificar GET /opportunities</h2>
+    <button onclick="testOpportunities()">Cargar todas las oportunidades</button>
+    <div id="opp-result"></div>
+    
+    <h2>Test 2: Verificar GET /kanban</h2>
+    <button onclick="testKanban()">Cargar Kanban</button>
+    <div id="kanban-result"></div>
+    
+    <h2>Test 3: Verificar stages</h2>
+    <button onclick="testStages()">Verificar /config/stages</button>
+    <div id="stages-result"></div>
+    
+    <h2>Console Log</h2>
+    <pre id="console-log"></pre>
+
+    <script>
+        function log(msg) {
+            const consoleLog = document.getElementById('console-log');
+            consoleLog.textContent += new Date().toISOString() + ' - ' + msg + '\n';
+            console.log(msg);
+        }
+
+        async function testOpportunities() {
+            const resultDiv = document.getElementById('opp-result');
+            resultDiv.innerHTML = '<p>⏳ Cargando oportunidades...</p>';
+            log('Testing GET /opportunities');
+            
+            try {
+                const response = await fetch('/opportunities?status=active&limit=100', {
+                    credentials: 'include'
+                });
+                
+                log('Response status: ' + response.status);
+                
+                if (!response.ok) {
+                    resultDiv.innerHTML = '<p class="error">❌ Error: Status ' + response.status + '</p>';
+                    return;
+                }
+                
+                const data = await response.json();
+                const opportunities = data.opportunities || [];
+                
+                log('Received ' + opportunities.length + ' opportunities');
+                
+                if (opportunities.length === 0) {
+                    resultDiv.innerHTML = '<p class="warning">⚠️ No hay oportunidades. ¿Se importó el Excel?</p>';
+                    return;
+                }
+                
+                // Build table
+                let html = '<p class="success">✅ Encontradas ' + opportunities.length + ' oportunidades</p>';
+                html += '<table>';
+                html += '<tr><th>ID</th><th>Nombre</th><th>Account</th><th>Stage ID</th><th>Status</th><th>Valor</th></tr>';
+                
+                opportunities.slice(0, 10).forEach(opp => {
+                    html += '<tr>';
+                    html += '<td>' + opp.id.substring(0, 8) + '</td>';
+                    html += '<td>' + (opp.name || 'Sin nombre') + '</td>';
+                    html += '<td>' + (opp.account_name || opp.account_id.substring(0, 8)) + '</td>';
+                    html += '<td>' + opp.stage_id.substring(0, 8) + '</td>';
+                    html += '<td>' + opp.status + '</td>';
+                    html += '<td>' + opp.expected_value_eur + '€</td>';
+                    html += '</tr>';
+                });
+                
+                if (opportunities.length > 10) {
+                    html += '<tr><td colspan="6">... y ' + (opportunities.length - 10) + ' más</td></tr>';
+                }
+                
+                html += '</table>';
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                log('ERROR: ' + error.message);
+                resultDiv.innerHTML = '<p class="error">❌ ' + error.message + '</p>';
+            }
+        }
+
+        async function testKanban() {
+            const resultDiv = document.getElementById('kanban-result');
+            resultDiv.innerHTML = '<p>⏳ Cargando Kanban...</p>';
+            log('Testing GET /kanban');
+            
+            try {
+                const response = await fetch('/kanban?include_closed=true', {
+                    credentials: 'include'
+                });
+                
+                log('Response status: ' + response.status);
+                
+                if (!response.ok) {
+                    resultDiv.innerHTML = '<p class="error">❌ Error: Status ' + response.status + '</p>';
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                log('Stages: ' + data.stages.length);
+                log('Columns: ' + data.columns.length);
+                
+                let totalOpps = 0;
+                data.columns.forEach(col => {
+                    totalOpps += col.opportunities.length;
+                    log('Column ' + col.stage_name + ': ' + col.opportunities.length + ' opps');
+                });
+                
+                if (totalOpps === 0) {
+                    resultDiv.innerHTML = '<p class="warning">⚠️ Kanban no tiene oportunidades</p>';
+                    resultDiv.innerHTML += '<p>Esto significa que las oportunidades:</p>';
+                    resultDiv.innerHTML += '<ul>';
+                    resultDiv.innerHTML += '<li>No tienen status="active", O</li>';
+                    resultDiv.innerHTML += '<li>No tienen stage_id válido, O</li>';
+                    resultDiv.innerHTML += '<li>Hay un problema con la query</li>';
+                    resultDiv.innerHTML += '</ul>';
+                    return;
+                }
+                
+                let html = '<p class="success">✅ Kanban tiene ' + totalOpps + ' oportunidades</p>';
+                html += '<h3>Distribución por columna:</h3>';
+                html += '<table>';
+                html += '<tr><th>Columna</th><th>Stage</th><th>Oportunidades</th></tr>';
+                
+                data.columns.forEach(col => {
+                    html += '<tr>';
+                    html += '<td>' + col.stage_name + '</td>';
+                    html += '<td>' + col.stage_id.substring(0, 8) + '</td>';
+                    html += '<td>' + col.opportunities.length + '</td>';
+                    html += '</tr>';
+                });
+                
+                html += '</table>';
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                log('ERROR: ' + error.message);
+                resultDiv.innerHTML = '<p class="error">❌ ' + error.message + '</p>';
+            }
+        }
+
+        async function testStages() {
+            const resultDiv = document.getElementById('stages-result');
+            resultDiv.innerHTML = '<p>⏳ Verificando stages...</p>';
+            log('Testing GET /config/stages');
+            
+            try {
+                const response = await fetch('/config/stages', {
+                    credentials: 'include'
+                });
+                
+                log('Response status: ' + response.status);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        resultDiv.innerHTML = '<p class="error">❌ Error 404: La ruta /config/stages NO EXISTE</p>';
+                        resultDiv.innerHTML += '<p>Esto significa que NO copiaste el archivo config.py</p>';
+                        resultDiv.innerHTML += '<p><strong>Solución:</strong> Copia config.py a app/api/routes/config.py</p>';
+                    } else {
+                        resultDiv.innerHTML = '<p class="error">❌ Error: Status ' + response.status + '</p>';
+                    }
+                    return;
+                }
+                
+                const stages = await response.json();
+                
+                log('Received ' + stages.length + ' stages');
+                
+                let html = '<p class="success">✅ OK - ' + stages.length + ' stages</p>';
+                html += '<table>';
+                html += '<tr><th>Key</th><th>Nombre</th><th>Outcome</th><th>Probabilidad</th></tr>';
+                
+                stages.forEach(stage => {
+                    html += '<tr>';
+                    html += '<td>' + stage.key + '</td>';
+                    html += '<td>' + stage.name + '</td>';
+                    html += '<td>' + stage.outcome + '</td>';
+                    html += '<td>' + (stage.probability * 100) + '%</td>';
+                    html += '</tr>';
+                });
+                
+                html += '</table>';
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                log('ERROR: ' + error.message);
+                resultDiv.innerHTML = '<p class="error">❌ ' + error.message + '</p>';
+            }
+        }
+
+        log('Página de diagnóstico cargada');
+    </script>
+</body>
+</html>

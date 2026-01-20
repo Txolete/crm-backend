@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test - API Stages</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+        pre { background: #f5f5f5; padding: 10px; overflow: auto; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test de Diagnóstico - CRM</h1>
+    
+    <h2>Test 1: Verificar Stages</h2>
+    <button onclick="testStages()">Probar GET /config/stages</button>
+    <div id="stages-result"></div>
+    
+    <h2>Test 2: Verificar Accounts</h2>
+    <button onclick="testAccounts()">Probar GET /accounts</button>
+    <div id="accounts-result"></div>
+    
+    <h2>Test 3: Crear Oportunidad</h2>
+    <button onclick="testCreateOpp()">Probar POST /opportunities</button>
+    <div id="opp-result"></div>
+    
+    <h2>Console Log</h2>
+    <pre id="console-log"></pre>
+
+    <script>
+        function log(msg) {
+            const consoleLog = document.getElementById('console-log');
+            consoleLog.textContent += new Date().toISOString() + ' - ' + msg + '\n';
+            console.log(msg);
+        }
+
+        async function testStages() {
+            const resultDiv = document.getElementById('stages-result');
+            resultDiv.innerHTML = '<p>⏳ Probando...</p>';
+            log('Testing GET /config/stages');
+            
+            try {
+                const response = await fetch('/config/stages', {
+                    credentials: 'include'
+                });
+                
+                log('Response status: ' + response.status);
+                
+                if (!response.ok) {
+                    resultDiv.innerHTML = '<p class="error">❌ Error: Status ' + response.status + '</p>';
+                    return;
+                }
+                
+                const data = await response.json();
+                log('Received ' + data.length + ' stages');
+                
+                resultDiv.innerHTML = '<p class="success">✅ OK - ' + data.length + ' stages</p>';
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+            } catch (error) {
+                log('ERROR: ' + error.message);
+                resultDiv.innerHTML = '<p class="error">❌ ' + error.message + '</p>';
+            }
+        }
+
+        async function testAccounts() {
+            const resultDiv = document.getElementById('accounts-result');
+            resultDiv.innerHTML = '<p>⏳ Probando...</p>';
+            log('Testing GET /accounts');
+            
+            try {
+                const response = await fetch('/accounts?status=active', {
+                    credentials: 'include'
+                });
+                
+                log('Response status: ' + response.status);
+                
+                if (!response.ok) {
+                    resultDiv.innerHTML = '<p class="error">❌ Error: Status ' + response.status + '</p>';
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                // Handle both formats: array or object with accounts property
+                const accountsList = Array.isArray(data) ? data : (data.accounts || []);
+                
+                log('Received ' + accountsList.length + ' accounts');
+                
+                resultDiv.innerHTML = '<p class="success">✅ OK - ' + accountsList.length + ' accounts</p>';
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+            } catch (error) {
+                log('ERROR: ' + error.message);
+                resultDiv.innerHTML = '<p class="error">❌ ' + error.message + '</p>';
+            }
+        }
+
+        async function testCreateOpp() {
+            const resultDiv = document.getElementById('opp-result');
+            resultDiv.innerHTML = '<p>⏳ Probando...</p>';
+            log('Testing POST /opportunities');
+            
+            // First get stages and accounts
+            try {
+                const stagesResp = await fetch('/config/stages', { credentials: 'include' });
+                
+                if (!stagesResp.ok) {
+                    resultDiv.innerHTML = '<p class="error">❌ Error: No se pudieron cargar stages (status ' + stagesResp.status + ')</p>';
+                    return;
+                }
+                
+                const stages = await stagesResp.json();
+                
+                if (!Array.isArray(stages)) {
+                    resultDiv.innerHTML = '<p class="error">❌ Error: Stages no es un array</p>';
+                    return;
+                }
+                
+                const openStages = stages.filter(s => s.outcome === 'open');
+                
+                if (openStages.length === 0) {
+                    resultDiv.innerHTML = '<p class="error">❌ No hay stages abiertos</p>';
+                    return;
+                }
+                
+                const accountsResp = await fetch('/accounts?status=active', { credentials: 'include' });
+                
+                if (!accountsResp.ok) {
+                    resultDiv.innerHTML = '<p class="error">❌ Error: No se pudieron cargar accounts</p>';
+                    return;
+                }
+                
+                const accountsData = await accountsResp.json();
+                
+                // Handle both formats
+                const accounts = Array.isArray(accountsData) ? accountsData : (accountsData.accounts || []);
+                
+                if (accounts.length === 0) {
+                    resultDiv.innerHTML = '<p class="error">❌ No hay cuentas. Crea una primero.</p>';
+                    return;
+                }
+                
+                // Create opportunity
+                const response = await fetch('/opportunities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        account_id: accounts[0].id,
+                        name: 'Test Opportunity',
+                        stage_id: openStages[0].id,
+                        expected_value_eur: 1000
+                    })
+                });
+                
+                log('Response status: ' + response.status);
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    resultDiv.innerHTML = '<p class="error">❌ Error: ' + JSON.stringify(error) + '</p>';
+                    return;
+                }
+                
+                const data = await response.json();
+                log('Opportunity created: ' + data.id);
+                
+                resultDiv.innerHTML = '<p class="success">✅ Oportunidad creada!</p>';
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+            } catch (error) {
+                log('ERROR: ' + error.message);
+                resultDiv.innerHTML = '<p class="error">❌ ' + error.message + '</p>';
+            }
+        }
+
+        log('Página de diagnóstico cargada');
+    </script>
+</body>
+</html>

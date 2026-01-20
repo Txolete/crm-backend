@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Dashboard</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- SortableJS for Kanban -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #0066cc;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            --card-shadow-hover: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        body {
+            background-color: var(--light-bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 14px;
+        }
+        
+        .navbar {
+            background-color: #fff;
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            padding: 0.75rem 1rem;
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+            color: var(--primary-color) !important;
+            font-size: 1.25rem;
+        }
+        
+        /* Main container */
+        .main-container {
+            padding: 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        /* Tabs navigation */
+        .nav-tabs {
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 24px;
+        }
+        
+        .nav-tabs .nav-link {
+            border: none;
+            color: #6c757d;
+            font-weight: 500;
+            padding: 12px 24px;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .nav-tabs .nav-link:hover {
+            color: var(--primary-color);
+            border-color: transparent;
+            background: none;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            background: none;
+        }
+        
+        /* Filters bar */
+        .filters-bar {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .filters-bar .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .filters-bar .form-select {
+            font-size: 14px;
+            border-color: #dee2e6;
+        }
+        
+        .filter-active-label {
+            background: #e7f3ff;
+            color: var(--primary-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .kpi-card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.2s;
+            border-left: 4px solid;
+        }
+        
+        .kpi-card:hover {
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-2px);
+        }
+        
+        .kpi-card.kpi-a { border-left-color: var(--info-color); }
+        .kpi-card.kpi-b { border-left-color: var(--primary-color); }
+        .kpi-card.kpi-c { border-left-color: var(--success-color); }
+        .kpi-card.kpi-d { border-left-color: var(--warning-color); }
+        
+        .kpi-card-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .kpi-card-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #212529;
+            margin-bottom: 8px;
+            line-height: 1;
+        }
+        
+        .kpi-card-subtitle {
+            font-size: 13px;
+            color: #6c757d;
+            margin-bottom: 4px;
+        }
+        
+        .kpi-card-progress {
+            margin-top: 12px;
+        }
+        
+        .kpi-card-progress-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .progress {
+            height: 6px;
+            background-color: #e9ecef;
+        }
+        
+        .progress-bar {
+            background-color: var(--success-color);
+        }
+        
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .chart-card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chart-card-title i {
+            color: var(--primary-color);
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        /* Kanban styles */
+        .kanban-container {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 20px;
+            min-height: calc(100vh - 250px);
+            position: relative;
+            /* Barra de scroll más visible */
+            scrollbar-width: thin;
+            scrollbar-color: #6c757d #e9ecef;
+        }
+        
+        /* Webkit (Chrome, Safari, Edge) - Barra de scroll personalizada */
+        .kanban-container::-webkit-scrollbar {
+            height: 12px;
+        }
+        
+        .kanban-container::-webkit-scrollbar-track {
+            background: #e9ecef;
+            border-radius: 6px;
+        }
+        
+        .kanban-container::-webkit-scrollbar-thumb {
+            background: #6c757d;
+            border-radius: 6px;
+        }
+        
+        .kanban-container::-webkit-scrollbar-thumb:hover {
+            background: #495057;
+        }
+        
+        /* Sombra indicadora de más contenido a la derecha */
+        .kanban-container::after {
+            content: '';
+            position: sticky;
+            right: 0;
+            top: 0;
+            width: 40px;
+            height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.9));
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .kanban-container.has-scroll::after {
+            opacity: 1;
+        }
+        
+        /* Animaciones para el indicador de scroll */
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+        
+        .kanban-column {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 320px;
+            max-width: 320px;
+            flex-shrink: 0;
+        }
+        
+        .kanban-column.closed {
+            background-color: #e9ecef;
+            opacity: 0.85;
+        }
+        
+        .kanban-column-header {
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #495057;
+        }
+        
+        .kanban-column-count {
+            background-color: #6c757d;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .kanban-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 100px;
+        }
+        
+        .kanban-card {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .kanban-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .kanban-card.sortable-ghost {
+            opacity: 0.4;
+        }
+        
+        /* Drag & Drop styles */
+        .kanban-card {
+            cursor: grab;
+        }
+        
+        .kanban-card.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+            transform: rotate(2deg);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        }
+        
+        .kanban-column-body.drag-over {
+            background-color: rgba(13, 110, 253, 0.1);
+            border: 2px dashed #0d6efd;
+            border-radius: 6px;
+            min-height: 100px;
+        }
+        
+        .kanban-card[draggable="true"]:active {
+            cursor: grabbing;
+        }
+        
+        .card-account-name {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 4px;
+        }
+        
+        .card-value {
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--primary-color);
+            margin-bottom: 2px;
+        }
+        
+        .badge-closed {
+            background-color: #6c757d;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 8px;
+        }
+        
+        /* Stage colors */
+        .stage-new .kanban-column-header { color: #198754; }
+        .stage-contacted .kanban-column-header { color: #0dcaf0; }
+        .stage-qualified .kanban-column-header { color: #0d6efd; }
+        .stage-proposal .kanban-column-header { color: #6610f2; }
+        .stage-negotiation .kanban-column-header { color: #fd7e14; }
+        .stage-won .kanban-column-header { color: #198754; }
+        .stage-lost .kanban-column-header { color: #dc3545; }
+        
+        /* Utility */
+        .text-muted-sm {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        /* ============================================================================
+           KANBAN STYLES - COMPLETO
+           ============================================================================ */
+
+        .kanban-container {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding: 1rem 0;
+            min-height: 500px;
+        }
+
+        .kanban-column {
+            flex: 0 0 300px;
+            min-width: 300px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .kanban-column-header {
+            padding: 1rem;
+            background: #fff;
+            border-bottom: 2px solid #dee2e6;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .kanban-column-header h5 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .kanban-column-body {
+            padding: 1rem;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .kanban-card {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .kanban-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+            border-color: #0d6efd;
+        }
+
+        .kanban-card-header {
+            margin-bottom: 0.5rem;
+        }
+
+        .kanban-card-header strong {
+            font-size: 0.95rem;
+            color: #212529;
+        }
+
+        .kanban-card-body {
+            font-size: 0.85rem;
+        }
+
+        .kanban-card-value {
+            margin: 0.5rem 0;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .kanban-card-task {
+            margin-top: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .kanban-card-task i {
+            margin-right: 0.25rem;
+        }
+
+        .kanban-card-footer {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .kanban-empty {
+            text-align: center;
+            color: #6c757d;
+            padding: 2rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .kanban-column {
+                flex: 0 0 250px;
+                min-width: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container-fluid">
+            <span class="navbar-brand">
+                <i class="bi bi-bar-chart-line-fill"></i> CRM Dashboard
+            </span>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/dashboard">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/accounts/page">
+                            <i class="bi bi-building"></i> Clientes
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <button class="btn btn-outline-primary btn-sm me-3" onclick="showImportModal()" id="btn-import-excel">
+                        <i class="bi bi-upload"></i> Importar Excel
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="btn btn-outline-secondary btn-sm me-2" onclick="showHelpModal()" title="Guía de Usuario">
+                        <i class="bi bi-question-circle"></i>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="btn btn-outline-info btn-sm me-3" onclick="showVersionModal()" title="Historial de Versiones">
+                        <i class="bi bi-info-circle"></i> v1.0.0
+                    </button>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle"></i> <span id="current-user-name">Cargando...</span>
+                        <span class="text-muted">(<span id="current-user-role">...</span>)</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><h6 class="dropdown-header">
+                            <div id="current-user-email" class="small text-muted">...</div>
+                        </h6></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); showImportModal()">
+                            <i class="bi bi-upload"></i> Importar Excel
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="/dashboard/config">
+                            <i class="bi bi-gear"></i> Configuración
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); showEditTargetsModal()">
+                            <i class="bi bi-bullseye"></i> Editar Objetivos
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); handleLogout()">
+                            <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                        </a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview-pane" type="button" role="tab">
+                    <i class="bi bi-graph-up"></i> Overview
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="kanban-tab" data-bs-toggle="tab" data-bs-target="#kanban-pane" type="button" role="tab">
+                    <i class="bi bi-kanban"></i> Kanban
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks-pane" type="button" role="tab">
+                    <i class="bi bi-list-check"></i> Mis Tareas
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Overview Tab -->
+            <div class="tab-pane fade show active" id="overview-pane" role="tabpanel">
+                <!-- Filters Bar -->
+                <div class="filters-bar">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-2">
+                            <label class="form-label">Canal</label>
+                            <select class="form-select form-select-sm" id="filter-lead-source">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Tipo Cliente</label>
+                            <select class="form-select form-select-sm" id="filter-customer-type">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Provincia</label>
+                            <select class="form-select form-select-sm" id="filter-region">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Owner</label>
+                            <select class="form-select form-select-sm" id="filter-owner">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Año</label>
+                            <select class="form-select form-select-sm" id="filter-year">
+                                <option value="2025">2025</option>
+                                <option value="2026" selected>2026</option>
+                                <option value="2027">2027</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-primary btn-sm w-100" onclick="applyFilters()">
+                                <i class="bi bi-funnel-fill"></i> Aplicar
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm w-100 mt-1" onclick="resetFilters()">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                    <div id="filter-active-label" class="mt-3" style="display: none;"></div>
+                </div>
+
+                <!-- KPI Cards -->
+                <div class="kpi-grid" id="kpi-grid">
+                    <!-- KPIs will be rendered here -->
+                </div>
+
+                <!-- Charts Grid Row 1 -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-card-title">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            Pacing - Cerrado Acumulado
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-pacing"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-card-title">
+                            <i class="bi bi-bar-chart-fill"></i>
+                            Pipeline por Stage
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-stage"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Grid Row 2 -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-card-title">
+                            <i class="bi bi-pie-chart-fill"></i>
+                            Pipeline por Canal
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-lead-source"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-card-title">
+                            <i class="bi bi-percent"></i>
+                            Conversión Mensual (C/A)
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-conversion"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kanban Tab -->
+            <div class="tab-pane fade" id="kanban-pane" role="tabpanel">
+                <div class="filters-bar">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control form-control-sm" id="kanban-search" placeholder="🔍 Buscar cuenta...">
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="kanban-hide-closed" checked>
+                                <label class="form-check-label" for="kanban-hide-closed">
+                                    Ocultar cerradas (won/lost)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-3 ms-auto">
+                            <button class="btn btn-primary btn-sm w-100" id="btn-new-opp" onclick="showNewOpportunityModal()">
+                                <i class="bi bi-plus-lg"></i> Nueva Oportunidad
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kanban-container" id="kanban-board">
+                    <!-- Kanban columns will be rendered here -->
+                </div>
+            </div>
+            
+            <!-- PASO 8: Tasks Tab (Semáforo) -->
+            <div class="tab-pane fade" id="tasks-pane" role="tabpanel">
+                <div class="row g-3">
+                    <!-- Overdue (Red) -->
+                    <div class="col-md-4">
+                        <div class="card border-danger">
+                            <div class="card-header bg-danger text-white">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> 
+                                    Vencidas <span id="badge-overdue" class="badge bg-light text-danger">0</span>
+                                </h6>
+                            </div>
+                            <div class="card-body" id="tasks-overdue" style="max-height: 600px; overflow-y: auto;">
+                                <p class="text-muted text-center">Cargando...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Due Soon (Yellow) -->
+                    <div class="col-md-4">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-clock-fill"></i> 
+                                    Próximos 2 días <span id="badge-due-soon" class="badge bg-light text-warning">0</span>
+                                </h6>
+                            </div>
+                            <div class="card-body" id="tasks-due-soon" style="max-height: 600px; overflow-y: auto;">
+                                <p class="text-muted text-center">Cargando...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Upcoming (Green) -->
+                    <div class="col-md-4">
+                        <div class="card border-success">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-calendar-check-fill"></i> 
+                                    Próximos 10 días <span id="badge-upcoming" class="badge bg-light text-success">0</span>
+                                </h6>
+                            </div>
+                            <div class="card-body" id="tasks-upcoming" style="max-height: 600px; overflow-y: auto;">
+                                <p class="text-muted text-center">Cargando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Targets Modal -->
+    <div class="modal fade" id="editTargetsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-bullseye"></i> Editar Objetivos <span id="modal-year"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-targets">
+                        <div class="mb-3">
+                            <label class="form-label">Pipeline Total (A)</label>
+                            <input type="number" class="form-control" id="target-pipeline-total" min="0" step="1000" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Pipeline Ponderado (B)</label>
+                            <input type="number" class="form-control" id="target-pipeline-weighted" min="0" step="1000" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Cerrado Anual (C)</label>
+                            <input type="number" class="form-control" id="target-closed" min="0" step="1000" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="saveTargets()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Opportunity Drawer (Offcanvas) -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="oppDrawer" style="width: 600px;">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title">Detalles de Oportunidad</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body" id="drawer-content">
+            <!-- Content will be loaded dynamically -->
+        </div>
+    </div>
+
+    <!-- New Opportunity Modal -->
+    <div class="modal fade" id="newOppModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva Oportunidad</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-new-opp">
+                        <div class="mb-3">
+                            <label class="form-label">Cuenta *</label>
+                            <select class="form-select" id="new-opp-account" required></select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nombre Oportunidad</label>
+                            <input type="text" class="form-control" id="new-opp-name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Stage *</label>
+                            <select class="form-select" id="new-opp-stage" required></select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Valor Esperado (EUR) *</label>
+                            <input type="number" class="form-control" id="new-opp-value" min="0" step="0.01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Forecast Close Month</label>
+                            <input type="month" class="form-control" id="new-opp-forecast">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-new-opp">Crear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Excel Modal -->
+    <div class="modal fade" id="importExcelModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-upload"></i> Importar Excel
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Formato:</strong> IMPORT_NORMALIZADO_CRM.xlsx, hoja "DATA"<br>
+                        <strong>Columnas:</strong> account_name, stage, expected_value_eur, region, customer_type, lead_source, contact_first_name, etc.
+                    </div>
+                    
+                    <form id="form-import" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Archivo Excel (.xlsx) *</label>
+                            <input type="file" class="form-control" id="import-file" accept=".xlsx" required>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="import-dry-run">
+                                <label class="form-check-label" for="import-dry-run">
+                                    Dry Run (validar sin guardar)
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <div id="import-progress" style="display: none;">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <span>Procesando...</span>
+                    </div>
+                    
+                    <div id="import-results" style="display: none;">
+                        <hr>
+                        <h6>Resultados</h6>
+                        <div class="row mb-3">
+                            <div class="col-3">
+                                <div class="card text-center">
+                                    <div class="card-body p-2">
+                                        <div class="text-muted small">Total</div>
+                                        <div class="h5 mb-0" id="result-total">0</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="card text-center border-success">
+                                    <div class="card-body p-2">
+                                        <div class="text-muted small">Importadas</div>
+                                        <div class="h5 mb-0 text-success" id="result-imported">0</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="card text-center border-danger">
+                                    <div class="card-body p-2">
+                                        <div class="text-muted small">Fallidas</div>
+                                        <div class="h5 mb-0 text-danger" id="result-failed">0</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="card text-center border-warning">
+                                    <div class="card-body p-2">
+                                        <div class="text-muted small">Warnings</div>
+                                        <div class="h5 mb-0 text-warning" id="result-warnings">0</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Fila</th>
+                                        <th>Cuenta</th>
+                                        <th>Estado</th>
+                                        <th>Mensajes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="import-results-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary" id="btn-run-import">
+                        <i class="bi bi-upload"></i> Importar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Opportunity Detail Modal -->
+    <div class="modal fade" id="oppDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="oppDetailTitle">Detalle de Oportunidad</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="oppDetailLoading" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                    </div>
+                    
+                    <div id="oppDetailContent" style="display: none;">
+                        <!-- Datos básicos -->
+                        <div class="card mb-3">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">Datos Básicos</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Cuenta:</strong>
+                                        <div id="detail-account"></div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Nombre Oportunidad:</strong>
+                                        <div id="detail-name" class="text-muted"></div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Stage:</strong>
+                                        <div id="detail-stage"></div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Probabilidad:</strong>
+                                        <div id="detail-probability"></div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Valor Esperado:</strong>
+                                        <div id="detail-value"></div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Valor Ponderado:</strong>
+                                        <div id="detail-weighted"></div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Forecast Close:</strong>
+                                        <div id="detail-forecast"></div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Owner:</strong>
+                                        <div id="detail-owner"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Siguiente paso / Tarea -->
+                        <div id="detail-task-card" class="card mb-3" style="display: none;">
+                            <div class="card-header bg-warning">
+                                <h6 class="mb-0">Siguiente Paso</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="detail-task-content"></div>
+                            </div>
+                        </div>
+
+                        <!-- Timeline de actividades -->
+                        <div class="card mb-3">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">Timeline de Actividades</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="detail-activities-loading" class="text-center py-3">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    <span class="ms-2">Cargando actividades...</span>
+                                </div>
+                                <div id="detail-activities-content" style="display: none;"></div>
+                                <div id="detail-activities-empty" style="display: none;" class="text-muted text-center py-3">
+                                    No hay actividades registradas
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Edit Form (hidden by default) -->
+                    <div id="oppEditForm" style="display: none;">
+                        <form id="form-edit-opp">
+                            <div class="card mb-3">
+                                <div class="card-header bg-warning">
+                                    <h6 class="mb-0">Editar Oportunidad</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Cuenta</label>
+                                            <input type="text" class="form-control" id="edit-account" disabled>
+                                            <small class="text-muted">No editable desde aquí</small>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Nombre Oportunidad</label>
+                                            <input type="text" class="form-control" id="edit-name" placeholder="Nombre descriptivo">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Stage *</label>
+                                            <select class="form-select" id="edit-stage" required></select>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Valor Esperado (EUR) *</label>
+                                            <input type="number" class="form-control" id="edit-value" min="0" step="0.01" required>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Forecast Close (Mes)</label>
+                                            <input type="month" class="form-control" id="edit-forecast">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Owner</label>
+                                            <select class="form-select" id="edit-owner">
+                                                <option value="">Sin asignar</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Valor Ponderado Override (EUR)</label>
+                                            <input type="number" class="form-control" id="edit-weighted-override" min="0" step="0.01" placeholder="Dejar vacío para calcular automático">
+                                            <small class="text-muted">Opcional: sobrescribe el cálculo automático</small>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Probabilidad Override (%)</label>
+                                            <input type="number" class="form-control" id="edit-probability-override" min="0" max="100" step="1" placeholder="Dejar vacío para usar probabilidad del stage">
+                                            <small class="text-muted">Opcional: sobrescribe la probabilidad del stage</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger me-auto" id="btn-archive-opp" title="Archivar oportunidad (baja lógica)">
+                        <i class="bi bi-archive"></i> Archivar
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btn-close-detail">Cerrar</button>
+                    <button type="button" class="btn btn-primary" id="btn-edit-opp">Editar</button>
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-edit" style="display: none;">Cancelar</button>
+                    <button type="button" class="btn btn-success" id="btn-save-opp" style="display: none;">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div class="modal fade" id="helpModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-question-circle"></i> Guía de Usuario - CRM v1.0.0
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Para la guía completa en detalle, consulta el archivo <strong>USER_GUIDE.md</strong> en la carpeta del proyecto.
+                    </div>
+                    
+                    <h6 class="mt-4"><i class="bi bi-speedometer2"></i> Dashboard</h6>
+                    <ul>
+                        <li><strong>KPIs:</strong> Pipeline Total, Pipeline Ponderado, Cerrado Anual, Objetivos</li>
+                        <li><strong>Kanban:</strong> Arrastra tarjetas entre columnas para cambiar etapa</li>
+                        <li><strong>Filtros:</strong> Región, Tipo, Responsable, Búsqueda</li>
+                    </ul>
+                    
+                    <h6 class="mt-3"><i class="bi bi-building"></i> Clientes</h6>
+                    <ul>
+                        <li><strong>Crear:</strong> Botón "Nuevo Cliente" → Completar formulario</li>
+                        <li><strong>Editar:</strong> Abrir detalle → Botón "Editar"</li>
+                        <li><strong>Contactos:</strong> Múltiples por cliente con emails/teléfonos</li>
+                        <li><strong>Navegación:</strong> "Ver en Kanban" resalta oportunidades del cliente</li>
+                    </ul>
+                    
+                    <h6 class="mt-3"><i class="bi bi-people"></i> Contactos</h6>
+                    <ul>
+                        <li><strong>Añadir:</strong> En detalle de cliente → "Añadir" contacto</li>
+                        <li><strong>Múltiples canales:</strong> Emails y teléfonos ilimitados</li>
+                        <li><strong>Principal:</strong> Marca con ⭐ el email/teléfono principal</li>
+                        <li><strong>Eliminar:</strong> Botón 🗑️ para quitar canales o contacto completo</li>
+                    </ul>
+                    
+                    <h6 class="mt-3"><i class="bi bi-kanban"></i> Kanban</h6>
+                    <ul>
+                        <li><strong>Etapas:</strong> New → Contacted → Qualified → Proposal → Negotiation</li>
+                        <li><strong>Mover:</strong> Arrastra y suelta para cambiar etapa</li>
+                        <li><strong>Cerrar:</strong> Arrastra a Won (ganada) o Lost (perdida)</li>
+                        <li><strong>Ocultar:</strong> Activa "Ocultar cerradas" para enfocarte en activas</li>
+                    </ul>
+                    
+                    <h6 class="mt-3"><i class="bi bi-upload"></i> Importar Excel</h6>
+                    <ul>
+                        <li><strong>Plantilla:</strong> Usa IMPORT_NORMALIZADO_CRM.xlsx</li>
+                        <li><strong>Sheet:</strong> Debe llamarse "DATA"</li>
+                        <li><strong>Validación:</strong> Sistema valida antes de importar</li>
+                        <li><strong>Reporte:</strong> Muestra warnings y errores</li>
+                    </ul>
+                    
+                    <h6 class="mt-3"><i class="bi bi-keyboard"></i> Consejos Rápidos</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="small">
+                                <li>Usa filtros para encontrar rápido</li>
+                                <li>Asigna responsable a cada cliente</li>
+                                <li>Mantén contactos actualizados</li>
+                                <li>Revisa Kanban diariamente</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="small">
+                                <li>Pipeline saludable: 20-25% en cada etapa</li>
+                                <li>Marca email/teléfono principal</li>
+                                <li>Usa notas para contexto importante</li>
+                                <li>Archivar != Eliminar (es reversible)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <strong><i class="bi bi-exclamation-triangle"></i> Importante:</strong>
+                        <ul class="mb-0 mt-2 small">
+                            <li>Los datos se guardan automáticamente al cerrar modals</li>
+                            <li>Archivar no elimina físicamente (se puede recuperar)</li>
+                            <li>Cambiar contraseña en tu primer uso</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <a href="/USER_GUIDE.md" class="btn btn-primary" target="_blank">
+                        <i class="bi bi-file-text"></i> Guía Completa
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Version/Changelog Modal -->
+    <div class="modal fade" id="versionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle"></i> Historial de Versiones
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-success">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-check-circle"></i> Versión Actual: v1.0.0
+                        </h6>
+                        <p class="mb-0 small">Release: 16 Enero 2026 | Estado: <span class="badge bg-success">Producción Estable</span></p>
+                    </div>
+                    
+                    <h6 class="mt-4"><i class="bi bi-stars"></i> v1.0.0 - Release Inicial (16 Enero 2026)</h6>
+                    <p class="text-muted small">Primera versión completa y estable para producción interna.</p>
+                    
+                    <h6 class="mt-3">✨ Características Principales</h6>
+                    <ul class="small">
+                        <li><strong>Gestión de Clientes:</strong> CRUD completo con 11 campos configurables</li>
+                        <li><strong>Gestión de Contactos:</strong> Múltiples emails/teléfonos, roles, marcado de principal</li>
+                        <li><strong>Dashboard & KPIs:</strong> Pipeline Total/Ponderado, Cerrado Anual, Objetivos</li>
+                        <li><strong>Kanban Visual:</strong> Drag & drop, 5 etapas, filtros múltiples</li>
+                        <li><strong>Importación Excel:</strong> Validación automática, reporte detallado</li>
+                        <li><strong>Seguridad:</strong> 3 roles (admin/sales/viewer), JWT, auditoría</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">🔧 Stack Técnico</h6>
+                    <ul class="small">
+                        <li><strong>Backend:</strong> FastAPI + SQLAlchemy + SQLite</li>
+                        <li><strong>Frontend:</strong> HTML5 + Bootstrap 5 + JavaScript vanilla</li>
+                        <li><strong>Auth:</strong> JWT con HttpOnly cookies</li>
+                        <li><strong>BD:</strong> SQLite (compatible PostgreSQL)</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">⚠️ Limitaciones Conocidas</h6>
+                    <ul class="small text-muted">
+                        <li>Export de datos no implementado (usar herramientas externas)</li>
+                        <li>Solo EUR soportado</li>
+                        <li>Notificaciones: Planeado para v1.2.0</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">🔮 Roadmap</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="small mb-1"><strong>v1.0.1 (Enero 2026)</strong></p>
+                            <ul class="small text-muted">
+                                <li>Hotfixes menores</li>
+                                <li>Mejoras de UX</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="small mb-1"><strong>v1.1.0 (Febrero 2026)</strong></p>
+                            <ul class="small text-muted">
+                                <li>Onboarding interactivo</li>
+                                <li>Tour guiado</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="small mb-1"><strong>v1.2.0 (Marzo 2026)</strong></p>
+                            <ul class="small text-muted">
+                                <li>Automatizaciones</li>
+                                <li>Notificaciones email</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="small mb-1"><strong>v2.0.0 (Q2 2026)</strong></p>
+                            <ul class="small text-muted">
+                                <li>PostgreSQL + VPS</li>
+                                <li>Integración ERP Laravel</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <hr class="mt-4">
+                    
+                    <h6><i class="bi bi-clock-history"></i> v0.1.0 - Pre-release (15 Diciembre 2025)</h6>
+                    <p class="small text-muted">Primera versión funcional para pruebas internas. Incluía autenticación básica, CRUD básico, Kanban simple y dashboard con KPIs básicos.</p>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-file-text"></i> Para el historial completo, consulta <strong>CHANGELOG.md</strong> en la carpeta del proyecto.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <a href="/CHANGELOG.md" class="btn btn-primary" target="_blank">
+                        <i class="bi bi-file-text"></i> Changelog Completo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Dashboard JS - PASO 5 -->
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

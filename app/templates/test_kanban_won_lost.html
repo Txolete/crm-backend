@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TEST - Won/Lost Diagnóstico</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        .test { margin: 20px 0; padding: 15px; border: 2px solid #ccc; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #28a745; }
+        .error { background: #f8d7da; border-color: #dc3545; }
+        .warning { background: #fff3cd; border-color: #ffc107; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; border-radius: 3px; font-size: 12px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #0056b3; }
+        h1 { color: #333; }
+        h3 { margin-top: 0; color: #333; }
+        .code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🔍 DIAGNÓSTICO - Won/Lost en Kanban</h1>
+    <p>Este test identificará por qué las oportunidades ganadas/perdidas no aparecen en el Kanban.</p>
+    <button onclick="runTests()">▶️ Ejecutar Tests</button>
+    <div id="results"></div>
+
+    <script>
+        async function runTests() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>⏳ Ejecutando tests...</p>';
+            
+            let html = '';
+            
+            try {
+                // TEST 1: Verificar stages en configuración
+                html += '<div class="test"><h3>TEST 1: Verificar Stages en Configuración</h3>';
+                
+                const stagesResp = await fetch('/config/stages', { credentials: 'include' });
+                
+                if (!stagesResp.ok) {
+                    html += `<p class="error">❌ Error al obtener stages: HTTP ${stagesResp.status}</p>`;
+                    html += '</div>';
+                    resultsDiv.innerHTML = html;
+                    return;
+                }
+                
+                const stages = await stagesResp.json();
+                
+                html += `<p>✅ Total stages: ${stages.length}</p>`;
+                
+                // Buscar won y lost
+                const wonStage = stages.find(s => s.outcome === 'won');
+                const lostStage = stages.find(s => s.outcome === 'lost');
+                
+                html += '<h4>📊 Resumen de Stages:</h4><pre>';
+                stages.forEach(s => {
+                    const active = s.is_active ? '✅' : '❌';
+                    html += `${active} ${s.key.padEnd(15)} | ${s.name.padEnd(20)} | outcome=${s.outcome}\n`;
+                });
+                html += '</pre>';
+                
+                // Verificar won
+                if (!wonStage) {
+                    html += '<div class="error"><h4>❌ PROBLEMA CRÍTICO: No existe stage "won"</h4>';
+                    html += '<p><strong>SOLUCIÓN:</strong> Ejecutar este SQL:</p>';
+                    html += '<pre>INSERT INTO cfg_stages (id, key, name, sort_order, outcome, is_terminal, is_active, created_at, updated_at)\n';
+                    html += "VALUES ('stage_won_001', 'won', 'Ganado', 90, 'won', 1, 1, datetime('now'), datetime('now'));</pre>";
+                    html += '<p>Usar DB Browser for SQLite para ejecutar este SQL en crm.db</p></div>';
+                } else if (!wonStage.is_active) {
+                    html += '<div class="error"><h4>❌ PROBLEMA: Stage "won" está INACTIVO</h4>';
+                    html += '<p><strong>SOLUCIÓN:</strong> Ejecutar este SQL:</p>';
+                    html += "<pre>UPDATE cfg_stages SET is_active = 1 WHERE outcome = 'won';</pre></div>";
+                } else {
+                    html += `<div class="success"><h4>✅ Stage "won" existe y está activo</h4>`;
+                    html += `<p>ID: ${wonStage.id}</p>`;
+                    html += `<p>Nombre: ${wonStage.name}</p></div>`;
+                }
+                
+                // Verificar lost
+                if (!lostStage) {
+                    html += '<div class="error"><h4>❌ PROBLEMA CRÍTICO: No existe stage "lost"</h4>';
+                    html += '<p><strong>SOLUCIÓN:</strong> Ejecutar este SQL:</p>';
+                    html += '<pre>INSERT INTO cfg_stages (id, key, name, sort_order, outcome, is_terminal, is_active, created_at, updated_at)\n';
+                    html += "VALUES ('stage_lost_001', 'lost', 'Perdido', 91, 'lost', 1, 1, datetime('now'), datetime('now'));</pre>";
+                    html += '<p>Usar DB Browser for SQLite para ejecutar este SQL en crm.db</p></div>';
+                } else if (!lostStage.is_active) {
+                    html += '<div class="error"><h4>❌ PROBLEMA: Stage "lost" está INACTIVO</h4>';
+                    html += '<p><strong>SOLUCIÓN:</strong> Ejecutar este SQL:</p>';
+                    html += "<pre>UPDATE cfg_stages SET is_active = 1 WHERE outcome = 'lost';</pre></div>";
+                } else {
+                    html += `<div class="success"><h4>✅ Stage "lost" existe y está activo</h4>`;
+                    html += `<p>ID: ${lostStage.id}</p>`;
+                    html += `<p>Nombre: ${lostStage.name}</p></div>`;
+                }
+                
+                html += '</div>';
+                
+                // Solo continuar si ambos stages existen
+                if (!wonStage || !lostStage) {
+                    html += '<div class="test error"><h3>⚠️ NO PUEDO CONTINUAR</h3>';
+                    html += '<p>Primero debes crear los stages won/lost ejecutando el SQL de arriba.</p>';
+                    html += '<p><strong>PASOS:</strong></p>';
+                    html += '<ol>';
+                    html += '<li>Descargar DB Browser for SQLite: <a href="https://sqlitebrowser.org/" target="_blank">sqlitebrowser.org</a></li>';
+                    html += '<li>Abrir el archivo: <span class="code">crm-backend\\crm.db</span></li>';
+                    html += '<li>Ir a pestaña "Execute SQL"</li>';
+                    html += '<li>Pegar el SQL de arriba</li>';
+                    html += '<li>Click en "▶️ Execute"</li>';
+                    html += '<li>Reiniciar el servidor CRM</li>';
+                    html += '<li>Volver a ejecutar este test</li>';
+                    html += '</ol></div>';
+                    resultsDiv.innerHTML = html;
+                    return;
+                }
+                
+                // TEST 2: Verificar oportunidades cerradas
+                html += '<div class="test"><h3>TEST 2: Verificar Oportunidades Cerradas</h3>';
+                
+                const oppsResp = await fetch('/opportunities', { credentials: 'include' });
+                const oppsData = await oppsResp.json();
+                const allOpps = oppsData.opportunities || [];
+                
+                const wonOpps = allOpps.filter(o => o.close_outcome === 'won');
+                const lostOpps = allOpps.filter(o => o.close_outcome === 'lost');
+                
+                html += `<p>Total oportunidades: ${allOpps.length}</p>`;
+                html += `<p>Ganadas (close_outcome='won'): ${wonOpps.length}</p>`;
+                html += `<p>Perdidas (close_outcome='lost'): ${lostOpps.length}</p>`;
+                
+                if (wonOpps.length === 0 && lostOpps.length === 0) {
+                    html += '<div class="warning"><h4>⚠️ No hay oportunidades cerradas todavía</h4>';
+                    html += '<p><strong>SIGUIENTE PASO:</strong> Cerrar una oportunidad para probar</p>';
+                    html += '<ol>';
+                    html += '<li>Ir al Kanban</li>';
+                    html += '<li>Abrir cualquier oportunidad</li>';
+                    html += '<li>Click "Editar"</li>';
+                    html += '<li>Cambiar Stage a "Ganado"</li>';
+                    html += '<li>Guardar</li>';
+                    html += '<li>Volver aquí y ejecutar test de nuevo</li>';
+                    html += '</ol></div>';
+                } else {
+                    html += '<div class="success"><h4>✅ Hay oportunidades cerradas</h4></div>';
+                    
+                    // Verificar consistencia stage_id
+                    if (wonOpps.length > 0) {
+                        const wrongStageWon = wonOpps.filter(o => o.stage_id !== wonStage.id);
+                        if (wrongStageWon.length > 0) {
+                            html += `<div class="error"><h4>❌ INCONSISTENCIA: ${wrongStageWon.length} oportunidades ganadas tienen stage_id incorrecto</h4>`;
+                            html += '<p><strong>SOLUCIÓN:</strong> Ejecutar este SQL:</p>';
+                            html += `<pre>UPDATE opportunities SET stage_id = '${wonStage.id}' WHERE close_outcome = 'won';</pre></div>`;
+                        }
+                    }
+                    
+                    if (lostOpps.length > 0) {
+                        const wrongStageLost = lostOpps.filter(o => o.stage_id !== lostStage.id);
+                        if (wrongStageLost.length > 0) {
+                            html += `<div class="error"><h4>❌ INCONSISTENCIA: ${wrongStageLost.length} oportunidades perdidas tienen stage_id incorrecto</h4>`;
+                            html += '<p><strong>SOLUCIÓN:</strong> Ejecutar este SQL:</p>';
+                            html += `<pre>UPDATE opportunities SET stage_id = '${lostStage.id}' WHERE close_outcome = 'lost';</pre></div>`;
+                        }
+                    }
+                }
+                
+                html += '</div>';
+                
+                // RESUMEN FINAL
+                html += '<div class="test"><h3>📋 RESUMEN Y PRÓXIMOS PASOS</h3>';
+                
+                if (wonStage && lostStage && wonStage.is_active && lostStage.is_active) {
+                    if (wonOpps.length === 0 && lostOpps.length === 0) {
+                        html += '<div class="warning"><h4>✅ Configuración correcta pero sin oportunidades cerradas</h4>';
+                        html += '<p>El CRM está bien configurado. Cierra una oportunidad como "Ganado" para probar.</p></div>';
+                    } else {
+                        html += '<div class="success"><h4>✅ TODO CORRECTO</h4>';
+                        html += '<p>Los stages existen, están activos y hay oportunidades cerradas.</p>';
+                        html += '<p><strong>SIGUIENTE PASO:</strong></p>';
+                        html += '<ol>';
+                        html += '<li>Ir al Kanban: <a href="/dashboard">http://localhost:8000/dashboard</a></li>';
+                        html += '<li>Desmarcar el checkbox "Ocultar cerradas (won/lost)"</li>';
+                        html += '<li>Deberías ver las columnas "Ganado" y "Perdido"</li>';
+                        html += '<li>Si NO aparecen: Hacer <strong>Ctrl+Shift+R</strong> para limpiar caché</li>';
+                        html += '</ol></div>';
+                    }
+                }
+                
+                html += '</div>';
+                
+            } catch (error) {
+                html += `<div class="test error"><h3>❌ ERROR CRÍTICO</h3>`;
+                html += `<p>${error.message}</p>`;
+                html += `<pre>${error.stack}</pre></div>`;
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

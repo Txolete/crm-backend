@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TEST - Verificar versión de dashboard.js</title>
+</head>
+<body>
+    <h1>Test de Versión de dashboard.js</h1>
+    <button onclick="testVersion()">Verificar Versión</button>
+    <div id="result"></div>
+    
+    <script src="/static/js/dashboard.js"></script>
+    <script>
+        function testVersion() {
+            const resultDiv = document.getElementById('result');
+            
+            // Verificar que existe renderKanban
+            if (typeof renderKanban !== 'undefined') {
+                resultDiv.innerHTML = '<p style="color: red;">❌ ERROR: renderKanban está en scope global (NO debería estar)</p>';
+                return;
+            }
+            
+            // Hacer un fetch del archivo para ver su contenido
+            fetch('/static/js/dashboard.js')
+                .then(r => r.text())
+                .then(content => {
+                    const hasOldCode = content.includes('Columna sin stage');
+                    const hasNewCode = content.includes('Renderizando columna:');
+                    
+                    let html = '<h2>Resultado:</h2>';
+                    
+                    if (hasOldCode) {
+                        html += '<p style="color: red;">❌ PROBLEMA: El archivo tiene código VIEJO</p>';
+                        html += '<p>Contiene: "Columna sin stage"</p>';
+                    } else {
+                        html += '<p style="color: green;">✅ No tiene código viejo</p>';
+                    }
+                    
+                    if (hasNewCode) {
+                        html += '<p style="color: green;">✅ Tiene código NUEVO</p>';
+                        html += '<p>Contiene: "Renderizando columna:"</p>';
+                    } else {
+                        html += '<p style="color: red;">❌ PROBLEMA: No tiene código nuevo</p>';
+                    }
+                    
+                    if (!hasOldCode && hasNewCode) {
+                        html += '<h3 style="color: green;">✅ ARCHIVO ACTUALIZADO CORRECTAMENTE</h3>';
+                        html += '<p>Ahora haz:</p>';
+                        html += '<ol>';
+                        html += '<li>Cerrar COMPLETAMENTE el navegador</li>';
+                        html += '<li>Abrir de nuevo</li>';
+                        html += '<li>Ir al dashboard</li>';
+                        html += '<li>Ctrl+Shift+R</li>';
+                        html += '</ol>';
+                    } else {
+                        html += '<h3 style="color: red;">❌ ARCHIVO NO SE ACTUALIZÓ</h3>';
+                        html += '<p><strong>SOLUCIÓN:</strong></p>';
+                        html += '<ol>';
+                        html += '<li>Cerrar servidor (Ctrl+C)</li>';
+                        html += '<li>Copiar dashboard.js FORZADO: <code>Copy-Item "dashboard.js" -Destination "..\\crm-backend\\app\\static\\js\\dashboard.js" -Force</code></li>';
+                        html += '<li>Reiniciar servidor</li>';
+                        html += '<li>Ejecutar este test de nuevo</li>';
+                        html += '</ol>';
+                    }
+                    
+                    resultDiv.innerHTML = html;
+                })
+                .catch(err => {
+                    resultDiv.innerHTML = '<p style="color: red;">Error: ' + err.message + '</p>';
+                });
+        }
+    </script>
+</body>
+</html>
