@@ -35,6 +35,24 @@ scripts\STOP_CRM.bat
 - Copia `.env.example` a `.env` y rellena los valores necesarios.
 - **No subas** `.env` a repositorios.
 
+## Migraciones
+
+El proyecto usa [Alembic](https://alembic.sqlalchemy.org/) para gestionar migraciones de base de datos.
+
+```bash
+# Crear una nueva migracion (autogenerate desde modelos)
+alembic revision --autogenerate -m "descripcion_del_cambio"
+
+# Aplicar todas las migraciones pendientes
+alembic upgrade head
+
+# Ver el estado actual de la BD
+alembic current
+
+# Ver historial de migraciones
+alembic history
+```
+
 ## Notas de limpieza
 
 En este repositorio “limpio” se han excluido intencionadamente:
