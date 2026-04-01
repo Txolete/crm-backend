@@ -6,6 +6,55 @@ from sqlalchemy import and_, func
 from typing import Optional
 from app.models.opportunity import Task
 
+# ---------------------------------------------------------------------------
+# Probability / weighted-value helpers  (canonical, single source of truth)
+# ---------------------------------------------------------------------------
+
+DEFAULT_STAGE_PROBABILITIES = {
+    "new": 0.05,
+    "contacted": 0.10,
+    "qualified": 0.30,
+    "proposal": 0.50,
+    "negotiation": 0.70,
+    "won": 1.00,
+    "lost": 0.00,
+}
+
+
+def calculate_probability(opportunity, stage_probs_map: dict, stages_map: dict) -> float:
+    """
+    Calculate probability for an opportunity.
+
+    Priority:
+    1. probability_override on the opportunity itself
+    2. Configured probability from cfg_stage_probabilities (stage_probs_map)
+    3. Hard-coded defaults by stage key
+    4. Fallback 0.0
+    """
+    if opportunity.probability_override is not None:
+        return opportunity.probability_override
+
+    if opportunity.stage_id in stage_probs_map:
+        return stage_probs_map[opportunity.stage_id]
+
+    stage = stages_map.get(opportunity.stage_id)
+    if stage and stage.key in DEFAULT_STAGE_PROBABILITIES:
+        return DEFAULT_STAGE_PROBABILITIES[stage.key]
+
+    return 0.0
+
+
+def calculate_weighted_value(opportunity, probability: float) -> float:
+    """
+    Calculate weighted value for an opportunity.
+
+    If weighted_value_override_eur is set, return that directly.
+    Otherwise: expected_value_eur * probability.
+    """
+    if opportunity.weighted_value_override_eur is not None:
+        return opportunity.weighted_value_override_eur
+    return opportunity.expected_value_eur * probability
+
 
 def get_next_open_task(db: Session, opportunity_id: str) -> Optional[Task]:
     """

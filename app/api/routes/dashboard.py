@@ -23,6 +23,7 @@ from app.schemas.dashboard import (
 )
 from app.utils.auth import get_current_user_from_cookie, require_role
 from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp
+from app.utils.opportunity import calculate_probability, calculate_weighted_value
 from app.config import get_settings
 import logging
 
@@ -33,36 +34,6 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 # Configure Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
 
-
-# ---------------------------------------------------------------------------
-# Probability helpers (will be replaced by utils.opportunity in task 0C)
-# ---------------------------------------------------------------------------
-
-def calculate_probability_for_opp(opportunity: Opportunity, stage_probs_map: dict, stages_map: dict) -> float:
-    """Calculate probability for an opportunity"""
-    if opportunity.probability_override is not None:
-        return opportunity.probability_override
-
-    if opportunity.stage_id in stage_probs_map:
-        return stage_probs_map[opportunity.stage_id]
-
-    default_probs = {
-        "new": 0.05, "contacted": 0.10, "qualified": 0.30,
-        "proposal": 0.50, "negotiation": 0.70, "won": 1.00, "lost": 0.00
-    }
-
-    stage = stages_map.get(opportunity.stage_id)
-    if stage and stage.key in default_probs:
-        return default_probs[stage.key]
-
-    return 0.0
-
-
-def calculate_weighted_value_for_opp(opportunity: Opportunity, probability: float) -> float:
-    """Calculate weighted value for an opportunity"""
-    if opportunity.weighted_value_override_eur is not None:
-        return opportunity.weighted_value_override_eur
-    return opportunity.expected_value_eur * probability
 
 
 # ---------------------------------------------------------------------------
@@ -226,8 +197,8 @@ def get_dashboard_summary(
     kpi_b = 0.0
     for opp in all_opps:
         if opp.close_outcome == 'open':
-            prob = calculate_probability_for_opp(opp, stage_probs_map, stages_map)
-            kpi_b += calculate_weighted_value_for_opp(opp, prob)
+            prob = calculate_probability(opp, stage_probs_map, stages_map)
+            kpi_b += calculate_weighted_value(opp, prob)
 
     year_start = f"{year}-01-01"
     year_end = f"{year}-12-31"
@@ -312,8 +283,8 @@ def get_dashboard_summary(
                         'label': stage.name,
                         'value': 0.0
                     }
-                prob = calculate_probability_for_opp(opp, stage_probs_map, stages_map)
-                weighted = calculate_weighted_value_for_opp(opp, prob)
+                prob = calculate_probability(opp, stage_probs_map, stages_map)
+                weighted = calculate_weighted_value(opp, prob)
                 stage_breakdown[stage_key]['value'] += weighted
 
     lost_total = sum(
@@ -347,8 +318,8 @@ def get_dashboard_summary(
                 ls_name = lead_sources_map.get(account.lead_source_id, "Unknown")
                 if ls_name not in lead_source_breakdown:
                     lead_source_breakdown[ls_name] = 0.0
-                prob = calculate_probability_for_opp(opp, stage_probs_map, stages_map)
-                weighted = calculate_weighted_value_for_opp(opp, prob)
+                prob = calculate_probability(opp, stage_probs_map, stages_map)
+                weighted = calculate_weighted_value(opp, prob)
                 lead_source_breakdown[ls_name] += weighted
 
     by_lead_source = [
