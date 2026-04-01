@@ -119,7 +119,7 @@ async function fetchDashboardSummary(filters) {
 }
 
 async function getTargets(year) {
-    const response = await fetch(`/targets?year=${year}`, {
+    const response = await fetch(`/dashboard/targets?year=${year}`, {
         credentials: 'include'
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -127,7 +127,7 @@ async function getTargets(year) {
 }
 
 async function updateTargets(year, payload) {
-    const response = await fetch(`/targets?year=${year}`, {
+    const response = await fetch(`/dashboard/targets?year=${year}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
