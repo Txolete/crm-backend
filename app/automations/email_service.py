@@ -52,19 +52,19 @@ def get_user_tasks_summary(user_id: str, db: Session) -> Dict:
     
     # Overdue
     overdue = base_query.filter(
-        Task.due_date < today.isoformat()
+        Task.due_date < today
     ).all()
-    
+
     # Due soon (today + next 2 days)
     due_soon = base_query.filter(
-        Task.due_date >= today.isoformat(),
-        Task.due_date <= day_after.isoformat()
+        Task.due_date >= today,
+        Task.due_date <= day_after
     ).all()
-    
+
     # Upcoming (next 3-10 days)
     upcoming = base_query.filter(
-        Task.due_date > day_after.isoformat(),
-        Task.due_date <= ten_days.isoformat()
+        Task.due_date > day_after,
+        Task.due_date <= ten_days
     ).all()
     
     return {

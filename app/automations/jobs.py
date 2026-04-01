@@ -2,7 +2,7 @@
 Automation Jobs - PASO 8
 Daily automated tasks for CRM
 """
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 
@@ -19,9 +19,14 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
+def get_today() -> date:
+    """Get today's date"""
+    return date.today()
+
+
 def get_today_str() -> str:
-    """Get today's date as YYYY-MM-DD string"""
-    return datetime.now().date().isoformat()
+    """Get today's date as YYYY-MM-DD string (legacy compat)"""
+    return date.today().isoformat()
 
 
 def parse_date_str(date_str: str) -> datetime:
@@ -51,9 +56,9 @@ def automation_overdue_tasks():
       in last AUTO_OVERDUE_DEDUP_DAYS
     """
     db = SessionLocal()
-    today = get_today_str()
+    today = get_today()
     dedup_days = settings.auto_overdue_dedup_days
-    dedup_cutoff = (datetime.now() - timedelta(days=dedup_days)).isoformat()
+    dedup_cutoff = datetime.now(timezone.utc) - timedelta(days=dedup_days)
     
     try:
         # Find overdue tasks
@@ -141,13 +146,13 @@ def automation_no_activity():
         - Audit log action="auto_followup_task"
     """
     db = SessionLocal()
-    today_dt = datetime.now()
+    today_dt = datetime.now(timezone.utc)
     no_activity_days = settings.auto_no_activity_days
     dedup_days = settings.auto_followup_dedup_days
-    
-    cutoff_date = (today_dt - timedelta(days=no_activity_days)).isoformat()
-    dedup_cutoff = (today_dt - timedelta(days=dedup_days)).isoformat()
-    
+
+    cutoff_date = today_dt - timedelta(days=no_activity_days)
+    dedup_cutoff = today_dt - timedelta(days=dedup_days)
+
     try:
         # Find opportunities with no recent activity
         # Subquery: last activity per opportunity
@@ -259,12 +264,12 @@ def automation_proposal_followup():
         - Audit log action="auto_proposal_followup"
     """
     db = SessionLocal()
-    today_dt = datetime.now()
+    today_dt = datetime.now(timezone.utc)
     no_activity_days = settings.auto_proposal_no_activity_days
     dedup_days = settings.auto_followup_dedup_days
-    
-    cutoff_date = (today_dt - timedelta(days=no_activity_days)).isoformat()
-    dedup_cutoff = (today_dt - timedelta(days=dedup_days)).isoformat()
+
+    cutoff_date = today_dt - timedelta(days=no_activity_days)
+    dedup_cutoff = today_dt - timedelta(days=dedup_days)
     
     try:
         # Find proposal stage

@@ -1,7 +1,8 @@
 """
 Target model - Annual sales targets
 """
-from sqlalchemy import Column, String, Integer, Float
+from sqlalchemy import Column, String, Integer, Float, DateTime
+from datetime import datetime, timezone
 from app.database import Base
 
 
@@ -14,5 +15,5 @@ class Target(Base):
     target_pipeline_total = Column(Float, nullable=False)
     target_pipeline_weighted = Column(Float, nullable=False)
     target_closed = Column(Float, nullable=False)
-    created_at = Column(String, nullable=False)
-    updated_at = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

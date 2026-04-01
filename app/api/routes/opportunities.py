@@ -14,6 +14,7 @@ from app.schemas.opportunity import (
 )
 from app.utils.auth import get_current_user_from_cookie, require_role
 from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, ENTITY_OPPORTUNITIES
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -281,7 +282,7 @@ def update_opportunity(
         if new_stage and new_stage.outcome in ('won', 'lost'):
             # Auto-close the opportunity
             opportunity.close_outcome = new_stage.outcome
-            opportunity.close_date = get_iso_timestamp()[:10]  # YYYY-MM-DD only
+            opportunity.close_date = datetime.now(timezone.utc)
             
             if new_stage.outcome == 'won':
                 # Set won_value_eur (use expected_value if not set)
@@ -418,8 +419,8 @@ def close_opportunity(
     
     # Update close fields
     opportunity.close_outcome = close_data.outcome
-    opportunity.close_date = get_iso_timestamp()
-    
+    opportunity.close_date = datetime.now(timezone.utc)
+
     if close_data.outcome == "won":
         opportunity.won_value_eur = close_data.won_value_eur or opportunity.expected_value_eur
         opportunity.lost_reason = None

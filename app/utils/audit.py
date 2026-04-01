@@ -25,9 +25,14 @@ def generate_id() -> str:
     return str(uuid.uuid4())
 
 
+def get_utc_now() -> datetime:
+    """Get current UTC datetime (timezone-aware)"""
+    return datetime.now(tz=__import__('datetime').timezone.utc)
+
+
 def get_iso_timestamp() -> str:
-    """Get current timestamp in ISO format"""
-    return datetime.utcnow().isoformat() + 'Z'
+    """Get current timestamp in ISO format (for JSON responses / logs)"""
+    return get_utc_now().isoformat()
 
 
 def create_audit_log(
@@ -69,7 +74,7 @@ def create_audit_log(
         before_json=json.dumps(before_data) if before_data else None,
         after_json=json.dumps(after_data) if after_data else None,
         user_id=user_id,
-        timestamp=get_iso_timestamp()
+        timestamp=get_utc_now()
     )
     
     db.add(audit_entry)

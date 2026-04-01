@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, Float, Integer, ForeignKey, CheckConstraint
+from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey, CheckConstraint
+from datetime import datetime, timezone
 from app.database import Base
 
 
@@ -19,13 +20,13 @@ class Opportunity(Base):
     probability_override = Column(Float, nullable=True)
     forecast_close_month = Column(String, nullable=True)
     close_outcome = Column(String, nullable=False, default='open')
-    close_date = Column(String, nullable=True)
+    close_date = Column(DateTime(timezone=True), nullable=True)
     won_value_eur = Column(Float, nullable=True)
     lost_reason = Column(String, nullable=True)
     owner_user_id = Column(String, ForeignKey('users.id'), nullable=True)
     status = Column(String, nullable=False, default='active')
-    created_at = Column(String, nullable=False)
-    updated_at = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         CheckConstraint("close_outcome IN ('open', 'won', 'lost')", name='check_close_outcome'),
@@ -38,8 +39,8 @@ class Task(Base):
     """
     Tabla: tasks
     Tareas/siguiente paso
-    
-    Vinculación flexible:
+
+    Vinculacion flexible:
     - opportunity_id (opcional): tarea vinculada a oportunidad
     - account_id (opcional): tarea vinculada a cuenta
     - Al menos UNO debe estar presente
@@ -52,15 +53,15 @@ class Task(Base):
     task_template_id = Column(String, ForeignKey('cfg_task_templates.id'), nullable=True)
     title = Column(String, nullable=False)
     description = Column(String, nullable=True)
-    due_date = Column(String, nullable=True)
+    due_date = Column(Date, nullable=True)
     priority = Column(String, nullable=False, default='medium')
     status = Column(String, nullable=False, default='open')
     assigned_to_user_id = Column(String, ForeignKey('users.id'), nullable=True)
-    completed_at = Column(String, nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     completed_by_user_id = Column(String, ForeignKey('users.id'), nullable=True)
-    reminder_date = Column(String, nullable=True)
-    created_at = Column(String, nullable=False)
-    updated_at = Column(String, nullable=False)
+    reminder_date = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         CheckConstraint("status IN ('open', 'in_progress', 'completed', 'cancelled')", name='check_task_status'),
@@ -79,7 +80,7 @@ class Activity(Base):
     id = Column(String, primary_key=True)
     opportunity_id = Column(String, ForeignKey('opportunities.id'), nullable=False)
     type = Column(String, nullable=False)
-    occurred_at = Column(String, nullable=False)
+    occurred_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     summary = Column(String, nullable=False)
     created_by_user_id = Column(String, ForeignKey('users.id'), nullable=True)
-    created_at = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

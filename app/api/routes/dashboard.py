@@ -200,8 +200,8 @@ def get_dashboard_summary(
             prob = calculate_probability(opp, stage_probs_map, stages_map)
             kpi_b += calculate_weighted_value(opp, prob)
 
-    year_start = f"{year}-01-01"
-    year_end = f"{year}-12-31"
+    year_start = datetime(year, 1, 1)
+    year_end = datetime(year, 12, 31, 23, 59, 59)
 
     kpi_c = sum(
         (opp.won_value_eur if opp.won_value_eur is not None else opp.expected_value_eur)
@@ -230,8 +230,8 @@ def get_dashboard_summary(
 
     for month_num in range(1, 13):
         last_day = monthrange(year, month_num)[1]
-        month_end = f"{year}-{month_num:02d}-{last_day:02d}"
-        month_start = f"{year}-{month_num:02d}-01"
+        month_end = datetime(year, month_num, last_day, 23, 59, 59)
+        month_start = datetime(year, month_num, 1)
 
         c_cum = sum(
             (opp.won_value_eur if opp.won_value_eur is not None else opp.expected_value_eur)

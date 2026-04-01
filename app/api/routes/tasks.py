@@ -17,7 +17,7 @@ from app.schemas.task import (
 from app.utils.auth import get_current_user_from_cookie, require_role
 from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, ENTITY_TASKS
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 import logging
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ def list_tasks(
     
     # Filter overdue tasks
     if overdue:
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = date.today()
         query = query.filter(
             and_(
                 Task.due_date < today,

@@ -180,11 +180,7 @@ def get_kanban(
             if next_task_obj:
                 is_overdue = False
                 if next_task_obj.due_date:
-                    try:
-                        due_date_obj = date.fromisoformat(next_task_obj.due_date)
-                        is_overdue = due_date_obj < today
-                    except:
-                        pass
+                    is_overdue = next_task_obj.due_date < today
                 
                 next_task = KanbanNextTask(
                     id=next_task_obj.id,
