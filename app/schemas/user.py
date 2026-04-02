@@ -15,14 +15,14 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Schema for creating a user"""
     password: str = Field(..., min_length=8)
-    role: str = Field(..., pattern="^(admin|sales|viewer)$")
+    role: str = Field(..., pattern="^(admin|sales|commercial|viewer)$")
 
 
 class UserUpdate(BaseModel):
     """Schema for updating a user"""
     name: Optional[str] = None
     email: Optional[EmailStr] = None
-    role: Optional[str] = Field(None, pattern="^(admin|sales|viewer)$")
+    role: Optional[str] = Field(None, pattern="^(admin|sales|commercial|viewer)$")
     is_active: Optional[bool] = None
 
 
@@ -38,9 +38,9 @@ class UserResponse(BaseModel):
     email: str
     role: str
     is_active: bool
-    last_login_at: Optional[str] = None
-    created_at: str
-    updated_at: str
+    last_login_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True

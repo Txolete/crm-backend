@@ -22,7 +22,7 @@ from app.schemas.dashboard import (
     TargetsResponse, TargetsUpdateRequest, TargetsUpdateResponse
 )
 from app.utils.auth import get_current_user_from_cookie, require_role
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp
+from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now
 from app.utils.opportunity import calculate_probability, calculate_weighted_value
 from app.config import get_settings
 import logging
@@ -139,7 +139,7 @@ def get_dashboard_summary(
     target = db.query(Target).filter(Target.year == year).first()
 
     if not target:
-        timestamp = get_iso_timestamp()
+        timestamp = get_utc_now()
         target = Target(
             id=generate_id(),
             year=year,
@@ -402,7 +402,7 @@ def update_targets(
     target = db.query(Target).filter(Target.year == year).first()
 
     if not target:
-        timestamp = get_iso_timestamp()
+        timestamp = get_utc_now()
         target = Target(
             id=generate_id(),
             year=year,
@@ -418,7 +418,7 @@ def update_targets(
         target.target_pipeline_total = request.target_pipeline_total
         target.target_pipeline_weighted = request.target_pipeline_weighted
         target.target_closed = request.target_closed
-        target.updated_at = get_iso_timestamp()
+        target.updated_at = get_utc_now()
         action_msg = "updated"
 
     create_audit_log(

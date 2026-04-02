@@ -3,7 +3,9 @@ Schemas for Config Management UI
 PASO 7 - Admin config panel
 """
 from pydantic import BaseModel, Field, validator
+from pydantic import ConfigDict
 from typing import List, Optional
+from datetime import datetime
 
 
 # === REGIONS ===
@@ -26,9 +28,10 @@ class RegionUpdate(BaseModel):
 
 
 class RegionResponse(RegionBase):
+    model_config = ConfigDict(from_attributes=True)
     id: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 # === CUSTOMER TYPES ===
@@ -49,9 +52,10 @@ class CustomerTypeUpdate(BaseModel):
 
 
 class CustomerTypeResponse(CustomerTypeBase):
+    model_config = ConfigDict(from_attributes=True)
     id: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 # === LEAD SOURCES ===
@@ -74,9 +78,10 @@ class LeadSourceUpdate(BaseModel):
 
 
 class LeadSourceResponse(LeadSourceBase):
+    model_config = ConfigDict(from_attributes=True)
     id: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 # === CONTACT ROLES ===
@@ -97,9 +102,10 @@ class ContactRoleUpdate(BaseModel):
 
 
 class ContactRoleResponse(ContactRoleBase):
+    model_config = ConfigDict(from_attributes=True)
     id: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 # === TASK TEMPLATES ===
@@ -122,9 +128,10 @@ class TaskTemplateUpdate(BaseModel):
 
 
 class TaskTemplateResponse(TaskTemplateBase):
+    model_config = ConfigDict(from_attributes=True)
     id: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 # === STAGES ===
@@ -135,7 +142,7 @@ class StageBase(BaseModel):
     outcome: str  # open, won, lost
     is_terminal: bool = False
     is_active: bool = True
-    
+
     @validator('outcome')
     def validate_outcome(cls, v):
         if v not in ['open', 'won', 'lost']:
@@ -154,7 +161,7 @@ class StageUpdate(BaseModel):
     outcome: Optional[str] = None
     is_terminal: Optional[bool] = None
     is_active: Optional[bool] = None
-    
+
     @validator('outcome')
     def validate_outcome(cls, v):
         if v is not None and v not in ['open', 'won', 'lost']:
@@ -163,9 +170,10 @@ class StageUpdate(BaseModel):
 
 
 class StageResponse(StageBase):
+    model_config = ConfigDict(from_attributes=True)
     id: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 # === STAGE PROBABILITIES ===
@@ -183,8 +191,9 @@ class StageProbabilityUpdate(BaseModel):
 
 
 class StageProbabilityResponse(StageProbabilityBase):
-    created_at: str
-    updated_at: str
+    model_config = ConfigDict(from_attributes=True)
+    created_at: datetime
+    updated_at: datetime
     stage_name: Optional[str] = None
 
 

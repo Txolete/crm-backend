@@ -16,7 +16,7 @@ from app.schemas.account import (
 )
 from app.schemas.contact import ContactResponse, ContactChannelResponse
 from app.utils.auth import get_current_user_from_cookie, require_role
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, ENTITY_ACCOUNTS
+from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now, ENTITY_ACCOUNTS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ def create_account(
     
     **Permissions:** admin, sales
     """
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     
     new_account = Account(
         id=generate_id(),
@@ -326,7 +326,7 @@ def update_account(
     if account_data.notes is not None:
         account.notes = account_data.notes
     
-    account.updated_at = get_iso_timestamp()
+    account.updated_at = get_utc_now()
     
     # Store after state
     after_data = {
@@ -382,7 +382,7 @@ def archive_account(
         )
     
     account.status = "archived"
-    account.updated_at = get_iso_timestamp()
+    account.updated_at = get_utc_now()
     
     # Audit log
     create_audit_log(
@@ -432,7 +432,7 @@ def restore_account(
         )
     
     account.status = "active"
-    account.updated_at = get_iso_timestamp()
+    account.updated_at = get_utc_now()
     
     # Audit log
     create_audit_log(

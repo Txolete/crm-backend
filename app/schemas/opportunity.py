@@ -3,6 +3,7 @@ Pydantic schemas for Opportunity
 """
 from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime, date
 
 
 class OpportunityBase(BaseModel):
@@ -55,13 +56,13 @@ class OpportunityResponse(BaseModel):
     probability_override: Optional[float] = None
     forecast_close_month: Optional[str] = None
     close_outcome: str
-    close_date: Optional[str] = None
+    close_date: Optional[datetime] = None
     won_value_eur: Optional[float] = None
     lost_reason: Optional[str] = None
     owner_user_id: Optional[str] = None
     status: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -71,7 +72,7 @@ class OpportunityTaskInfo(BaseModel):
     """Task info for opportunity detail"""
     id: str
     title: str
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     status: str
 
 
@@ -91,15 +92,15 @@ class OpportunityDetailResponse(BaseModel):
     stage_probability: Optional[float] = None
     forecast_close_month: Optional[str] = None
     close_outcome: str
-    close_date: Optional[str] = None
+    close_date: Optional[datetime] = None
     won_value_eur: Optional[float] = None
     lost_reason: Optional[str] = None
     owner_user_id: Optional[str] = None
     owner_user_name: Optional[str] = None
     status: str
     next_task: Optional[OpportunityTaskInfo] = None
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class OpportunityListResponse(BaseModel):

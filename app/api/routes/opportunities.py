@@ -13,7 +13,7 @@ from app.schemas.opportunity import (
     OpportunityDetailResponse, OpportunityTaskInfo
 )
 from app.utils.auth import get_current_user_from_cookie, require_role
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, ENTITY_OPPORTUNITIES
+from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now, ENTITY_OPPORTUNITIES
 from datetime import datetime, timezone
 import logging
 
@@ -84,7 +84,7 @@ def create_opportunity(
     
     **Permissions:** admin, sales
     """
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     
     new_opportunity = Opportunity(
         id=generate_id(),
@@ -321,7 +321,7 @@ def update_opportunity(
         opportunity.status = opportunity_data.status
         logger.info(f"[STATUS] Opportunity {opportunity.id} status changed to {opportunity_data.status}")
     
-    opportunity.updated_at = get_iso_timestamp()
+    opportunity.updated_at = get_utc_now()
     
     # Store after state
     after_data = {
@@ -432,7 +432,7 @@ def close_opportunity(
         opportunity.won_value_eur = None
         opportunity.lost_reason = close_data.lost_reason
     
-    opportunity.updated_at = get_iso_timestamp()
+    opportunity.updated_at = get_utc_now()
     
     # Store after state
     after_data = {
@@ -489,7 +489,7 @@ def archive_opportunity(
         )
     
     opportunity.status = "archived"
-    opportunity.updated_at = get_iso_timestamp()
+    opportunity.updated_at = get_utc_now()
     
     # Audit log
     create_audit_log(
@@ -539,7 +539,7 @@ def restore_opportunity(
         )
     
     opportunity.status = "active"
-    opportunity.updated_at = get_iso_timestamp()
+    opportunity.updated_at = get_utc_now()
     
     # Audit log
     create_audit_log(

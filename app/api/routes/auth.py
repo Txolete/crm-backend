@@ -8,7 +8,7 @@ from app.models.user import User
 from app.schemas.auth import LoginRequest, LoginResponse, LogoutResponse, MeResponse
 from app.utils.security import verify_password, create_access_token
 from app.utils.auth import get_current_user_from_cookie
-from app.utils.audit import create_audit_log, get_iso_timestamp, ENTITY_USERS
+from app.utils.audit import create_audit_log, get_iso_timestamp, get_utc_now, ENTITY_USERS
 from app.config import get_settings
 import logging
 
@@ -64,8 +64,8 @@ def login(
         )
     
     # Update last_login_at
-    user.last_login_at = get_iso_timestamp()
-    user.updated_at = get_iso_timestamp()
+    user.last_login_at = get_utc_now()
+    user.updated_at = get_utc_now()
     
     # Create access token
     access_token = create_access_token(

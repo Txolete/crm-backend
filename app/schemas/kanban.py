@@ -3,13 +3,14 @@ Pydantic schemas for Kanban
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from datetime import date
 
 
 class KanbanNextTask(BaseModel):
     """Next task in opportunity"""
     id: str
     title: str
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     is_overdue: bool
 
 

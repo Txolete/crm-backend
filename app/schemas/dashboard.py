@@ -3,6 +3,7 @@ Pydantic schemas for Dashboard KPIs and Charts
 """
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
+from datetime import datetime
 
 
 class DashboardFilters(BaseModel):
@@ -68,8 +69,8 @@ class TargetsResponse(BaseModel):
     target_pipeline_total: float
     target_pipeline_weighted: float
     target_closed: float
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class TargetsUpdateRequest(BaseModel):

@@ -3,6 +3,7 @@ Pydantic schemas for Account
 """
 from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 
 
 class AccountBase(BaseModel):
@@ -101,8 +102,8 @@ class AccountResponse(BaseModel):
     contacts_count: int = 0
     
     # Audit
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True

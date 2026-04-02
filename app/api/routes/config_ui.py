@@ -16,7 +16,7 @@ from app.models.config import (
 )
 from app.schemas.config_ui import *
 from app.utils.auth import require_role
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp
+from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now
 import logging
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ def create_region(
             detail=f"Region '{request.name}' already exists"
         )
     
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     region = CfgRegion(
         id=generate_id(),
         name=request.name,
@@ -116,7 +116,7 @@ def update_region(
     if request.sort_order is not None:
         region.sort_order = request.sort_order
     
-    region.updated_at = get_iso_timestamp()
+    region.updated_at = get_utc_now()
     
     db.commit()
     db.refresh(region)
@@ -167,7 +167,7 @@ def deactivate_region(
         )
     
     region.is_active = False
-    region.updated_at = get_iso_timestamp()
+    region.updated_at = get_utc_now()
     
     db.commit()
     
@@ -231,7 +231,7 @@ def create_customer_type(
             detail=f"Customer type '{request.name}' already exists"
         )
     
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     item = CfgCustomerType(
         id=generate_id(),
         name=request.name,
@@ -287,7 +287,7 @@ def update_customer_type(
     if request.sort_order is not None:
         item.sort_order = request.sort_order
     
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     db.refresh(item)
     
@@ -335,7 +335,7 @@ def deactivate_customer_type(
         )
     
     item.is_active = False
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     
     create_audit_log(
@@ -397,7 +397,7 @@ def create_lead_source(
             detail=f"Lead source '{request.name}' already exists"
         )
     
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     item = CfgLeadSource(
         id=generate_id(),
         name=request.name,
@@ -456,7 +456,7 @@ def update_lead_source(
     if request.sort_order is not None:
         item.sort_order = request.sort_order
     
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     db.refresh(item)
     
@@ -504,7 +504,7 @@ def deactivate_lead_source(
         )
     
     item.is_active = False
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     
     create_audit_log(
@@ -552,7 +552,7 @@ def create_contact_role(
             detail=f"Contact role '{request.name}' already exists"
         )
     
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     item = CfgContactRole(
         id=generate_id(),
         name=request.name,
@@ -608,7 +608,7 @@ def update_contact_role(
     if request.sort_order is not None:
         item.sort_order = request.sort_order
     
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     db.refresh(item)
     
@@ -657,7 +657,7 @@ def deactivate_contact_role(
         )
     
     item.is_active = False
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     
     create_audit_log(
@@ -701,7 +701,7 @@ def create_task_template(
             detail=f"Task template '{request.name}' already exists"
         )
     
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     item = CfgTaskTemplate(
         id=generate_id(),
         name=request.name,
@@ -760,7 +760,7 @@ def update_task_template(
     if request.sort_order is not None:
         item.sort_order = request.sort_order
     
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     db.refresh(item)
     
@@ -807,7 +807,7 @@ def deactivate_task_template(
         )
     
     item.is_active = False
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     
     create_audit_log(
@@ -855,7 +855,7 @@ def create_stage(
             detail=f"Stage key '{request.key}' already exists"
         )
     
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     item = CfgStage(
         id=generate_id(),
         key=request.key,
@@ -963,7 +963,7 @@ def update_stage(
     if request.is_active is not None:
         item.is_active = request.is_active
     
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     db.refresh(item)
     
@@ -1011,7 +1011,7 @@ def deactivate_stage(
         )
     
     item.is_active = False
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     db.commit()
     
     create_audit_log(
@@ -1077,7 +1077,7 @@ def create_stage_probability(
             detail=f"Probability for stage '{stage.name}' already exists. Use PUT to update."
         )
     
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     item = CfgStageProbability(
         stage_id=request.stage_id,
         probability=request.probability,
@@ -1126,7 +1126,7 @@ def update_stage_probability(
     stage = db.query(CfgStage).filter(CfgStage.id == stage_id).first()
     
     item.probability = request.probability
-    item.updated_at = get_iso_timestamp()
+    item.updated_at = get_utc_now()
     
     db.commit()
     db.refresh(item)

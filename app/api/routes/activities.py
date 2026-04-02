@@ -11,7 +11,7 @@ from app.schemas.activity import (
     ActivityCreate, ActivityUpdate, ActivityResponse, ActivityListResponse
 )
 from app.utils.auth import get_current_user_from_cookie, require_role
-from app.utils.audit import generate_id, get_iso_timestamp
+from app.utils.audit import generate_id, get_iso_timestamp, get_utc_now
 import logging
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ async def create_activity(
     
     **Permissions:** admin, sales
     """
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     
     # Verify opportunity exists
     opportunity = db.query(Opportunity).filter(
@@ -238,7 +238,7 @@ def create_activity_auto(
     
     NOTE: Does NOT commit - calling function must commit
     """
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     
     new_activity = Activity(
         id=generate_id(),

@@ -15,7 +15,7 @@ from app.schemas.task import (
     TaskComplete, TaskWithRelations
 )
 from app.utils.auth import get_current_user_from_cookie, require_role
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, ENTITY_TASKS
+from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now, ENTITY_TASKS
 from typing import Optional
 from datetime import datetime, date
 import logging
@@ -262,7 +262,7 @@ def create_task(
             )
     
     # Create task
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     new_task = Task(
         id=generate_id(),
         opportunity_id=task_data.opportunity_id,
@@ -402,7 +402,7 @@ def update_task(
             detail="Task must be linked to either an opportunity or an account"
         )
     
-    task.updated_at = get_iso_timestamp()
+    task.updated_at = get_utc_now()
     
     # Store after state
     after_data = {
@@ -472,7 +472,7 @@ def delete_task(
     
     # Logical delete: set status to cancelled
     task.status = 'cancelled'
-    task.updated_at = get_iso_timestamp()
+    task.updated_at = get_utc_now()
     
     # Create audit log
     create_audit_log(
@@ -527,9 +527,9 @@ def complete_task(
     
     # Update task
     task.status = 'completed'
-    task.completed_at = get_iso_timestamp()
+    task.completed_at = get_utc_now()
     task.completed_by_user_id = current_user.id
-    task.updated_at = get_iso_timestamp()
+    task.updated_at = get_utc_now()
     
     # Create audit log
     create_audit_log(
@@ -554,7 +554,7 @@ def complete_task(
             occurred_at=task.completed_at,
             summary=f"Tarea completada: {task.title}",
             created_by_user_id=current_user.id,
-            created_at=get_iso_timestamp()
+            created_at=get_utc_now()
         )
         db.add(activity)
     
@@ -605,7 +605,7 @@ def reopen_task(
     task.status = 'open'
     task.completed_at = None
     task.completed_by_user_id = None
-    task.updated_at = get_iso_timestamp()
+    task.updated_at = get_utc_now()
     
     # Create audit log
     create_audit_log(

@@ -12,7 +12,7 @@ from app.schemas.user import (
 )
 from app.utils.security import hash_password
 from app.utils.auth import require_role, get_current_user_from_cookie
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, ENTITY_USERS
+from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now, ENTITY_USERS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ def create_user(
         )
     
     # Create new user
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     new_user = User(
         id=generate_id(),
         name=user_data.name,
@@ -209,7 +209,7 @@ def update_user(
     if user_data.is_active is not None:
         user.is_active = 1 if user_data.is_active else 0
     
-    user.updated_at = get_iso_timestamp()
+    user.updated_at = get_utc_now()
     
     # Store after state
     after_data = {
@@ -277,7 +277,7 @@ def reset_user_password(
     
     # Update password
     user.password_hash = hash_password(password_data.new_password)
-    user.updated_at = get_iso_timestamp()
+    user.updated_at = get_utc_now()
     
     # Create audit log
     create_audit_log(

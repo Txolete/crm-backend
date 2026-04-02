@@ -3,6 +3,7 @@ Pydantic schemas for Task
 """
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+from datetime import datetime, date
 
 
 class TaskBase(BaseModel):
@@ -12,11 +13,11 @@ class TaskBase(BaseModel):
     task_template_id: Optional[str] = None
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=2000)
-    due_date: Optional[str] = None  # ISO date format YYYY-MM-DD
+    due_date: Optional[date] = None  # ISO date YYYY-MM-DD, Pydantic parses strings
     priority: str = Field(default='medium', pattern="^(high|medium|low)$")
     assigned_to_user_id: Optional[str] = None
-    reminder_date: Optional[str] = None  # ISO date format YYYY-MM-DD
-    
+    reminder_date: Optional[datetime] = None
+
     @field_validator('opportunity_id', 'account_id')
     @classmethod
     def validate_link(cls, v, info):
@@ -37,11 +38,11 @@ class TaskUpdate(BaseModel):
     task_template_id: Optional[str] = None
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=2000)
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     priority: Optional[str] = Field(None, pattern="^(high|medium|low)$")
     status: Optional[str] = Field(None, pattern="^(open|in_progress|completed|cancelled)$")
     assigned_to_user_id: Optional[str] = None
-    reminder_date: Optional[str] = None
+    reminder_date: Optional[datetime] = None
 
 
 class TaskComplete(BaseModel):
@@ -57,15 +58,15 @@ class TaskResponse(BaseModel):
     task_template_id: Optional[str] = None
     title: str
     description: Optional[str] = None
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     priority: str
     status: str
     assigned_to_user_id: Optional[str] = None
-    completed_at: Optional[str] = None
+    completed_at: Optional[datetime] = None
     completed_by_user_id: Optional[str] = None
-    reminder_date: Optional[str] = None
-    created_at: str
-    updated_at: str
+    reminder_date: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -78,7 +79,7 @@ class TaskWithRelations(TaskResponse):
     account_name: Optional[str] = None
     assigned_to_name: Optional[str] = None
     completed_by_name: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
 

@@ -2,6 +2,7 @@
 Pydantic schemas for Authentication
 """
 from pydantic import BaseModel, EmailStr
+from datetime import datetime
 
 
 class LoginRequest(BaseModel):
@@ -28,4 +29,4 @@ class MeResponse(BaseModel):
     email: str
     role: str
     is_active: bool
-    last_login_at: str | None = None
+    last_login_at: datetime | None = None

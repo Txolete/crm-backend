@@ -22,7 +22,7 @@ from app.schemas.kanban import (
 )
 from app.utils.auth import get_current_user_from_cookie, require_role
 from app.utils.opportunity import get_next_open_task, calculate_probability, calculate_weighted_value
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, ENTITY_OPPORTUNITIES
+from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now, ENTITY_OPPORTUNITIES
 import logging
 
 logger = logging.getLogger(__name__)
@@ -325,10 +325,10 @@ def move_stage(
     
     # Update stage
     opportunity.stage_id = request.new_stage_id
-    opportunity.updated_at = get_iso_timestamp()
+    opportunity.updated_at = get_utc_now()
     
     # Create activity
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     summary = f"Stage changed: {old_stage.key} -> {new_stage.key}"
     if request.note:
         summary += f" | Note: {request.note}"
@@ -466,10 +466,10 @@ def close_opportunity(
         opportunity.lost_reason = request.lost_reason
         opportunity.won_value_eur = None
     
-    opportunity.updated_at = get_iso_timestamp()
+    opportunity.updated_at = get_utc_now()
     
     # Create activity
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     summary = f"Closed as {request.close_outcome.upper()}"
     if request.close_outcome == 'won' and won_value:
         summary += f" - Value: €{won_value:,.2f}"

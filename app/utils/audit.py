@@ -3,10 +3,18 @@ Audit log utilities
 """
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy.orm import Session
 from app.models.audit import AuditLog
 from typing import Optional
+
+
+class _DateTimeEncoder(json.JSONEncoder):
+    """JSON encoder that handles datetime and date objects."""
+    def default(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 # AUDIT ENTITY CONSTANTS
@@ -71,8 +79,8 @@ def create_audit_log(
         entity=entity,
         entity_id=entity_id,
         action=action,
-        before_json=json.dumps(before_data) if before_data else None,
-        after_json=json.dumps(after_data) if after_data else None,
+        before_json=json.dumps(before_data, cls=_DateTimeEncoder) if before_data else None,
+        after_json=json.dumps(after_data, cls=_DateTimeEncoder) if after_data else None,
         user_id=user_id,
         timestamp=get_utc_now()
     )

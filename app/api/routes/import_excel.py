@@ -20,7 +20,7 @@ from app.models.config import (
 )
 from app.schemas.import_excel import ImportResponse, ImportRowResult, ImportReportResponse
 from app.utils.auth import get_current_user_from_cookie, require_role
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp
+from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now
 from app.utils.import_parsers import (
     parse_date, parse_month, parse_currency, validate_email,
     validate_phone, safe_str, safe_float
@@ -120,8 +120,8 @@ def process_excel_row(
             id=generate_id(),
             name=account_name,
             status='active',
-            created_at=get_iso_timestamp(),
-            updated_at=get_iso_timestamp()
+            created_at=get_utc_now(),
+            updated_at=get_utc_now()
         )
         if not dry_run:
             db.add(account)
@@ -169,7 +169,7 @@ def process_excel_row(
         else:
             warnings.append(f"Owner '{owner_email}' not found")
     
-    account.updated_at = get_iso_timestamp()
+    account.updated_at = get_utc_now()
     
     if not dry_run:
         db.flush()  # CRITICAL: Flush account to DB so FK constraints work
@@ -193,8 +193,8 @@ def process_excel_row(
                 first_name=contact_first,
                 last_name=contact_last,
                 status='active',
-                created_at=get_iso_timestamp(),
-                updated_at=get_iso_timestamp()
+                created_at=get_utc_now(),
+                updated_at=get_utc_now()
             )
             
             # Contact role
@@ -221,7 +221,7 @@ def process_excel_row(
                         type='email',
                         value=contact_email,
                         is_primary=1,
-                        created_at=get_iso_timestamp()
+                        created_at=get_utc_now()
                     )
                     if not dry_run:
                         db.add(channel)
@@ -238,7 +238,7 @@ def process_excel_row(
                         type='phone',
                         value=contact_phone,
                         is_primary=0,
-                        created_at=get_iso_timestamp()
+                        created_at=get_utc_now()
                     )
                     if not dry_run:
                         db.add(channel)
@@ -259,8 +259,8 @@ def process_excel_row(
         expected_value_eur=expected_value,
         close_outcome='open',
         status='active',
-        created_at=get_iso_timestamp(),
-        updated_at=get_iso_timestamp()
+        created_at=get_utc_now(),
+        updated_at=get_utc_now()
     )
     
     # HOTFIX 6.1: weighted_value_override_eur (optional)
@@ -328,8 +328,8 @@ def process_excel_row(
             opportunity_id=opportunity.id,
             title=next_task_title,
             status='open',
-            created_at=get_iso_timestamp(),
-            updated_at=get_iso_timestamp()
+            created_at=get_utc_now(),
+            updated_at=get_utc_now()
         )
         
         # Due date
@@ -368,12 +368,17 @@ def process_excel_row(
             warnings.append("Activity text truncated to 500 chars")
         
         # HOTFIX 6.1: Use last_activity_date if available
-        occurred_at = get_iso_timestamp()  # default: now
+        occurred_at = get_utc_now()  # default: now
         activity_date_str = row_data.get('last_activity_date')
         if activity_date_str:
             activity_date, err = parse_date(activity_date_str)
             if activity_date:
-                occurred_at = activity_date + 'T12:00:00Z'  # Add time component
+                # parse_date returns a string "YYYY-MM-DD"; convert to datetime
+                try:
+                    from datetime import timezone as _tz
+                    occurred_at = datetime.fromisoformat(activity_date + 'T12:00:00').replace(tzinfo=_tz.utc)
+                except Exception:
+                    occurred_at = get_utc_now()
             else:
                 warnings.append(f"Invalid last_activity_date: {err}, using current time")
         
@@ -384,7 +389,7 @@ def process_excel_row(
             occurred_at=occurred_at,
             summary=last_activity_text,
             created_by_user_id=current_user.id,
-            created_at=get_iso_timestamp()
+            created_at=get_utc_now()
         )
         
         if not dry_run:
@@ -637,7 +642,7 @@ async def import_excel(
         "warnings_count": warnings_count,
         "errors_count": errors_count,
         "items": [r.dict() for r in results],
-        "timestamp": get_iso_timestamp()
+        "timestamp": get_utc_now()
     }
     
     report_path = UPLOAD_DIR / f"import_report_{import_id}.json"
