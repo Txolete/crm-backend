@@ -89,7 +89,17 @@ def require_role(*allowed_roles: str):
     return role_checker
 
 
+# Role sets
+SALES_ROLES = {"admin", "sales", "commercial"}
+
+
+def is_own_data_only(user: User) -> bool:
+    """Return True if this user should only see their own data (commercial role)."""
+    return user.role == "commercial"
+
+
 # Common dependencies
 require_auth = Depends(get_current_user_from_cookie)
 require_admin = Depends(require_role("admin"))
 require_sales_or_admin = Depends(require_role("admin", "sales"))
+require_sales_roles = Depends(require_role("admin", "sales", "commercial"))

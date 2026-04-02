@@ -56,7 +56,11 @@ def list_opportunities(
     # Filter by owner
     if owner_user_id:
         query = query.filter(Opportunity.owner_user_id == owner_user_id)
-    
+
+    # Commercial role can only see their own opportunities
+    if current_user.role == "commercial":
+        query = query.filter(Opportunity.owner_user_id == current_user.id)
+
     # Search by name
     if q:
         query = query.filter(Opportunity.name.ilike(f"%{q}%"))

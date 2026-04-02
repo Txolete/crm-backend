@@ -103,7 +103,11 @@ def get_kanban(
     
     if owner_user_id:
         opps_query = opps_query.filter(Opportunity.owner_user_id == owner_user_id)
-    
+
+    # Commercial role can only see their own opportunities
+    if current_user.role == "commercial":
+        opps_query = opps_query.filter(Opportunity.owner_user_id == current_user.id)
+
     # Execute query and get opportunities
     opportunities = opps_query.all()
     

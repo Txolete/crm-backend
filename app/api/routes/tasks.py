@@ -46,8 +46,8 @@ def list_tasks(
     """
     query = db.query(Task)
     
-    # Viewer can only see their own tasks
-    if current_user.role == 'viewer':
+    # Viewer and commercial can only see their own tasks
+    if current_user.role in ('viewer', 'commercial'):
         query = query.filter(Task.assigned_to_user_id == current_user.id)
     
     # Apply filters

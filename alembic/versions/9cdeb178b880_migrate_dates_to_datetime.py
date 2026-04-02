@@ -193,6 +193,7 @@ def upgrade() -> None:
     op.alter_column('tasks', 'due_date',
                existing_type=sa.TEXT(),
                type_=sa.Date(),
+               postgresql_using='due_date::date',
                existing_nullable=True)
     op.alter_column('tasks', 'priority',
                existing_type=sa.TEXT(),

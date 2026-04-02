@@ -62,16 +62,54 @@ let currentTaskFilter = {
 };
 
 /**
+ * Init admin user selector in tasks tab (shown only to admins)
+ */
+async function initTasksUserFilter() {
+    const currentUser = await getCurrentUser();
+    if (currentUser.role !== 'admin') return;
+
+    const wrapper = document.getElementById('filter-task-user-wrapper');
+    if (!wrapper) return;
+    wrapper.style.display = '';
+
+    try {
+        const response = await fetch('/admin/users', { credentials: 'include' });
+        if (!response.ok) return;
+        const data = await response.json();
+        const select = document.getElementById('filter-task-user');
+        (data.users || []).forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.textContent = `${u.name} (${u.role})`;
+            if (u.id === currentUser.id) opt.selected = true;
+            select.appendChild(opt);
+        });
+    } catch (e) {
+        console.error('Error loading users for task filter:', e);
+    }
+}
+
+/**
  * Cargar mis tareas asignadas
  */
 async function loadMyTasks() {
     try {
         // Obtener usuario actual
         const currentUser = await getCurrentUser();
-        
+
         // Construir URL con filtros
         const params = new URLSearchParams();
-        params.append('assigned_to', currentUser.id);
+
+        // Admin: use user selector if present; otherwise load own tasks
+        const userFilterEl = document.getElementById('filter-task-user');
+        if (userFilterEl && currentUser.role === 'admin') {
+            if (userFilterEl.value) {
+                params.append('assigned_to', userFilterEl.value);
+            }
+            // no assigned_to means see all tasks (admin sees everything)
+        } else {
+            params.append('assigned_to', currentUser.id);
+        }
         
         // Aplicar filtros adicionales (solo si existen los elementos)
         const statusFilterEl = document.getElementById('filter-task-status');
@@ -225,8 +263,10 @@ function createTaskCard(task) {
     }
     
     return `
-        <div class="task-card priority-${task.priority} ${isCompleted ? 'completed' : ''}" 
-             data-task-id="${task.id}">
+        <div class="task-card priority-${task.priority} ${isCompleted ? 'completed' : ''}"
+             data-task-id="${task.id}"
+             onclick="editTask('${task.id}')"
+             style="cursor:pointer;">
             <div class="d-flex justify-content-between align-items-start mb-2">
                 <div class="flex-grow-1">
                     <div class="task-title">${escapeHtml(task.title)}</div>
@@ -239,25 +279,25 @@ function createTaskCard(task) {
                     </div>
                 </div>
                 <div>
-                    <input type="checkbox" 
-                           class="task-checkbox form-check-input" 
+                    <input type="checkbox"
+                           class="task-checkbox form-check-input"
                            ${isCompleted ? 'checked' : ''}
                            ${isCompleted ? 'disabled' : ''}
-                           onclick="toggleTaskComplete('${task.id}', this.checked)"
+                           onclick="event.stopPropagation(); toggleTaskComplete('${task.id}', this.checked)"
                            title="${isCompleted ? 'Completada' : 'Marcar como completada'}">
                 </div>
             </div>
-            
+
             <div class="task-actions">
-                <button class="btn btn-sm btn-outline-primary" onclick="editTask('${task.id}')">
+                <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editTask('${task.id}')">
                     <i class="bi bi-pencil"></i> Editar
                 </button>
                 ${!isCompleted ? `
-                <button class="btn btn-sm btn-outline-success" onclick="completeTask('${task.id}')">
+                <button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); completeTask('${task.id}')">
                     <i class="bi bi-check-lg"></i> Completar
                 </button>
                 ` : ''}
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteTask('${task.id}')">
+                <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteTask('${task.id}')">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>

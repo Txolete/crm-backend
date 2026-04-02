@@ -21,7 +21,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
-        CheckConstraint("role IN ('admin', 'sales', 'viewer')", name='check_role'),
+        CheckConstraint("role IN ('admin', 'sales', 'commercial', 'viewer')", name='check_role'),
     )
 
     def __repr__(self):

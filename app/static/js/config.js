@@ -361,26 +361,25 @@ async function saveItem(force = false) {
     const form = document.getElementById('entity-form');
     const formData = new FormData(form);
     
+    // Always read checkboxes directly from DOM (FormData omits unchecked boxes)
     const data = {};
+    config.fields.forEach(field => {
+        if (field.type === 'checkbox') {
+            const el = document.getElementById(field.name);
+            data[field.name] = el ? el.checked : false;
+        }
+    });
     for (const [key, value] of formData.entries()) {
         const field = config.fields.find(f => f.name === key);
-        if (field) {
-            if (field.type === 'checkbox') {
-                data[key] = document.getElementById(key).checked;
-            } else if (field.type === 'number') {
-                data[key] = parseFloat(value) || (field.default !== undefined ? field.default : 0);
+        if (field && field.type !== 'checkbox') {
+            if (field.type === 'number') {
+                const parsed = parseFloat(value);
+                data[key] = isNaN(parsed) ? (field.default !== undefined ? field.default : 0) : parsed;
             } else {
                 data[key] = value;
             }
         }
     }
-    
-    // Add unchecked checkboxes
-    config.fields.filter(f => f.type === 'checkbox').forEach(field => {
-        if (!(field.name in data)) {
-            data[field.name] = document.getElementById(field.name).checked;
-        }
-    });
     
     const isUpdate = state.currentItem !== null;
     const id = state.currentEntity === 'stage-probabilities' ? state.currentItem?.stage_id : state.currentItem?.id;

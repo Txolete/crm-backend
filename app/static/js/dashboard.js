@@ -483,6 +483,19 @@ function bindEvents() {
     if (editTargetsLink && state.currentUser?.role !== 'admin') {
         editTargetsLink.parentElement.style.display = 'none';
     }
+
+    // Load tasks (and admin user filter) when tasks tab is shown
+    const tasksTab = document.getElementById('tasks-tab');
+    if (tasksTab) {
+        let tasksFilterInitialized = false;
+        tasksTab.addEventListener('shown.bs.tab', async function () {
+            if (!tasksFilterInitialized) {
+                await initTasksUserFilter();
+                tasksFilterInitialized = true;
+            }
+            loadMyTasks();
+        });
+    }
 }
 
 async function applyFilters() {
