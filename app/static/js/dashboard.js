@@ -140,7 +140,7 @@ async function updateTargets(year, payload) {
 async function loadConfigData() {
     try {
         // Load lead sources
-        const lsResp = await fetch('/admin/lead-sources', { credentials: 'include' });
+        const lsResp = await fetch('/config/lead-sources', { credentials: 'include' });
         if (lsResp.ok) {
             const lsData = await lsResp.json();
             const select = document.getElementById('filter-lead-source');
@@ -150,7 +150,7 @@ async function loadConfigData() {
         }
 
         // Load customer types
-        const ctResp = await fetch('/admin/customer-types', { credentials: 'include' });
+        const ctResp = await fetch('/config/customer-types', { credentials: 'include' });
         if (ctResp.ok) {
             const ctData = await ctResp.json();
             const select = document.getElementById('filter-customer-type');
@@ -160,7 +160,7 @@ async function loadConfigData() {
         }
 
         // Load regions
-        const rgResp = await fetch('/admin/regions', { credentials: 'include' });
+        const rgResp = await fetch('/config/regions', { credentials: 'include' });
         if (rgResp.ok) {
             const rgData = await rgResp.json();
             const select = document.getElementById('filter-region');
