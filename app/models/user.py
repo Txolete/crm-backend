@@ -1,6 +1,6 @@
-from sqlalchemy import Column, String, Integer, DateTime, CheckConstraint
+from sqlalchemy import Column, String, Integer, CheckConstraint
 from datetime import datetime, timezone
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 
 class User(Base):
@@ -16,9 +16,9 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False)
     is_active = Column(Integer, nullable=False, default=1)
-    last_login_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    last_login_at = Column(UTCDateTime(), nullable=True)
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         CheckConstraint("role IN ('admin', 'sales', 'commercial', 'viewer')", name='check_role'),

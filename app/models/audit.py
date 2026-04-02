@@ -1,6 +1,6 @@
-from sqlalchemy import Column, String, Float, Integer, DateTime
+from sqlalchemy import Column, String, Float, Integer
 from datetime import datetime, timezone
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 
 class AuditLog(Base):
@@ -17,7 +17,7 @@ class AuditLog(Base):
     before_json = Column(String, nullable=True)
     after_json = Column(String, nullable=True)
     user_id = Column(String, nullable=True)
-    timestamp = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    timestamp = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class AppVersion(Base):
@@ -32,4 +32,4 @@ class AppVersion(Base):
     release_date = Column(String, nullable=False)
     title = Column(String, nullable=False)
     changes_markdown = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))

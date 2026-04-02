@@ -1,6 +1,6 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, CheckConstraint
+from sqlalchemy import Column, String, Integer, ForeignKey, CheckConstraint
 from datetime import datetime, timezone
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 
 class Account(Base):
@@ -38,8 +38,8 @@ class Account(Base):
     notes = Column(String, nullable=True)
 
     # Audit
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         CheckConstraint("status IN ('active', 'archived')", name='check_account_status'),
@@ -60,8 +60,8 @@ class Contact(Base):
     contact_role_id = Column(String, nullable=True)
     contact_role_other_text = Column(String, nullable=True)
     status = Column(String, nullable=False, default='active')
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         CheckConstraint("status IN ('active', 'archived')", name='check_contact_status'),
@@ -80,7 +80,7 @@ class ContactChannel(Base):
     type = Column(String, nullable=False)
     value = Column(String, nullable=False)
     is_primary = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         CheckConstraint("type IN ('email', 'phone')", name='check_type'),
