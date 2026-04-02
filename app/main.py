@@ -107,14 +107,14 @@ async def startup_event():
     # HOTFIX 9.2 - Bootstrap admin if no users exist
     from app.models.user import User
     from app.utils.security import hash_password
-    from app.utils.audit import generate_id, get_iso_timestamp, create_audit_log, ENTITY_USERS
+    from app.utils.audit import generate_id, get_iso_timestamp, get_utc_now, create_audit_log, ENTITY_USERS
     
     db = SessionLocal()
     try:
         user_count = db.query(User).count()
         if user_count == 0:
             startup_logger.warning("⚠️  No users found in database - creating bootstrap admin...")
-            timestamp = get_iso_timestamp()
+            timestamp = get_utc_now()
             admin_user = User(
                 id=generate_id(),
                 name=settings.admin_bootstrap_name,

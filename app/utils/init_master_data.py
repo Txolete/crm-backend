@@ -9,7 +9,7 @@ from app.models import (
     CfgStage, CfgStageProbability, CfgRegion,
     CfgCustomerType, CfgLeadSource, CfgContactRole, CfgTaskTemplate
 )
-from app.utils.audit import generate_id, get_iso_timestamp
+from app.utils.audit import generate_id, get_iso_timestamp, get_utc_now
 
 
 # Master data from Excel LISTAS sheet
@@ -74,7 +74,7 @@ TASK_TEMPLATES = [
 
 def initialize_all_master_data(db: Session, logger):
     """Initialize all master data - called from startup"""
-    timestamp = get_iso_timestamp()
+    timestamp = get_utc_now()
     counts = {}
     
     # 1. Stages

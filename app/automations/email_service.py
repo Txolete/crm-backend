@@ -14,7 +14,7 @@ from app.models.opportunity import Task, Opportunity
 from app.models.account import Account
 from app.models.user import User
 from app.models.config import CfgStage
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp
+from app.utils.audit import create_audit_log, generate_id
 from app.config import get_settings
 import logging
 

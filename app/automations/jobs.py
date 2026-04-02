@@ -10,7 +10,7 @@ from app.database import SessionLocal
 from app.models.opportunity import Opportunity, Task, Activity
 from app.models.account import Account
 from app.models.config import CfgStage
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp
+from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now
 from app.config import get_settings
 import logging
 
@@ -90,10 +90,10 @@ def automation_overdue_tasks():
                 id=generate_id(),
                 opportunity_id=task.opportunity_id,
                 type='system',
-                occurred_at=get_iso_timestamp(),
+                occurred_at=get_utc_now(),
                 summary=f"Task overdue: {task.title} (due {task.due_date}) [task_id={task.id}]",
                 created_by_user_id=None,  # System
-                created_at=get_iso_timestamp()
+                created_at=get_utc_now()
             )
             db.add(activity)
             
@@ -169,7 +169,7 @@ def automation_no_activity():
             Opportunity.status == 'active',
             Opportunity.close_outcome == 'open',
             # Last activity is old OR no activity at all
-            func.coalesce(last_activity_subq.c.last_activity, '1900-01-01') <= cutoff_date
+            func.coalesce(last_activity_subq.c.last_activity, datetime(1900, 1, 1, tzinfo=timezone.utc)) <= cutoff_date
         ).all()
         
         processed = 0
@@ -189,7 +189,7 @@ def automation_no_activity():
                 continue
             
             # Create task
-            due_date = (today_dt + timedelta(days=3)).date().isoformat()
+            due_date = (today_dt + timedelta(days=3)).date()
             task = Task(
                 id=generate_id(),
                 opportunity_id=opp.id,
@@ -198,8 +198,8 @@ def automation_no_activity():
                 due_date=due_date,
                 status='open',
                 assigned_to_user_id=opp.owner_user_id,
-                created_at=get_iso_timestamp(),
-                updated_at=get_iso_timestamp()
+                created_at=get_utc_now(),
+                updated_at=get_utc_now()
             )
             db.add(task)
             
@@ -208,10 +208,10 @@ def automation_no_activity():
                 id=generate_id(),
                 opportunity_id=opp.id,
                 type='system',
-                occurred_at=get_iso_timestamp(),
+                occurred_at=get_utc_now(),
                 summary=f"Auto follow-up created (no activity in {no_activity_days} days)",
                 created_by_user_id=None,
-                created_at=get_iso_timestamp()
+                created_at=get_utc_now()
             )
             db.add(activity)
             
@@ -292,7 +292,7 @@ def automation_proposal_followup():
             Opportunity.stage_id == proposal_stage.id,
             Opportunity.status == 'active',
             Opportunity.close_outcome == 'open',
-            func.coalesce(last_activity_subq.c.last_activity, '1900-01-01') <= cutoff_date
+            func.coalesce(last_activity_subq.c.last_activity, datetime(1900, 1, 1, tzinfo=timezone.utc)) <= cutoff_date
         ).all()
         
         processed = 0
@@ -312,7 +312,7 @@ def automation_proposal_followup():
                 continue
             
             # Create task
-            due_date = (today_dt + timedelta(days=2)).date().isoformat()
+            due_date = (today_dt + timedelta(days=2)).date()
             task = Task(
                 id=generate_id(),
                 opportunity_id=opp.id,
@@ -321,8 +321,8 @@ def automation_proposal_followup():
                 due_date=due_date,
                 status='open',
                 assigned_to_user_id=opp.owner_user_id,
-                created_at=get_iso_timestamp(),
-                updated_at=get_iso_timestamp()
+                created_at=get_utc_now(),
+                updated_at=get_utc_now()
             )
             db.add(task)
             
@@ -331,10 +331,10 @@ def automation_proposal_followup():
                 id=generate_id(),
                 opportunity_id=opp.id,
                 type='system',
-                occurred_at=get_iso_timestamp(),
+                occurred_at=get_utc_now(),
                 summary=f"Auto proposal follow-up created (no activity in {no_activity_days} days)",
                 created_by_user_id=None,
-                created_at=get_iso_timestamp()
+                created_at=get_utc_now()
             )
             db.add(activity)
             

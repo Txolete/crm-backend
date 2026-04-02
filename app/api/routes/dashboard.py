@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from typing import Optional
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from calendar import monthrange
 from app.database import get_db
 from app.models.user import User
@@ -200,8 +200,8 @@ def get_dashboard_summary(
             prob = calculate_probability(opp, stage_probs_map, stages_map)
             kpi_b += calculate_weighted_value(opp, prob)
 
-    year_start = datetime(year, 1, 1)
-    year_end = datetime(year, 12, 31, 23, 59, 59)
+    year_start = datetime(year, 1, 1, tzinfo=timezone.utc)
+    year_end = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
 
     kpi_c = sum(
         (opp.won_value_eur if opp.won_value_eur is not None else opp.expected_value_eur)
@@ -230,8 +230,8 @@ def get_dashboard_summary(
 
     for month_num in range(1, 13):
         last_day = monthrange(year, month_num)[1]
-        month_end = datetime(year, month_num, last_day, 23, 59, 59)
-        month_start = datetime(year, month_num, 1)
+        month_end = datetime(year, month_num, last_day, 23, 59, 59, tzinfo=timezone.utc)
+        month_start = datetime(year, month_num, 1, tzinfo=timezone.utc)
 
         c_cum = sum(
             (opp.won_value_eur if opp.won_value_eur is not None else opp.expected_value_eur)
