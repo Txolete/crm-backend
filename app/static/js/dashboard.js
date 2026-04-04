@@ -138,49 +138,71 @@ async function updateTargets(year, payload) {
 }
 
 async function loadConfigData() {
+    // Each section has its own try/catch so one failure never blocks the rest.
+
+    // Lead sources
     try {
-        // Load lead sources
-        const lsResp = await fetch('/config/lead-sources', { credentials: 'include' });
-        if (lsResp.ok) {
-            const lsData = await lsResp.json();
+        const resp = await fetch('/config/lead-sources', { credentials: 'include' });
+        if (resp.ok) {
+            const data = await resp.json();
             const select = document.getElementById('filter-lead-source');
-            (Array.isArray(lsData) ? lsData : lsData.lead_sources || []).forEach(ls => {
-                select.innerHTML += `<option value="${ls.id}">${ls.name}</option>`;
-            });
+            if (select) {
+                (Array.isArray(data) ? data : data.lead_sources || []).forEach(ls => {
+                    select.innerHTML += `<option value="${ls.id}">${ls.name}</option>`;
+                });
+            }
+        } else {
+            console.warn('[loadConfigData] lead-sources status:', resp.status);
         }
+    } catch (e) { console.warn('[loadConfigData] lead-sources error:', e); }
 
-        // Load customer types
-        const ctResp = await fetch('/config/customer-types', { credentials: 'include' });
-        if (ctResp.ok) {
-            const ctData = await ctResp.json();
+    // Customer types
+    try {
+        const resp = await fetch('/config/customer-types', { credentials: 'include' });
+        if (resp.ok) {
+            const data = await resp.json();
             const select = document.getElementById('filter-customer-type');
-            (Array.isArray(ctData) ? ctData : ctData.customer_types || []).forEach(ct => {
-                select.innerHTML += `<option value="${ct.id}">${ct.name}</option>`;
-            });
+            if (select) {
+                (Array.isArray(data) ? data : data.customer_types || []).forEach(ct => {
+                    select.innerHTML += `<option value="${ct.id}">${ct.name}</option>`;
+                });
+            }
+        } else {
+            console.warn('[loadConfigData] customer-types status:', resp.status);
         }
+    } catch (e) { console.warn('[loadConfigData] customer-types error:', e); }
 
-        // Load regions
-        const rgResp = await fetch('/config/regions', { credentials: 'include' });
-        if (rgResp.ok) {
-            const rgData = await rgResp.json();
+    // Regions
+    try {
+        const resp = await fetch('/config/regions', { credentials: 'include' });
+        if (resp.ok) {
+            const data = await resp.json();
             const select = document.getElementById('filter-region');
-            (Array.isArray(rgData) ? rgData : rgData.regions || []).forEach(r => {
-                select.innerHTML += `<option value="${r.id}">${r.name}</option>`;
-            });
+            if (select) {
+                (Array.isArray(data) ? data : data.regions || []).forEach(r => {
+                    select.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                });
+            }
+        } else {
+            console.warn('[loadConfigData] regions status:', resp.status);
         }
+    } catch (e) { console.warn('[loadConfigData] regions error:', e); }
 
-        // Load users
-        const usResp = await fetch('/admin/users', { credentials: 'include' });
-        if (usResp.ok) {
-            const usData = await usResp.json();
+    // Users (admin/sales only — silently skipped for other roles)
+    try {
+        const resp = await fetch('/admin/users', { credentials: 'include' });
+        if (resp.ok) {
+            const data = await resp.json();
             const select = document.getElementById('filter-owner');
-            usData.users.forEach(u => {
-                select.innerHTML += `<option value="${u.id}">${u.name}</option>`;
-            });
+            if (select) {
+                (data.users || []).forEach(u => {
+                    select.innerHTML += `<option value="${u.id}">${u.name}</option>`;
+                });
+            }
+        } else {
+            console.warn('[loadConfigData] users status:', resp.status);
         }
-    } catch (error) {
-        console.warn('Could not load config data:', error);
-    }
+    } catch (e) { console.warn('[loadConfigData] users error:', e); }
 }
 
 // ============================================================================
