@@ -144,7 +144,7 @@ async function loadConfigData() {
         if (lsResp.ok) {
             const lsData = await lsResp.json();
             const select = document.getElementById('filter-lead-source');
-            lsData.lead_sources.forEach(ls => {
+            (Array.isArray(lsData) ? lsData : lsData.lead_sources || []).forEach(ls => {
                 select.innerHTML += `<option value="${ls.id}">${ls.name}</option>`;
             });
         }
@@ -154,7 +154,7 @@ async function loadConfigData() {
         if (ctResp.ok) {
             const ctData = await ctResp.json();
             const select = document.getElementById('filter-customer-type');
-            ctData.customer_types.forEach(ct => {
+            (Array.isArray(ctData) ? ctData : ctData.customer_types || []).forEach(ct => {
                 select.innerHTML += `<option value="${ct.id}">${ct.name}</option>`;
             });
         }
@@ -164,7 +164,7 @@ async function loadConfigData() {
         if (rgResp.ok) {
             const rgData = await rgResp.json();
             const select = document.getElementById('filter-region');
-            rgData.regions.forEach(r => {
+            (Array.isArray(rgData) ? rgData : rgData.regions || []).forEach(r => {
                 select.innerHTML += `<option value="${r.id}">${r.name}</option>`;
             });
         }
