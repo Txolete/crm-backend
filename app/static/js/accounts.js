@@ -565,24 +565,9 @@ let currentEditingAccountId = null;
 
 async function showCreateModal() {
     console.log('[ACCOUNTS] Opening create account modal');
-    console.log('[ACCOUNTS] Current config data:', {
-        customerTypes: customerTypes.length,
-        regions: regions.length,
-        leadSources: leadSources.length,
-        users: users.length
-    });
-    
-    // Ensure config data is loaded
-    if (customerTypes.length === 0 || regions.length === 0 || users.length === 0) {
-        console.log('[ACCOUNTS] Config data not loaded, loading now...');
-        await loadConfigData();
-        console.log('[ACCOUNTS] After loading config:', {
-            customerTypes: customerTypes.length,
-            regions: regions.length,
-            leadSources: leadSources.length,
-            users: users.length
-        });
-    }
+
+    // Always reload config so changes in /config are reflected immediately
+    await loadConfigData();
     
     // Initialize modal if not done
     if (!accountFormModal) {
@@ -619,14 +604,11 @@ async function showCreateModal() {
 
 async function editAccountDetail() {
     if (!currentAccountDetail) return;
-    
+
     console.log('[ACCOUNTS] Opening edit modal for:', currentAccountDetail.id);
-    
-    // Ensure config data is loaded
-    if (customerTypes.length === 0 || regions.length === 0 || users.length === 0) {
-        console.log('[ACCOUNTS] Config data not loaded, loading now...');
-        await loadConfigData();
-    }
+
+    // Always reload config so changes in /config are reflected immediately
+    await loadConfigData();
     
     // Initialize modal if not done
     if (!accountFormModal) {
@@ -997,15 +979,8 @@ function populateContactsList(contacts) {
         // Get role name from contact_role_id
         let roleName = '-';
         if (contact.contact_role_id) {
-            // Map common role IDs to names
-            const roleMap = {
-                'gerente': 'Gerente',
-                'director': 'Director',
-                'administrativo': 'Administrativo',
-                'tecnico': 'Técnico',
-                'comercial': 'Comercial'
-            };
-            roleName = roleMap[contact.contact_role_id] || contact.contact_role_id;
+            const role = contactRoles.find(r => r.id === contact.contact_role_id);
+            roleName = role ? role.name : contact.contact_role_id;
         }
         if (contact.contact_role_other_text) {
             roleName = contact.contact_role_other_text;
@@ -1188,6 +1163,20 @@ let emailFieldCounter = 0;
 let phoneFieldCounter = 0;
 let contactRoles = [];
 
+async function loadContactRoles() {
+    try {
+        const resp = await fetch('/config/contact-roles', { credentials: 'include' });
+        if (resp.ok) {
+            const data = await resp.json();
+            contactRoles = Array.isArray(data) ? data : (data.contact_roles || []);
+        } else {
+            console.warn('[ACCOUNTS] Failed to load contact roles:', resp.status);
+        }
+    } catch (e) {
+        console.error('[ACCOUNTS] Error loading contact roles:', e);
+    }
+}
+
 function showAddContactModal() {
     if (!currentAccountDetail) {
         showToast('Error: No hay cliente seleccionado', 'danger');
@@ -1218,9 +1207,10 @@ function showAddContactModal() {
     addEmailField();
     addPhoneField();
     
-    // Populate contact roles
+    // Load and populate contact roles
+    await loadContactRoles();
     populateContactRoles();
-    
+
     // Show modal
     contactFormModal.show();
 }
@@ -1258,7 +1248,8 @@ function editContact(contactId) {
     document.getElementById('contact-first-name').value = contact.first_name || '';
     document.getElementById('contact-last-name').value = contact.last_name || '';
     
-    // Populate contact roles
+    // Load and populate contact roles
+    await loadContactRoles();
     populateContactRoles();
     document.getElementById('contact-role').value = contact.contact_role_id || '';
     
@@ -1338,17 +1329,9 @@ async function deleteContact(contactId) {
 function populateContactRoles() {
     const roleSelect = document.getElementById('contact-role');
     roleSelect.innerHTML = '<option value="">Seleccionar...</option>';
-    
-    // Simple hardcoded roles for now
-    const roles = [
-        { id: 'gerente', name: 'Gerente' },
-        { id: 'director', name: 'Director' },
-        { id: 'administrativo', name: 'Administrativo' },
-        { id: 'tecnico', name: 'Técnico' },
-        { id: 'comercial', name: 'Comercial' }
-    ];
-    
-    roles.forEach(role => {
+
+    const activeRoles = contactRoles.filter(r => r.is_active !== false);
+    activeRoles.forEach(role => {
         const option = document.createElement('option');
         option.value = role.id;
         option.textContent = role.name;
