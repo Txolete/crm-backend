@@ -85,6 +85,7 @@ function renderUsers(users) {
         const roleLabel = {
             'admin': 'Admin',
             'sales': 'Sales',
+            'commercial': 'Commercial',
             'viewer': 'Viewer'
         }[user.role] || user.role;
         
@@ -190,8 +191,8 @@ async function saveUser() {
             return;
         }
         
-        if (password && password.length < 6) {
-            alert('⚠️ La contraseña debe tener al menos 6 caracteres');
+        if (password && password.length < 8) {
+            alert('⚠️ La contraseña debe tener al menos 8 caracteres');
             return;
         }
         
@@ -222,9 +223,13 @@ async function saveUser() {
         
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || 'Error al guardar usuario');
+            const detail = error.detail;
+            if (Array.isArray(detail)) {
+                throw new Error(detail.map(e => e.msg || JSON.stringify(e)).join('; '));
+            }
+            throw new Error(typeof detail === 'string' ? detail : 'Error al guardar usuario');
         }
-        
+
         // Close modal and reload
         bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
         await loadUsers();
