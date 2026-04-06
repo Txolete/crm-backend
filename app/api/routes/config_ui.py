@@ -65,9 +65,7 @@ def create_region(
     )
     
     db.add(region)
-    db.commit()
-    db.refresh(region)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -77,7 +75,8 @@ def create_region(
         after_data={"name": region.name}
     )
     db.commit()
-    
+    db.refresh(region)
+
     logger.info(f"Region created: {region.name} by {current_user.email}")
     return RegionResponse(**region.__dict__)
 
@@ -117,10 +116,7 @@ def update_region(
         region.sort_order = request.sort_order
     
     region.updated_at = get_utc_now()
-    
-    db.commit()
-    db.refresh(region)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -131,7 +127,8 @@ def update_region(
         after_data={"name": region.name, "is_active": region.is_active}
     )
     db.commit()
-    
+    db.refresh(region)
+
     logger.info(f"Region updated: {region.name} by {current_user.email}")
     return RegionResponse(**region.__dict__)
 
@@ -242,9 +239,7 @@ def create_customer_type(
     )
     
     db.add(item)
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -254,7 +249,8 @@ def create_customer_type(
         after_data={"name": item.name}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return CustomerTypeResponse(**item.__dict__)
 
 
@@ -288,9 +284,7 @@ def update_customer_type(
         item.sort_order = request.sort_order
     
     item.updated_at = get_utc_now()
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -300,7 +294,8 @@ def update_customer_type(
         after_data={"name": item.name, "is_active": item.is_active}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return CustomerTypeResponse(**item.__dict__)
 
 
@@ -409,9 +404,7 @@ def create_lead_source(
     )
     
     db.add(item)
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -421,7 +414,8 @@ def create_lead_source(
         after_data={"name": item.name}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return LeadSourceResponse(**item.__dict__)
 
 
@@ -457,9 +451,7 @@ def update_lead_source(
         item.sort_order = request.sort_order
     
     item.updated_at = get_utc_now()
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -469,7 +461,8 @@ def update_lead_source(
         after_data={"name": item.name}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return LeadSourceResponse(**item.__dict__)
 
 
@@ -563,9 +556,7 @@ def create_contact_role(
     )
     
     db.add(item)
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -575,7 +566,8 @@ def create_contact_role(
         after_data={"name": item.name}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return ContactRoleResponse(**item.__dict__)
 
 
@@ -609,9 +601,7 @@ def update_contact_role(
         item.sort_order = request.sort_order
     
     item.updated_at = get_utc_now()
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -621,7 +611,8 @@ def update_contact_role(
         after_data={"name": item.name}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return ContactRoleResponse(**item.__dict__)
 
 
@@ -713,9 +704,7 @@ def create_task_template(
     )
     
     db.add(item)
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -725,7 +714,8 @@ def create_task_template(
         after_data={"name": item.name}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return TaskTemplateResponse(**item.__dict__)
 
 
@@ -761,9 +751,7 @@ def update_task_template(
         item.sort_order = request.sort_order
     
     item.updated_at = get_utc_now()
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -773,7 +761,8 @@ def update_task_template(
         after_data={"name": item.name}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return TaskTemplateResponse(**item.__dict__)
 
 
@@ -869,9 +858,7 @@ def create_stage(
     )
     
     db.add(item)
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -881,7 +868,8 @@ def create_stage(
         after_data={"key": item.key, "name": item.name}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return StageResponse(**item.__dict__)
 
 
@@ -964,9 +952,7 @@ def update_stage(
         item.is_active = request.is_active
     
     item.updated_at = get_utc_now()
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",
@@ -976,7 +962,8 @@ def update_stage(
         after_data={"key": item.key, "name": item.name, "outcome": item.outcome, "forced": force}
     )
     db.commit()
-    
+    db.refresh(item)
+
     return StageResponse(**item.__dict__)
 
 
@@ -1086,9 +1073,7 @@ def create_stage_probability(
     )
     
     db.add(item)
-    db.commit()
-    db.refresh(item)
-    
+
     create_audit_log(
         db=db,
         entity="config",

@@ -542,6 +542,11 @@ async function saveTask() {
         if (typeof loadMyTasks === 'function' && document.getElementById('filter-task-status')) {
             await loadMyTasks();
         }
+
+        // Refrescar Kanban (oportunidad original y nueva pueden haber cambiado)
+        if (typeof window.loadKanbanData === 'function') {
+            window.loadKanbanData();
+        }
         
         // Si estamos en modal de oportunidad, recargar ese panel también
         if (typeof currentOpportunityId !== 'undefined' && currentOpportunityId) {

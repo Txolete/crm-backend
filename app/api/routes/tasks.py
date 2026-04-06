@@ -367,34 +367,12 @@ def update_task(
         "assigned_to": task.assigned_to_user_id
     }
     
-    # Update fields if provided
-    if task_data.title is not None:
-        task.title = task_data.title
-    
-    if task_data.description is not None:
-        task.description = task_data.description
-    
-    if task_data.priority is not None:
-        task.priority = task_data.priority
-    
-    if task_data.status is not None:
-        task.status = task_data.status
-    
-    if task_data.due_date is not None:
-        task.due_date = task_data.due_date
-    
-    if task_data.assigned_to_user_id is not None:
-        task.assigned_to_user_id = task_data.assigned_to_user_id
-    
-    if task_data.reminder_date is not None:
-        task.reminder_date = task_data.reminder_date
-    
-    if task_data.opportunity_id is not None:
-        task.opportunity_id = task_data.opportunity_id
-    
-    if task_data.account_id is not None:
-        task.account_id = task_data.account_id
-    
+    # Apply all explicitly-provided fields, including null values (allows clearing
+    # opportunity_id / account_id / description / etc. by sending null in payload)
+    update_data = task_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(task, field, value)
+
     # Validate: at least one link must remain
     if not task.opportunity_id and not task.account_id:
         raise HTTPException(
