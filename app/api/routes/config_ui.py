@@ -58,7 +58,7 @@ def create_region(
         id=generate_id(),
         name=request.name,
         country_code=request.country_code,
-        is_active=request.is_active,
+        is_active=int(request.is_active),
         sort_order=request.sort_order,
         created_at=timestamp,
         updated_at=timestamp
@@ -111,7 +111,7 @@ def update_region(
     if request.country_code is not None:
         region.country_code = request.country_code
     if request.is_active is not None:
-        region.is_active = request.is_active
+        region.is_active = int(request.is_active)
     if request.sort_order is not None:
         region.sort_order = request.sort_order
     
@@ -163,7 +163,7 @@ def deactivate_region(
             }
         )
     
-    region.is_active = False
+    region.is_active = 0
     region.updated_at = get_utc_now()
     
     db.commit()
@@ -232,7 +232,7 @@ def create_customer_type(
     item = CfgCustomerType(
         id=generate_id(),
         name=request.name,
-        is_active=request.is_active,
+        is_active=int(request.is_active),
         sort_order=request.sort_order,
         created_at=timestamp,
         updated_at=timestamp
@@ -279,7 +279,7 @@ def update_customer_type(
         item.name = request.name
     
     if request.is_active is not None:
-        item.is_active = request.is_active
+        item.is_active = int(request.is_active)
     if request.sort_order is not None:
         item.sort_order = request.sort_order
     
@@ -329,7 +329,7 @@ def deactivate_customer_type(
             }
         )
     
-    item.is_active = False
+    item.is_active = 0
     item.updated_at = get_utc_now()
     db.commit()
     
@@ -397,7 +397,7 @@ def create_lead_source(
         id=generate_id(),
         name=request.name,
         category=request.category,
-        is_active=request.is_active,
+        is_active=int(request.is_active),
         sort_order=request.sort_order,
         created_at=timestamp,
         updated_at=timestamp
@@ -446,7 +446,7 @@ def update_lead_source(
     if request.category is not None:
         item.category = request.category
     if request.is_active is not None:
-        item.is_active = request.is_active
+        item.is_active = int(request.is_active)
     if request.sort_order is not None:
         item.sort_order = request.sort_order
     
@@ -496,7 +496,7 @@ def deactivate_lead_source(
             }
         )
     
-    item.is_active = False
+    item.is_active = 0
     item.updated_at = get_utc_now()
     db.commit()
     
@@ -549,7 +549,7 @@ def create_contact_role(
     item = CfgContactRole(
         id=generate_id(),
         name=request.name,
-        is_active=request.is_active,
+        is_active=int(request.is_active),
         sort_order=request.sort_order,
         created_at=timestamp,
         updated_at=timestamp
@@ -596,7 +596,7 @@ def update_contact_role(
         item.name = request.name
     
     if request.is_active is not None:
-        item.is_active = request.is_active
+        item.is_active = int(request.is_active)
     if request.sort_order is not None:
         item.sort_order = request.sort_order
     
@@ -647,7 +647,7 @@ def deactivate_contact_role(
             }
         )
     
-    item.is_active = False
+    item.is_active = 0
     item.updated_at = get_utc_now()
     db.commit()
     
@@ -697,7 +697,7 @@ def create_task_template(
         id=generate_id(),
         name=request.name,
         default_due_days=request.default_due_days,
-        is_active=request.is_active,
+        is_active=int(request.is_active),
         sort_order=request.sort_order,
         created_at=timestamp,
         updated_at=timestamp
@@ -746,7 +746,7 @@ def update_task_template(
     if request.default_due_days is not None:
         item.default_due_days = request.default_due_days
     if request.is_active is not None:
-        item.is_active = request.is_active
+        item.is_active = int(request.is_active)
     if request.sort_order is not None:
         item.sort_order = request.sort_order
     
@@ -795,7 +795,7 @@ def deactivate_task_template(
             }
         )
     
-    item.is_active = False
+    item.is_active = 0
     item.updated_at = get_utc_now()
     db.commit()
     
@@ -851,8 +851,8 @@ def create_stage(
         name=request.name,
         sort_order=request.sort_order,
         outcome=request.outcome,
-        is_terminal=request.is_terminal,
-        is_active=request.is_active,
+        is_terminal=int(request.is_terminal),
+        is_active=int(request.is_active),
         created_at=timestamp,
         updated_at=timestamp
     )
@@ -947,9 +947,9 @@ def update_stage(
     if request.outcome is not None:
         item.outcome = request.outcome
     if request.is_terminal is not None:
-        item.is_terminal = request.is_terminal
+        item.is_terminal = int(request.is_terminal)
     if request.is_active is not None:
-        item.is_active = request.is_active
+        item.is_active = int(request.is_active)
     
     item.updated_at = get_utc_now()
 
@@ -997,7 +997,7 @@ def deactivate_stage(
             }
         )
     
-    item.is_active = False
+    item.is_active = 0
     item.updated_at = get_utc_now()
     db.commit()
     
