@@ -176,11 +176,6 @@ function renderTasksSemaphore(tasks) {
     const upcoming = [];
     
     tasks.forEach(task => {
-        // Solo tareas pendientes o en progreso
-        if (task.status === 'completed' || task.status === 'cancelled') {
-            return;
-        }
-        
         if (!task.due_date) {
             upcoming.push(task); // Sin fecha → upcoming
             return;
@@ -486,19 +481,28 @@ async function saveTask() {
         const priority = document.getElementById('task-priority').value;
         const dueDate = document.getElementById('task-due-date').value;
         const assignedTo = document.getElementById('task-assigned-to').value;
-        
+
         // Validar título
         if (!title) {
             showAlert('El título es obligatorio', 'warning');
             return;
         }
-        
+
         // Validar vinculación
         if (!opportunityId && !accountId) {
             showAlert('Debes vincular la tarea a una oportunidad o una cuenta', 'warning');
             return;
         }
-        
+
+        // Guardar opportunity_id original para poder refrescar la card Kanban anterior
+        let originalOppId = null;
+        if (taskId) {
+            const existingTask = allTasks.find(t => t.id === taskId);
+            if (existingTask) {
+                originalOppId = existingTask.opportunity_id || null;
+            }
+        }
+
         // Construir payload
         const payload = {
             title: title,
@@ -510,7 +514,7 @@ async function saveTask() {
             due_date: dueDate || null,
             assigned_to_user_id: assignedTo || null
         };
-        
+
         // Crear o editar
         let response;
         if (taskId) {
@@ -528,42 +532,58 @@ async function saveTask() {
                 body: JSON.stringify(payload)
             });
         }
-        
+
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || 'Error al guardar tarea');
+            const detail = error.detail;
+            if (Array.isArray(detail)) {
+                throw new Error(detail.map(e => e.msg || JSON.stringify(e)).join('; '));
+            }
+            throw new Error(typeof detail === 'string' ? detail : 'Error al guardar tarea');
         }
-        
+
+        const savedTask = await response.json();
+        const newOppId = savedTask.opportunity_id || null;
+
+        // Actualizar referencia local para reasignaciones consecutivas sin F5
+        if (taskId) {
+            const localTask = allTasks.find(t => t.id === taskId);
+            if (localTask) {
+                localTask.opportunity_id = newOppId;
+            }
+        }
+
         // Cerrar modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
         modal.hide();
-        
-        // Recargar tareas del dashboard (solo si estamos en dashboard)
+
+        // Recargar lista de tareas (cubre FIX 4: desvincular oportunidad refresca el panel)
         if (typeof loadMyTasks === 'function' && document.getElementById('filter-task-status')) {
             await loadMyTasks();
         }
 
-        // Refrescar Kanban (oportunidad original y nueva pueden haber cambiado)
+        // Refrescar Kanban: siempre recargar para capturar oportunidad original y nueva
+        // (cubre FIX 3: segunda reasignación consecutiva funciona porque se usa loadKanbanData completo)
         if (typeof window.loadKanbanData === 'function') {
             window.loadKanbanData();
         }
-        
+
         // Si estamos en modal de oportunidad, recargar ese panel también
         if (typeof currentOpportunityId !== 'undefined' && currentOpportunityId) {
             if (typeof loadOpportunityTasks === 'function') {
                 await loadOpportunityTasks(currentOpportunityId);
             }
         }
-        
+
         // Si estamos en modal de cuenta (accounts.html), recargar ese panel también
         if (typeof currentAccountId !== 'undefined' && currentAccountId) {
             if (typeof loadAccountTasks === 'function') {
                 await loadAccountTasks(currentAccountId);
             }
         }
-        
+
         showAlert(taskId ? 'Tarea actualizada correctamente' : 'Tarea creada correctamente', 'success');
-        
+
     } catch (error) {
         console.error('Error saving task:', error);
         showAlert(error.message || 'Error al guardar tarea', 'danger');
