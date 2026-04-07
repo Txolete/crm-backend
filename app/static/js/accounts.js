@@ -1177,7 +1177,7 @@ async function loadContactRoles() {
     }
 }
 
-function showAddContactModal() {
+async function showAddContactModal() {
     if (!currentAccountDetail) {
         showToast('Error: No hay cliente seleccionado', 'danger');
         return;
@@ -1215,7 +1215,7 @@ function showAddContactModal() {
     contactFormModal.show();
 }
 
-function editContact(contactId) {
+async function editContact(contactId) {
     if (!currentAccountDetail) return;
     
     console.log('[ACCOUNTS] Opening edit contact modal for:', contactId);
