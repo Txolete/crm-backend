@@ -72,11 +72,14 @@ async function initTasksUserFilter() {
     if (!wrapper) return;
     wrapper.style.display = '';
 
+    const select = document.getElementById('filter-task-user');
+    // Idempotent: skip if already populated
+    if (select && select.options.length > 1) return;
+
     try {
         const response = await fetch('/admin/users', { credentials: 'include' });
         if (!response.ok) return;
         const data = await response.json();
-        const select = document.getElementById('filter-task-user');
         (data.users || []).forEach(u => {
             const opt = document.createElement('option');
             opt.value = u.id;

@@ -517,6 +517,19 @@ function bindEvents() {
             }
             loadMyTasks();
         });
+
+        // Also init if tasks tab is already active on page load (e.g. via URL hash)
+        if (tasksTab.classList.contains('active')) {
+            initTasksUserFilter().then(() => loadMyTasks());
+        }
+    }
+
+    // Ensure activityModal cleanup on close (prevents stuck backdrop)
+    const activityModal = document.getElementById('activityModal');
+    if (activityModal) {
+        activityModal.addEventListener('hidden.bs.modal', function () {
+            setTimeout(forceModalCleanup, 300);
+        });
     }
 }
 
