@@ -67,11 +67,15 @@ def list_accounts(
     # Filter by owner
     if owner_user_id:
         query = query.filter(Account.owner_user_id == owner_user_id)
-    
+
+    # Commercial role can only see their own accounts
+    if current_user.role == "commercial":
+        query = query.filter(Account.owner_user_id == current_user.id)
+
     # Search by name
     if q:
         query = query.filter(Account.name.ilike(f"%{q}%"))
-    
+
     accounts = query.all()
 
     if not accounts:
@@ -203,13 +207,20 @@ def get_account(
     **Permissions:** All authenticated users
     """
     account = db.query(Account).filter(Account.id == account_id).first()
-    
+
     if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Account not found"
         )
-    
+
+    # Commercial role can only access their own accounts
+    if current_user.role == "commercial" and account.owner_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes acceso a este cliente"
+        )
+
     # Get contacts with their channels
     contacts = db.query(Contact).filter(
         Contact.account_id == account_id,
