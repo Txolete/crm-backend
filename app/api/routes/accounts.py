@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Optional
 from app.database import get_db
 from app.models.user import User
@@ -16,7 +17,7 @@ from app.schemas.account import (
 )
 from app.schemas.contact import ContactResponse, ContactChannelResponse
 from app.utils.auth import get_current_user_from_cookie, require_role
-from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now, ENTITY_ACCOUNTS
+from app.utils.audit import create_audit_log, generate_id, get_utc_now, ENTITY_ACCOUNTS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -72,21 +73,29 @@ def list_accounts(
         query = query.filter(Account.name.ilike(f"%{q}%"))
     
     accounts = query.all()
-    
-    # Build response with counters
+
+    if not accounts:
+        return AccountListResponse(accounts=[], total=0)
+
+    # Batch count queries (2 queries total instead of N*2)
+    account_ids = [acc.id for acc in accounts]
+
+    opp_counts = dict(
+        db.query(Opportunity.account_id, func.count(Opportunity.id))
+        .filter(Opportunity.account_id.in_(account_ids))
+        .group_by(Opportunity.account_id)
+        .all()
+    )
+    contact_counts = dict(
+        db.query(Contact.account_id, func.count(Contact.id))
+        .filter(Contact.account_id.in_(account_ids))
+        .group_by(Contact.account_id)
+        .all()
+    )
+
+    # Build response
     accounts_with_counts = []
     for acc in accounts:
-        # Count opportunities
-        opportunities_count = db.query(Opportunity).filter(
-            Opportunity.account_id == acc.id
-        ).count()
-        
-        # Count contacts
-        contacts_count = db.query(Contact).filter(
-            Contact.account_id == acc.id
-        ).count()
-        
-        # Create dict from account
         acc_dict = {
             "id": acc.id,
             "name": acc.name,
@@ -106,11 +115,11 @@ def list_accounts(
             "notes": acc.notes,
             "created_at": acc.created_at,
             "updated_at": acc.updated_at,
-            "opportunities_count": opportunities_count,
-            "contacts_count": contacts_count
+            "opportunities_count": opp_counts.get(acc.id, 0),
+            "contacts_count": contact_counts.get(acc.id, 0)
         }
         accounts_with_counts.append(AccountResponse(**acc_dict))
-    
+
     return AccountListResponse(
         accounts=accounts_with_counts,
         total=len(accounts)
