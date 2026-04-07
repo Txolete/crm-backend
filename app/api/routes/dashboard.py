@@ -178,6 +178,10 @@ def get_dashboard_summary(
     if q:
         base_query = base_query.filter(Account.name.ilike(f'%{q}%'))
 
+    # Commercial role can only see their own opportunities
+    if current_user.role == "commercial":
+        base_query = base_query.filter(Opportunity.owner_user_id == current_user.id)
+
     all_opps = base_query.all()
 
     # Preload stage probs and stages
