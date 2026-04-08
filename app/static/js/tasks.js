@@ -317,6 +317,15 @@ async function showCreateTaskModal() {
     // Limpiar formulario
     taskForm.reset();
     document.getElementById('task-id').value = '';
+
+    // Re-habilitar campos (pueden estar deshabilitados si se vino de viewTaskDetails)
+    ['task-title','task-description','task-template','task-opportunity','task-account',
+     'task-priority','task-due-date','task-assigned-to'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = false;
+    });
+    const saveBtn = document.querySelector('#taskModal .btn-primary');
+    if (saveBtn) saveBtn.style.display = '';
     
     // Cambiar título
     document.getElementById('taskModalTitle').innerHTML = '<i class="bi bi-plus-circle"></i> Nueva Tarea';
@@ -339,6 +348,15 @@ async function showCreateTaskModal() {
  */
 async function editTask(taskId) {
     try {
+        // Re-habilitar campos (pueden estar deshabilitados si se vino de viewTaskDetails)
+        ['task-title','task-description','task-template','task-opportunity','task-account',
+         'task-priority','task-due-date','task-assigned-to'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = false;
+        });
+        const saveBtn = document.querySelector('#taskModal .btn-primary');
+        if (saveBtn) saveBtn.style.display = '';
+
         // Obtener datos de la tarea
         const response = await fetch(`/tasks/${taskId}`);
         
