@@ -424,12 +424,14 @@ def close_opportunity(
         # For won, won_value_eur defaults to expected_value_eur if not provided
         won_value = request.won_value_eur if request.won_value_eur is not None else opportunity.expected_value_eur
     elif request.close_outcome == 'lost':
-        # For lost, lost_reason is required
-        if not request.lost_reason or len(request.lost_reason.strip()) < 2:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="lost_reason is required and must be at least 2 characters"
-            )
+        # Sprint 4D: lost_reason_id es obligatorio para nuevas pérdidas
+        if not request.lost_reason_id:
+            # Fallback legacy: aceptar lost_reason (texto libre) si no viene lost_reason_id
+            if not request.lost_reason or len(request.lost_reason.strip()) < 2:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="lost_reason_id is required to close as lost"
+                )
         won_value = None
     else:
         raise HTTPException(
@@ -463,9 +465,13 @@ def close_opportunity(
     if request.close_outcome == 'won':
         opportunity.won_value_eur = won_value
         opportunity.lost_reason = None
+        opportunity.lost_reason_id = None
+        opportunity.lost_reason_detail = None
         opportunity.probability_override = None  # B5/B6: limpiar override al ganar, probabilidad = 100%
     else:  # lost
-        opportunity.lost_reason = request.lost_reason
+        opportunity.lost_reason = request.lost_reason  # legacy
+        opportunity.lost_reason_id = request.lost_reason_id
+        opportunity.lost_reason_detail = request.lost_reason_detail
         opportunity.won_value_eur = None
     
     opportunity.updated_at = get_utc_now()

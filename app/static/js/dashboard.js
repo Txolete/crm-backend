@@ -3233,14 +3233,32 @@ window.confirmCloseWon = async function() {
 /**
  * Abre el modal de confirmación para marcar como Perdida.
  */
-window.openLostConfirm = function() {
+window.openLostConfirm = async function() {
     const opp = currentOpportunityData;
     if (!opp) return;
 
     document.getElementById('lost-confirm-opp-name').textContent =
         `"${opp.name || opp.account_name}"`;
-    document.getElementById('lost-reason-input').value = '';
+    document.getElementById('lost-reason-detail').value = '';
     document.getElementById('lost-close-date').value = new Date().toISOString().split('T')[0];
+
+    // Cargar motivos de pérdida desde la API
+    const select = document.getElementById('lost-reason-select');
+    select.innerHTML = '<option value="">Seleccionar motivo...</option>';
+    try {
+        const res = await fetch('/config/lost-reasons', { credentials: 'include' });
+        if (res.ok) {
+            const reasons = await res.json();
+            reasons.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                select.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.warn('[LOST-MODAL] No se pudieron cargar los motivos:', e);
+    }
 
     bootstrap.Modal.getInstance(document.getElementById('oppDetailModal'))?.hide();
     new bootstrap.Modal(document.getElementById('lostConfirmModal')).show();
@@ -3253,11 +3271,13 @@ window.confirmCloseLost = async function() {
     const opp = currentOpportunityData;
     if (!opp) return;
 
-    const lostReason = document.getElementById('lost-reason-input').value.trim();
+    const lostReasonId = document.getElementById('lost-reason-select').value;
+    const lostReasonDetail = document.getElementById('lost-reason-detail').value.trim();
     const closeDate = document.getElementById('lost-close-date').value;
 
-    if (lostReason.length < 2) {
-        showToast('El motivo de pérdida es obligatorio (mín. 2 caracteres)', 'warning');
+    if (!lostReasonId) {
+        showToast('El motivo de pérdida es obligatorio', 'warning');
+        document.getElementById('lost-reason-select').focus();
         return;
     }
     if (!closeDate) {
@@ -3273,7 +3293,8 @@ window.confirmCloseLost = async function() {
             body: JSON.stringify({
                 close_outcome: 'lost',
                 close_date: closeDate,
-                lost_reason: lostReason
+                lost_reason_id: lostReasonId,
+                lost_reason_detail: lostReasonDetail || null
             })
         });
 

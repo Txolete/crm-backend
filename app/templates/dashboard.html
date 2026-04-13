@@ -1730,9 +1730,16 @@
                     <p class="fw-bold" id="lost-confirm-opp-name"></p>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Motivo de pérdida <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="lost-reason-input"
-                               placeholder="Ej: Precio, Competencia, Timing..." maxlength="200">
-                        <small class="text-muted">Mínimo 2 caracteres.</small>
+                        <select class="form-select" id="lost-reason-select" required>
+                            <option value="">Seleccionar motivo...</option>
+                        </select>
+                        <small class="text-muted">Campo obligatorio.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Contexto adicional <span class="text-muted">(opcional)</span></label>
+                        <textarea class="form-control" id="lost-reason-detail"
+                                  rows="2" placeholder="Detalles adicionales sobre el motivo de pérdida..."
+                                  maxlength="500"></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Fecha de cierre</label>

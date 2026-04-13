@@ -87,7 +87,9 @@ class CloseOpportunityRequest(BaseModel):
     close_outcome: str = Field(..., pattern="^(won|lost)$")
     close_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     won_value_eur: Optional[float] = Field(None, ge=0)
-    lost_reason: Optional[str] = Field(None, min_length=2)
+    lost_reason: Optional[str] = Field(None, min_length=2)  # legacy
+    lost_reason_id: Optional[str] = None   # Sprint 4D — FK a cfg_lost_reasons
+    lost_reason_detail: Optional[str] = None  # Sprint 4D — texto libre adicional
 
 
 class CloseOpportunityResponse(BaseModel):
