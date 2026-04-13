@@ -3006,24 +3006,29 @@ function renderOpportunityTasks(tasks) {
     html += '</div>';
     contentDiv.innerHTML = html;
 
-    // Event delegation — evita problemas de escapado en onclick con strings
-    contentDiv.addEventListener('click', async function handler(e) {
-        const completeBtn = e.target.closest('.opp-task-complete');
-        const editBtn    = e.target.closest('.opp-task-edit');
-        const deleteBtn  = e.target.closest('.opp-task-delete');
+    // Adjuntar listeners directamente a cada botón (innerHTML reemplaza el DOM,
+    // no hay acumulación de listeners en re-renders)
+    contentDiv.querySelectorAll('.opp-task-complete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await completeTaskFromOpp(btn.dataset.taskId);
+        });
+    });
 
-        if (completeBtn) {
+    contentDiv.querySelectorAll('.opp-task-edit').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            await completeTaskFromOpp(completeBtn.dataset.taskId);
-        } else if (editBtn) {
+            await editTaskFromOpp(btn.dataset.taskId);
+        });
+    });
+
+    contentDiv.querySelectorAll('.opp-task-delete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            await editTaskFromOpp(editBtn.dataset.taskId);
-        } else if (deleteBtn) {
-            e.stopPropagation();
-            const title = deleteBtn.dataset.taskTitle || 'esta tarea';
+            const title = btn.dataset.taskTitle || 'esta tarea';
             if (!confirm(`¿Eliminar "${title}"?`)) return;
             try {
-                const res = await fetch(`/tasks/${deleteBtn.dataset.taskId}`, {
+                const res = await fetch(`/tasks/${btn.dataset.taskId}`, {
                     method: 'DELETE', credentials: 'include'
                 });
                 if (!res.ok) throw new Error('Error eliminando tarea');
@@ -3034,8 +3039,8 @@ function renderOpportunityTasks(tasks) {
                 console.error('[TASKS] Error deleting:', err);
                 showToast('Error al eliminar tarea', 'danger');
             }
-        }
-    }, { once: true }); // once:true — se registra de nuevo en cada render
+        });
+    });
 }
 
 /**
