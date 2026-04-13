@@ -1590,6 +1590,8 @@ window.showOpportunityDetail = async function(opportunityId) {
     document.getElementById('btn-cancel-edit').style.display = 'none';
     document.getElementById('btn-save-opp').style.display = 'none';
     document.getElementById('btn-close-detail').style.display = 'inline-block';
+    document.getElementById('btn-mark-won').style.display = 'none';
+    document.getElementById('btn-mark-lost').style.display = 'none';
     
     modal.show();
     
@@ -1640,6 +1642,11 @@ async function loadOpportunityDetail(opportunityId) {
     
     // Show edit button
     document.getElementById('btn-edit-opp').style.display = 'inline-block';
+
+    // B5/B6: mostrar botones won/lost solo si la oportunidad está abierta
+    const isOpen = opp.close_outcome === 'open' || !opp.close_outcome;
+    document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
+    document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
     
     // Update modal title
     document.getElementById('oppDetailTitle').textContent = 
@@ -2125,6 +2132,8 @@ window.switchToEditMode = async function() {
         document.getElementById('btn-cancel-edit').style.display = 'inline-block';
         document.getElementById('btn-save-opp').style.display = 'inline-block';
         document.getElementById('btn-close-detail').style.display = 'none';
+        document.getElementById('btn-mark-won').style.display = 'none';
+        document.getElementById('btn-mark-lost').style.display = 'none';
         
         console.log('[EDIT] Edit mode activated');
         
@@ -2149,6 +2158,12 @@ window.cancelEdit = function() {
     document.getElementById('btn-cancel-edit').style.display = 'none';
     document.getElementById('btn-save-opp').style.display = 'none';
     document.getElementById('btn-close-detail').style.display = 'inline-block';
+
+    // Restaurar botones won/lost si la opp está abierta
+    const isOpen = currentOpportunityData &&
+        (currentOpportunityData.close_outcome === 'open' || !currentOpportunityData.close_outcome);
+    document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
+    document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
 }
 
 /**
@@ -3086,6 +3101,146 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// ---------------------------------------------------------------------------
+// B5/B6 — Cerrar oportunidad como Ganada / Perdida
+// ---------------------------------------------------------------------------
+
+/**
+ * Abre el modal de confirmación para marcar como Ganada.
+ * Pre-rellena el valor esperado y muestra aviso si hay override activo.
+ */
+window.openWonConfirm = function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    document.getElementById('won-confirm-opp-name').textContent =
+        `"${opp.name || opp.account_name}"`;
+
+    // Advertencia si hay override de probabilidad
+    const warningEl = document.getElementById('won-override-warning');
+    if (opp.probability_override !== null && opp.probability_override !== undefined) {
+        document.getElementById('won-override-value').textContent =
+            (opp.probability_override * 100).toFixed(0);
+        warningEl.classList.remove('d-none');
+    } else {
+        warningEl.classList.add('d-none');
+    }
+
+    // Pre-rellenar valor esperado
+    document.getElementById('won-final-value').value = opp.expected_value_eur || 0;
+
+    // Fecha de hoy por defecto
+    document.getElementById('won-close-date').value = new Date().toISOString().split('T')[0];
+
+    // Ocultar modal de detalle y mostrar confirmación
+    bootstrap.Modal.getInstance(document.getElementById('oppDetailModal'))?.hide();
+    new bootstrap.Modal(document.getElementById('wonConfirmModal')).show();
+};
+
+/**
+ * Confirma el cierre como Ganada y llama al endpoint /kanban/{id}/close.
+ */
+window.confirmCloseWon = async function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    const wonValue = parseFloat(document.getElementById('won-final-value').value);
+    const closeDate = document.getElementById('won-close-date').value;
+
+    if (!closeDate) {
+        showToast('Indica la fecha de cierre', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/kanban/${opp.id}/close`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                close_outcome: 'won',
+                close_date: closeDate,
+                won_value_eur: isNaN(wonValue) ? opp.expected_value_eur : wonValue
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || `Error ${response.status}`);
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('wonConfirmModal'))?.hide();
+        showToast('Oportunidad marcada como Ganada', 'success');
+        await loadKanbanData();
+
+    } catch (error) {
+        console.error('[CLOSE-WON] Error:', error);
+        showToast(`Error: ${error.message}`, 'danger');
+    }
+};
+
+/**
+ * Abre el modal de confirmación para marcar como Perdida.
+ */
+window.openLostConfirm = function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    document.getElementById('lost-confirm-opp-name').textContent =
+        `"${opp.name || opp.account_name}"`;
+    document.getElementById('lost-reason-input').value = '';
+    document.getElementById('lost-close-date').value = new Date().toISOString().split('T')[0];
+
+    bootstrap.Modal.getInstance(document.getElementById('oppDetailModal'))?.hide();
+    new bootstrap.Modal(document.getElementById('lostConfirmModal')).show();
+};
+
+/**
+ * Confirma el cierre como Perdida.
+ */
+window.confirmCloseLost = async function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    const lostReason = document.getElementById('lost-reason-input').value.trim();
+    const closeDate = document.getElementById('lost-close-date').value;
+
+    if (lostReason.length < 2) {
+        showToast('El motivo de pérdida es obligatorio (mín. 2 caracteres)', 'warning');
+        return;
+    }
+    if (!closeDate) {
+        showToast('Indica la fecha de cierre', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/kanban/${opp.id}/close`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                close_outcome: 'lost',
+                close_date: closeDate,
+                lost_reason: lostReason
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || `Error ${response.status}`);
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('lostConfirmModal'))?.hide();
+        showToast('Oportunidad marcada como Perdida', 'danger');
+        await loadKanbanData();
+
+    } catch (error) {
+        console.error('[CLOSE-LOST] Error:', error);
+        showToast(`Error: ${error.message}`, 'danger');
+    }
+};
 
 console.log('[KANBAN] Module loaded, loadKanbanData registered');
 
