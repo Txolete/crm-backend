@@ -160,48 +160,47 @@ def get_opportunity(
     **Permissions:** All authenticated users
     """
     from app.models.account import Account
-    from app.models.config import CfgStage, CfgStageProbability
+    from app.models.config import CfgStage, CfgStageProbability, CfgOpportunityType, CfgLostReason, CfgClientMentalState
     from app.models.user import User as UserModel
     from app.models.opportunity import Task  # Task está en opportunity.py
-    
-    
+
     # Get opportunity
     opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    
+
     if not opportunity:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Opportunity not found"
         )
-    
+
     # Get account
     account = db.query(Account).filter(Account.id == opportunity.account_id).first()
     account_name = account.name if account else "Unknown"
-    
+
     # Get stage
     stage = db.query(CfgStage).filter(CfgStage.id == opportunity.stage_id).first()
     stage_name = stage.name if stage else "Unknown"
     stage_key = stage.key if stage else ""
-    
+
     # Get stage probability
     stage_prob = db.query(CfgStageProbability).filter(
         CfgStageProbability.stage_id == opportunity.stage_id
     ).first()
     stage_probability = stage_prob.probability if stage_prob else None
-    
+
     # Get owner
     owner_name = None
     if opportunity.owner_user_id:
         owner = db.query(UserModel).filter(UserModel.id == opportunity.owner_user_id).first()
         owner_name = owner.name if owner else None
-    
+
     # Get next open task
     next_task = None
     task = db.query(Task).filter(
         Task.opportunity_id == opportunity_id,
         Task.status == "open"
     ).order_by(Task.due_date).first()
-    
+
     if task:
         next_task = OpportunityTaskInfo(
             id=task.id,
@@ -209,7 +208,23 @@ def get_opportunity(
             due_date=task.due_date,
             status=task.status
         )
-    
+
+    # Sprint 4B — nombres de las relaciones nuevas
+    opportunity_type_name = None
+    if opportunity.opportunity_type_id:
+        ot = db.query(CfgOpportunityType).filter(CfgOpportunityType.id == opportunity.opportunity_type_id).first()
+        opportunity_type_name = ot.name if ot else None
+
+    lost_reason_name = None
+    if opportunity.lost_reason_id:
+        lr = db.query(CfgLostReason).filter(CfgLostReason.id == opportunity.lost_reason_id).first()
+        lost_reason_name = lr.name if lr else None
+
+    client_mental_state_name = None
+    if opportunity.client_mental_state_id:
+        ms = db.query(CfgClientMentalState).filter(CfgClientMentalState.id == opportunity.client_mental_state_id).first()
+        client_mental_state_name = ms.name if ms else None
+
     # Build response
     return OpportunityDetailResponse(
         id=opportunity.id,
@@ -233,6 +248,19 @@ def get_opportunity(
         owner_user_name=owner_name,
         status=opportunity.status,
         next_task=next_task,
+        opportunity_type_id=opportunity.opportunity_type_id,
+        opportunity_type_name=opportunity_type_name,
+        client_mental_state_id=opportunity.client_mental_state_id,
+        client_mental_state_name=client_mental_state_name,
+        strategic_objective=opportunity.strategic_objective,
+        next_strategic_action=opportunity.next_strategic_action,
+        executive_summary=opportunity.executive_summary,
+        lost_reason_id=opportunity.lost_reason_id,
+        lost_reason_name=lost_reason_name,
+        lost_reason_detail=opportunity.lost_reason_detail,
+        hold_reason=opportunity.hold_reason,
+        chatgpt_thread_id=opportunity.chatgpt_thread_id,
+        chatgpt_url=opportunity.chatgpt_url,
         created_at=opportunity.created_at,
         updated_at=opportunity.updated_at
     )

@@ -17,6 +17,15 @@ class OpportunityBase(BaseModel):
     probability_override: Optional[float] = Field(None, ge=0, le=1)
     forecast_close_month: Optional[str] = None
     owner_user_id: Optional[str] = None
+    # Sprint 4B
+    opportunity_type_id: Optional[str] = None
+    client_mental_state_id: Optional[str] = None
+    strategic_objective: Optional[str] = None
+    next_strategic_action: Optional[str] = None
+    executive_summary: Optional[str] = None
+    hold_reason: Optional[str] = None
+    chatgpt_thread_id: Optional[str] = None
+    chatgpt_url: Optional[str] = None
 
 
 class OpportunityCreate(OpportunityBase):
@@ -35,13 +44,24 @@ class OpportunityUpdate(BaseModel):
     forecast_close_month: Optional[str] = None
     owner_user_id: Optional[str] = None
     status: Optional[str] = Field(None, pattern="^(active|archived)$")
+    # Sprint 4B
+    opportunity_type_id: Optional[str] = None
+    client_mental_state_id: Optional[str] = None
+    strategic_objective: Optional[str] = None
+    next_strategic_action: Optional[str] = None
+    executive_summary: Optional[str] = None
+    hold_reason: Optional[str] = None
+    chatgpt_thread_id: Optional[str] = None
+    chatgpt_url: Optional[str] = None
 
 
 class OpportunityCloseRequest(BaseModel):
     """Schema for closing an opportunity"""
     outcome: str = Field(..., pattern="^(won|lost)$")
     won_value_eur: Optional[float] = Field(None, ge=0)
-    lost_reason: Optional[str] = None
+    lost_reason: Optional[str] = None  # legacy
+    lost_reason_id: Optional[str] = None
+    lost_reason_detail: Optional[str] = None
 
 
 class OpportunityResponse(BaseModel):
@@ -61,6 +81,17 @@ class OpportunityResponse(BaseModel):
     lost_reason: Optional[str] = None
     owner_user_id: Optional[str] = None
     status: str
+    # Sprint 4B
+    opportunity_type_id: Optional[str] = None
+    client_mental_state_id: Optional[str] = None
+    strategic_objective: Optional[str] = None
+    next_strategic_action: Optional[str] = None
+    executive_summary: Optional[str] = None
+    lost_reason_id: Optional[str] = None
+    lost_reason_detail: Optional[str] = None
+    hold_reason: Optional[str] = None
+    chatgpt_thread_id: Optional[str] = None
+    chatgpt_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -99,6 +130,20 @@ class OpportunityDetailResponse(BaseModel):
     owner_user_name: Optional[str] = None
     status: str
     next_task: Optional[OpportunityTaskInfo] = None
+    # Sprint 4B
+    opportunity_type_id: Optional[str] = None
+    opportunity_type_name: Optional[str] = None
+    client_mental_state_id: Optional[str] = None
+    client_mental_state_name: Optional[str] = None
+    strategic_objective: Optional[str] = None
+    next_strategic_action: Optional[str] = None
+    executive_summary: Optional[str] = None
+    lost_reason_id: Optional[str] = None
+    lost_reason_name: Optional[str] = None
+    lost_reason_detail: Optional[str] = None
+    hold_reason: Optional[str] = None
+    chatgpt_thread_id: Optional[str] = None
+    chatgpt_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
