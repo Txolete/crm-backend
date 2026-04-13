@@ -2985,16 +2985,16 @@ function renderOpportunityTasks(tasks) {
                         </div>
                         ${task.description ? `<div class="small mt-1">${escapeHtml(task.description).substring(0, 100)}${task.description.length > 100 ? '...' : ''}</div>` : ''}
                     </div>
-                    <div class="ms-3">
+                    <div class="ms-3 d-flex gap-1">
                         ${!isCompleted ? `
-                        <button class="btn btn-sm btn-outline-success" onclick="completeTaskFromOpp('${task.id}')">
+                        <button class="btn btn-sm btn-outline-success opp-task-complete" data-task-id="${task.id}" title="Completar">
                             <i class="bi bi-check-lg"></i>
                         </button>
                         ` : ''}
-                        <button class="btn btn-sm btn-outline-primary" onclick="editTaskFromOpp('${task.id}')">
+                        <button class="btn btn-sm btn-outline-primary opp-task-edit" data-task-id="${task.id}" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteTaskFromOpp('${task.id}', '${escapeHtml(task.title).replace(/'/g, "\\'")}')">
+                        <button class="btn btn-sm btn-outline-danger opp-task-delete" data-task-id="${task.id}" data-task-title="${escapeHtml(task.title)}" title="Eliminar">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -3005,6 +3005,37 @@ function renderOpportunityTasks(tasks) {
     
     html += '</div>';
     contentDiv.innerHTML = html;
+
+    // Event delegation — evita problemas de escapado en onclick con strings
+    contentDiv.addEventListener('click', async function handler(e) {
+        const completeBtn = e.target.closest('.opp-task-complete');
+        const editBtn    = e.target.closest('.opp-task-edit');
+        const deleteBtn  = e.target.closest('.opp-task-delete');
+
+        if (completeBtn) {
+            e.stopPropagation();
+            await completeTaskFromOpp(completeBtn.dataset.taskId);
+        } else if (editBtn) {
+            e.stopPropagation();
+            await editTaskFromOpp(editBtn.dataset.taskId);
+        } else if (deleteBtn) {
+            e.stopPropagation();
+            const title = deleteBtn.dataset.taskTitle || 'esta tarea';
+            if (!confirm(`¿Eliminar "${title}"?`)) return;
+            try {
+                const res = await fetch(`/tasks/${deleteBtn.dataset.taskId}`, {
+                    method: 'DELETE', credentials: 'include'
+                });
+                if (!res.ok) throw new Error('Error eliminando tarea');
+                showToast('Tarea eliminada', 'success');
+                await loadOpportunityTasks(currentOpportunityId);
+                if (typeof loadKanbanData === 'function') loadKanbanData();
+            } catch (err) {
+                console.error('[TASKS] Error deleting:', err);
+                showToast('Error al eliminar tarea', 'danger');
+            }
+        }
+    }, { once: true }); // once:true — se registra de nuevo en cada render
 }
 
 /**
@@ -3062,26 +3093,7 @@ window.showCreateTaskFromOpp = function() {
     });
 }
 
-/**
- * Delete task from opportunity
- */
-window.deleteTaskFromOpp = async function(taskId, taskTitle) {
-    if (!confirm(`¿Eliminar tarea "${taskTitle}"?`)) return;
-    try {
-        const response = await fetch(`/tasks/${taskId}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        if (!response.ok) throw new Error('Error eliminando tarea');
-        showToast('Tarea eliminada', 'success');
-        await loadOpportunityTasks(currentOpportunityId);
-        // Refrescar el kanban para que desaparezca la tarea de la tarjeta
-        if (typeof loadKanbanData === 'function') loadKanbanData();
-    } catch (error) {
-        console.error('[TASKS] Error deleting task:', error);
-        showToast('Error al eliminar tarea', 'danger');
-    }
-}
+// deleteTaskFromOpp eliminado — lógica movida a event delegation en renderOpportunityTasks
 
 /**
  * Edit task from opportunity
