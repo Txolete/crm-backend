@@ -138,6 +138,7 @@ class TaskTemplateResponse(TaskTemplateBase):
 class StageBase(BaseModel):
     key: str
     name: str
+    description: Optional[str] = None
     sort_order: int
     outcome: str  # open, won, lost
     is_terminal: bool = False
@@ -157,6 +158,7 @@ class StageCreate(StageBase):
 class StageUpdate(BaseModel):
     key: Optional[str] = None
     name: Optional[str] = None
+    description: Optional[str] = None
     sort_order: Optional[int] = None
     outcome: Optional[str] = None
     is_terminal: Optional[bool] = None

@@ -849,6 +849,7 @@ def create_stage(
         id=generate_id(),
         key=request.key,
         name=request.name,
+        description=request.description,
         sort_order=request.sort_order,
         outcome=request.outcome,
         is_terminal=int(request.is_terminal),
@@ -942,6 +943,8 @@ def update_stage(
     
     if request.name is not None:
         item.name = request.name
+    if 'description' in request.model_fields_set:
+        item.description = request.description
     if request.sort_order is not None:
         item.sort_order = request.sort_order
     if request.outcome is not None:

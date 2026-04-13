@@ -2602,10 +2602,23 @@ function createKanbanColumn(column, stagesMap = {}) {
     const header = document.createElement('div');
     header.className = 'kanban-column-header';
     const stageName = column.stage_name || column.stage_key || 'Sin nombre';
+    const stageDesc = stagesMap && stagesMap[column.stage_id] ? stagesMap[column.stage_id].description : null;
+    const tooltipIcon = stageDesc
+        ? `<i class="bi bi-info-circle ms-1 stage-tooltip-icon"
+              style="cursor:help;font-size:0.85rem;color:#6c757d;"
+              title="${stageDesc.replace(/"/g, '&quot;')}"></i>`
+        : '';
     header.innerHTML = `
-        <h5>${stageName}</h5>
+        <h5>${stageName}${tooltipIcon}</h5>
         <span class="badge bg-secondary">${column.opportunities ? column.opportunities.length : 0}</span>
     `;
+    // Inicializar tooltip Bootstrap si hay descripción
+    if (stageDesc) {
+        const iconEl = header.querySelector('.stage-tooltip-icon');
+        if (iconEl && typeof bootstrap !== 'undefined') {
+            new bootstrap.Tooltip(iconEl, { trigger: 'hover', placement: 'bottom' });
+        }
+    }
     col.appendChild(header);
     
     // Column body (cards container)

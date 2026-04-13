@@ -71,6 +71,7 @@ def get_kanban(
             id=stage.id,
             key=stage.key,
             name=stage.name,
+            description=stage.description,
             sort_order=stage.sort_order,
             outcome=stage.outcome
         )
