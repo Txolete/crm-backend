@@ -6,7 +6,10 @@ from app.models.config import (
     CfgContactRole,
     CfgTaskTemplate,
     CfgStage,
-    CfgStageProbability
+    CfgStageProbability,
+    CfgOpportunityType,
+    CfgLostReason,
+    CfgClientMentalState,
 )
 from app.models.account import Account, Contact, ContactChannel
 from app.models.opportunity import Opportunity, Task, Activity
@@ -24,6 +27,9 @@ __all__ = [
     "CfgTaskTemplate",
     "CfgStage",
     "CfgStageProbability",
+    "CfgOpportunityType",
+    "CfgLostReason",
+    "CfgClientMentalState",
     # Accounts & Contacts
     "Account",
     "Contact",
