@@ -1654,7 +1654,8 @@ async function loadOpportunityDetail(opportunityId) {
         opp.name || `Oportunidad ${opp.account_name}`;
     
     // Fill basic data
-    document.getElementById('detail-account').textContent = opp.account_name || '-';
+    document.getElementById('detail-account').innerHTML =
+        `<a href="/accounts/${opp.account_id}" target="_blank">${opp.account_name || '-'} <i class="bi bi-box-arrow-up-right" style="font-size:0.75rem"></i></a>`;
     document.getElementById('detail-name').textContent = opp.name || '(Sin nombre)';
     document.getElementById('detail-stage').innerHTML = `
         <span class="badge bg-secondary">${opp.stage_name || '-'}</span>
@@ -2993,6 +2994,9 @@ function renderOpportunityTasks(tasks) {
                         <button class="btn btn-sm btn-outline-primary" onclick="editTaskFromOpp('${task.id}')">
                             <i class="bi bi-pencil"></i>
                         </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteTaskFromOpp('${task.id}', '${escapeHtml(task.title).replace(/'/g, "\\'")}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -3051,18 +3055,45 @@ window.showCreateTaskFromOpp = function() {
         showToast('Error: No hay oportunidad seleccionada', 'danger');
         return;
     }
-    
-    // Use the tasks.js function but pre-fill opportunity
     showCreateTaskModal();
-    
-    // Wait for modal to load options, then pre-select opportunity
-    setTimeout(() => {
-        document.getElementById('task-opportunity').value = currentOpportunityId;
-        // Also pre-fill account if available
-        if (currentOpportunityData && currentOpportunityData.account_id) {
-            document.getElementById('task-account').value = currentOpportunityData.account_id;
+
+    // Intentar preseleccionar con retry hasta que el select tenga opciones
+    let attempts = 0;
+    const tryPreselect = setInterval(() => {
+        attempts++;
+        const oppSelect = document.getElementById('task-opportunity');
+        const accSelect = document.getElementById('task-account');
+
+        if (oppSelect && oppSelect.options.length > 1) {
+            oppSelect.value = currentOpportunityId;
+            if (accSelect && currentOpportunityData && currentOpportunityData.account_id) {
+                accSelect.value = currentOpportunityData.account_id;
+            }
+            clearInterval(tryPreselect);
         }
-    }, 500);
+        if (attempts > 20) clearInterval(tryPreselect); // máximo 2 segundos
+    }, 100);
+}
+
+/**
+ * Delete task from opportunity
+ */
+window.deleteTaskFromOpp = async function(taskId, taskTitle) {
+    if (!confirm(`¿Eliminar tarea "${taskTitle}"?`)) return;
+    try {
+        const response = await fetch(`/tasks/${taskId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!response.ok) throw new Error('Error eliminando tarea');
+        showToast('Tarea eliminada', 'success');
+        await loadOpportunityTasks(currentOpportunityId);
+        // Refrescar tarjeta del kanban si está visible
+        if (typeof refreshKanbanCard === 'function') refreshKanbanCard(currentOpportunityId);
+    } catch (error) {
+        console.error('[TASKS] Error deleting task:', error);
+        showToast('Error al eliminar tarea', 'danger');
+    }
 }
 
 /**

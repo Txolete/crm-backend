@@ -223,35 +223,24 @@
         }
         
         /* Kanban styles */
-        .kanban-container {
-            display: flex;
-            gap: 16px;
+        .kanban-scroll-wrapper {
+            direction: rtl;
             overflow-x: auto;
-            padding: 20px;
-            min-height: calc(100vh - 250px);
-            position: relative;
-            /* Barra de scroll más visible */
             scrollbar-width: thin;
             scrollbar-color: #6c757d #e9ecef;
         }
-        
-        /* Webkit (Chrome, Safari, Edge) - Barra de scroll personalizada */
-        .kanban-container::-webkit-scrollbar {
-            height: 12px;
-        }
-        
-        .kanban-container::-webkit-scrollbar-track {
-            background: #e9ecef;
-            border-radius: 6px;
-        }
-        
-        .kanban-container::-webkit-scrollbar-thumb {
-            background: #6c757d;
-            border-radius: 6px;
-        }
-        
-        .kanban-container::-webkit-scrollbar-thumb:hover {
-            background: #495057;
+        .kanban-scroll-wrapper::-webkit-scrollbar { height: 10px; }
+        .kanban-scroll-wrapper::-webkit-scrollbar-track { background: #e9ecef; border-radius: 6px; }
+        .kanban-scroll-wrapper::-webkit-scrollbar-thumb { background: #6c757d; border-radius: 6px; }
+        .kanban-scroll-wrapper::-webkit-scrollbar-thumb:hover { background: #495057; }
+
+        .kanban-container {
+            direction: ltr;
+            display: flex;
+            gap: 16px;
+            padding: 20px;
+            min-height: calc(100vh - 250px);
+            position: relative;
         }
         
         /* Sombra indicadora de más contenido a la derecha */
@@ -421,9 +410,9 @@
            ============================================================================ */
 
         .kanban-container {
+            direction: ltr;
             display: flex;
             gap: 1rem;
-            overflow-x: auto;
             padding: 1rem 0;
             min-height: 500px;
         }
@@ -962,8 +951,10 @@
                     </div>
                 </div>
 
+                <div class="kanban-scroll-wrapper">
                 <div class="kanban-container" id="kanban-board">
                     <!-- Kanban columns will be rendered here -->
+                </div>
                 </div>
             </div>
             
