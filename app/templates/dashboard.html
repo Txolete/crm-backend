@@ -223,9 +223,10 @@
         }
         
         /* Kanban styles */
+        /* U6: scrollbar arriba — transform en el wrapper, contrarresta en el container */
         .kanban-scroll-wrapper {
-            direction: rtl;
             overflow-x: auto;
+            transform: rotateX(180deg);
             scrollbar-width: thin;
             scrollbar-color: #6c757d #e9ecef;
         }
@@ -235,7 +236,7 @@
         .kanban-scroll-wrapper::-webkit-scrollbar-thumb:hover { background: #495057; }
 
         .kanban-container {
-            direction: ltr;
+            transform: rotateX(180deg);
             display: flex;
             gap: 16px;
             padding: 20px;

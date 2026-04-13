@@ -22,13 +22,21 @@ let users = [];
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('[ACCOUNTS] Initializing...');
-    
+
+    // U4: si se llega con ?q=nombre, pre-rellenar el buscador
+    const urlParams = new URLSearchParams(window.location.search);
+    const preSearch = urlParams.get('q');
+    if (preSearch) {
+        const searchEl = document.getElementById('filter-search');
+        if (searchEl) searchEl.value = preSearch;
+    }
+
     // Load config data (wait for it to complete)
     await loadConfigData();
-    
+
     // Load accounts
     await loadAccounts();
-    
+
     // Setup event listeners
     setupEventListeners();
 });

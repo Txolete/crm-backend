@@ -306,7 +306,7 @@ function createTaskCard(task) {
 /**
  * Mostrar modal para crear tarea
  */
-async function showCreateTaskModal() {
+async function showCreateTaskModal(preselect = {}) {
     // Verificar que el formulario existe
     const taskForm = document.getElementById('taskForm');
     if (!taskForm) {
@@ -341,6 +341,16 @@ async function showCreateTaskModal() {
     
     // Cargar opciones (async)
     await loadTaskFormOptions();
+
+    // U2: aplicar preselección después de que las opciones estén cargadas
+    if (preselect.opportunity_id) {
+        const oppEl = document.getElementById('task-opportunity');
+        if (oppEl) oppEl.value = preselect.opportunity_id;
+    }
+    if (preselect.account_id) {
+        const accEl = document.getElementById('task-account');
+        if (accEl) accEl.value = preselect.account_id;
+    }
 }
 
 /**

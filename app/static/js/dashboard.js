@@ -1655,7 +1655,7 @@ async function loadOpportunityDetail(opportunityId) {
     
     // Fill basic data
     document.getElementById('detail-account').innerHTML =
-        `<a href="/accounts/${opp.account_id}" target="_blank">${opp.account_name || '-'} <i class="bi bi-box-arrow-up-right" style="font-size:0.75rem"></i></a>`;
+        `<a href="/accounts/page?q=${encodeURIComponent(opp.account_name || '')}" target="_blank">${opp.account_name || '-'} <i class="bi bi-box-arrow-up-right" style="font-size:0.75rem"></i></a>`;
     document.getElementById('detail-name').textContent = opp.name || '(Sin nombre)';
     document.getElementById('detail-stage').innerHTML = `
         <span class="badge bg-secondary">${opp.stage_name || '-'}</span>
@@ -3055,24 +3055,11 @@ window.showCreateTaskFromOpp = function() {
         showToast('Error: No hay oportunidad seleccionada', 'danger');
         return;
     }
-    showCreateTaskModal();
-
-    // Intentar preseleccionar con retry hasta que el select tenga opciones
-    let attempts = 0;
-    const tryPreselect = setInterval(() => {
-        attempts++;
-        const oppSelect = document.getElementById('task-opportunity');
-        const accSelect = document.getElementById('task-account');
-
-        if (oppSelect && oppSelect.options.length > 1) {
-            oppSelect.value = currentOpportunityId;
-            if (accSelect && currentOpportunityData && currentOpportunityData.account_id) {
-                accSelect.value = currentOpportunityData.account_id;
-            }
-            clearInterval(tryPreselect);
-        }
-        if (attempts > 20) clearInterval(tryPreselect); // máximo 2 segundos
-    }, 100);
+    // U2: pasar preselección directamente — se aplica tras loadTaskFormOptions
+    showCreateTaskModal({
+        opportunity_id: currentOpportunityId,
+        account_id: currentOpportunityData ? currentOpportunityData.account_id : null
+    });
 }
 
 /**
@@ -3088,8 +3075,8 @@ window.deleteTaskFromOpp = async function(taskId, taskTitle) {
         if (!response.ok) throw new Error('Error eliminando tarea');
         showToast('Tarea eliminada', 'success');
         await loadOpportunityTasks(currentOpportunityId);
-        // Refrescar tarjeta del kanban si está visible
-        if (typeof refreshKanbanCard === 'function') refreshKanbanCard(currentOpportunityId);
+        // Refrescar el kanban para que desaparezca la tarea de la tarjeta
+        if (typeof loadKanbanData === 'function') loadKanbanData();
     } catch (error) {
         console.error('[TASKS] Error deleting task:', error);
         showToast('Error al eliminar tarea', 'danger');
