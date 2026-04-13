@@ -91,6 +91,7 @@ class CfgStage(Base):
     id = Column(String, primary_key=True)
     key = Column(String, nullable=False, unique=True)
     name = Column(String, nullable=False)
+    description = Column(String(500), nullable=True)
     sort_order = Column(Integer, nullable=False)
     outcome = Column(String, nullable=False)
     is_terminal = Column(Integer, nullable=False, default=0)

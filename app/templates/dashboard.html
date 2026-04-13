@@ -223,35 +223,25 @@
         }
         
         /* Kanban styles */
-        .kanban-container {
-            display: flex;
-            gap: 16px;
+        /* U6: scrollbar arriba — transform en el wrapper, contrarresta en el container */
+        .kanban-scroll-wrapper {
             overflow-x: auto;
-            padding: 20px;
-            min-height: calc(100vh - 250px);
-            position: relative;
-            /* Barra de scroll más visible */
+            transform: rotateX(180deg);
             scrollbar-width: thin;
             scrollbar-color: #6c757d #e9ecef;
         }
-        
-        /* Webkit (Chrome, Safari, Edge) - Barra de scroll personalizada */
-        .kanban-container::-webkit-scrollbar {
-            height: 12px;
-        }
-        
-        .kanban-container::-webkit-scrollbar-track {
-            background: #e9ecef;
-            border-radius: 6px;
-        }
-        
-        .kanban-container::-webkit-scrollbar-thumb {
-            background: #6c757d;
-            border-radius: 6px;
-        }
-        
-        .kanban-container::-webkit-scrollbar-thumb:hover {
-            background: #495057;
+        .kanban-scroll-wrapper::-webkit-scrollbar { height: 10px; }
+        .kanban-scroll-wrapper::-webkit-scrollbar-track { background: #e9ecef; border-radius: 6px; }
+        .kanban-scroll-wrapper::-webkit-scrollbar-thumb { background: #6c757d; border-radius: 6px; }
+        .kanban-scroll-wrapper::-webkit-scrollbar-thumb:hover { background: #495057; }
+
+        .kanban-container {
+            transform: rotateX(180deg);
+            display: flex;
+            gap: 16px;
+            padding: 20px;
+            min-height: calc(100vh - 250px);
+            position: relative;
         }
         
         /* Sombra indicadora de más contenido a la derecha */
@@ -421,9 +411,9 @@
            ============================================================================ */
 
         .kanban-container {
+            direction: ltr;
             display: flex;
             gap: 1rem;
-            overflow-x: auto;
             padding: 1rem 0;
             min-height: 500px;
         }
@@ -962,8 +952,10 @@
                     </div>
                 </div>
 
+                <div class="kanban-scroll-wrapper">
                 <div class="kanban-container" id="kanban-board">
                     <!-- Kanban columns will be rendered here -->
+                </div>
                 </div>
             </div>
             
@@ -1675,10 +1667,83 @@
                     <button type="button" class="btn btn-danger me-auto" id="btn-archive-opp" title="Archivar oportunidad (baja lógica)">
                         <i class="bi bi-archive"></i> Archivar
                     </button>
+                    <!-- B5/B6: Botones cerrar como ganada/perdida (solo para oportunidades abiertas) -->
+                    <button type="button" class="btn btn-outline-danger" id="btn-mark-lost" style="display: none;" onclick="openLostConfirm()">
+                        <i class="bi bi-x-circle"></i> Marcar como Perdida
+                    </button>
+                    <button type="button" class="btn btn-outline-success" id="btn-mark-won" style="display: none;" onclick="openWonConfirm()">
+                        <i class="bi bi-trophy"></i> Marcar como Ganada
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btn-close-detail">Cerrar</button>
                     <button type="button" class="btn btn-primary" id="btn-edit-opp">Editar</button>
                     <button type="button" class="btn btn-secondary" id="btn-cancel-edit" style="display: none;">Cancelar</button>
                     <button type="button" class="btn btn-success" id="btn-save-opp" style="display: none;">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmar Ganada (B5/B6) -->
+    <div class="modal fade" id="wonConfirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="bi bi-trophy me-2"></i>Marcar como Ganada</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-bold" id="won-confirm-opp-name"></p>
+                    <div id="won-override-warning" class="alert alert-warning d-none">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Esta oportunidad tiene un override de probabilidad activo (<span id="won-override-value"></span>%).
+                        Se eliminará al confirmar — la probabilidad pasará al <strong>100%</strong>.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Valor final confirmado (€)</label>
+                        <input type="number" class="form-control" id="won-final-value" min="0" step="0.01">
+                        <small class="text-muted">Por defecto, el valor esperado de la oportunidad.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fecha de cierre</label>
+                        <input type="date" class="form-control" id="won-close-date">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" onclick="confirmCloseWon()">
+                        <i class="bi bi-trophy me-1"></i> Confirmar Ganada
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmar Perdida (B5/B6) -->
+    <div class="modal fade" id="lostConfirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="bi bi-x-circle me-2"></i>Marcar como Perdida</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-bold" id="lost-confirm-opp-name"></p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Motivo de pérdida <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="lost-reason-input"
+                               placeholder="Ej: Precio, Competencia, Timing..." maxlength="200">
+                        <small class="text-muted">Mínimo 2 caracteres.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fecha de cierre</label>
+                        <input type="date" class="form-control" id="lost-close-date">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmCloseLost()">
+                        <i class="bi bi-x-circle me-1"></i> Confirmar Perdida
+                    </button>
                 </div>
             </div>
         </div>

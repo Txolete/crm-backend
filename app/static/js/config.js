@@ -71,6 +71,7 @@ const entityConfig = {
         fields: [
             { name: 'key', label: 'Clave', type: 'text', required: true },
             { name: 'name', label: 'Nombre', type: 'text', required: true },
+            { name: 'description', label: 'Descripción (tooltip en Kanban)', type: 'textarea', required: false },
             { name: 'outcome', label: 'Resultado', type: 'select', required: true, options: ['open', 'won', 'lost'] },
             { name: 'sort_order', label: 'Orden', type: 'number', required: true },
             { name: 'is_terminal', label: 'Terminal', type: 'checkbox', required: false, default: false },
@@ -337,12 +338,20 @@ async function renderForm(item = null) {
                     </select>
                 </div>
             `;
+        } else if (field.type === 'textarea') {
+            html += `
+                <div class="mb-3">
+                    <label class="form-label">${field.label}${field.required ? ' *' : ''}</label>
+                    <textarea class="form-control" id="${field.name}" name="${field.name}" rows="3" maxlength="500" ${field.required ? 'required' : ''}>${value || ''}</textarea>
+                    <small class="text-muted">Máx. 500 caracteres</small>
+                </div>
+            `;
         } else {
             const attrs = [];
             if (field.min !== undefined) attrs.push(`min="${field.min}"`);
             if (field.max !== undefined) attrs.push(`max="${field.max}"`);
             if (field.step !== undefined) attrs.push(`step="${field.step}"`);
-            
+
             html += `
                 <div class="mb-3">
                     <label class="form-label">${field.label}${field.required ? ' *' : ''}</label>

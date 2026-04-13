@@ -306,7 +306,7 @@ function createTaskCard(task) {
 /**
  * Mostrar modal para crear tarea
  */
-async function showCreateTaskModal() {
+async function showCreateTaskModal(preselect = {}) {
     // Verificar que el formulario existe
     const taskForm = document.getElementById('taskForm');
     if (!taskForm) {
@@ -317,6 +317,15 @@ async function showCreateTaskModal() {
     // Limpiar formulario
     taskForm.reset();
     document.getElementById('task-id').value = '';
+
+    // Re-habilitar campos (pueden estar deshabilitados si se vino de viewTaskDetails)
+    ['task-title','task-description','task-template','task-opportunity','task-account',
+     'task-priority','task-due-date','task-assigned-to'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = false;
+    });
+    const saveBtn = document.querySelector('#taskModal .btn-primary');
+    if (saveBtn) saveBtn.style.display = '';
     
     // Cambiar título
     document.getElementById('taskModalTitle').innerHTML = '<i class="bi bi-plus-circle"></i> Nueva Tarea';
@@ -332,6 +341,16 @@ async function showCreateTaskModal() {
     
     // Cargar opciones (async)
     await loadTaskFormOptions();
+
+    // U2: aplicar preselección después de que las opciones estén cargadas
+    if (preselect.opportunity_id) {
+        const oppEl = document.getElementById('task-opportunity');
+        if (oppEl) oppEl.value = preselect.opportunity_id;
+    }
+    if (preselect.account_id) {
+        const accEl = document.getElementById('task-account');
+        if (accEl) accEl.value = preselect.account_id;
+    }
 }
 
 /**
@@ -339,6 +358,15 @@ async function showCreateTaskModal() {
  */
 async function editTask(taskId) {
     try {
+        // Re-habilitar campos (pueden estar deshabilitados si se vino de viewTaskDetails)
+        ['task-title','task-description','task-template','task-opportunity','task-account',
+         'task-priority','task-due-date','task-assigned-to'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = false;
+        });
+        const saveBtn = document.querySelector('#taskModal .btn-primary');
+        if (saveBtn) saveBtn.style.display = '';
+
         // Obtener datos de la tarea
         const response = await fetch(`/tasks/${taskId}`);
         

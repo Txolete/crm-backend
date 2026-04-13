@@ -48,6 +48,7 @@ class KanbanStage(BaseModel):
     id: str
     key: str
     name: str
+    description: Optional[str] = None
     sort_order: int
     outcome: str
 

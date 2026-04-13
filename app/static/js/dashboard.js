@@ -1590,6 +1590,8 @@ window.showOpportunityDetail = async function(opportunityId) {
     document.getElementById('btn-cancel-edit').style.display = 'none';
     document.getElementById('btn-save-opp').style.display = 'none';
     document.getElementById('btn-close-detail').style.display = 'inline-block';
+    document.getElementById('btn-mark-won').style.display = 'none';
+    document.getElementById('btn-mark-lost').style.display = 'none';
     
     modal.show();
     
@@ -1606,7 +1608,13 @@ window.showOpportunityDetail = async function(opportunityId) {
         // Hide loading, show content
         document.getElementById('oppDetailLoading').style.display = 'none';
         document.getElementById('oppDetailContent').style.display = 'block';
-        
+
+        // B5/B6: mostrar botones won/lost ahora que todo ha cargado
+        const isOpen = currentOpportunityData &&
+            (currentOpportunityData.close_outcome === 'open' || !currentOpportunityData.close_outcome);
+        document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
+        document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
+
     } catch (error) {
         console.error('[DETAIL] Error loading opportunity:', error);
         document.getElementById('oppDetailLoading').innerHTML = `
@@ -1646,7 +1654,8 @@ async function loadOpportunityDetail(opportunityId) {
         opp.name || `Oportunidad ${opp.account_name}`;
     
     // Fill basic data
-    document.getElementById('detail-account').textContent = opp.account_name || '-';
+    document.getElementById('detail-account').innerHTML =
+        `<a href="/accounts/page?q=${encodeURIComponent(opp.account_name || '')}" target="_blank">${opp.account_name || '-'} <i class="bi bi-box-arrow-up-right" style="font-size:0.75rem"></i></a>`;
     document.getElementById('detail-name').textContent = opp.name || '(Sin nombre)';
     document.getElementById('detail-stage').innerHTML = `
         <span class="badge bg-secondary">${opp.stage_name || '-'}</span>
@@ -2125,6 +2134,8 @@ window.switchToEditMode = async function() {
         document.getElementById('btn-cancel-edit').style.display = 'inline-block';
         document.getElementById('btn-save-opp').style.display = 'inline-block';
         document.getElementById('btn-close-detail').style.display = 'none';
+        document.getElementById('btn-mark-won').style.display = 'none';
+        document.getElementById('btn-mark-lost').style.display = 'none';
         
         console.log('[EDIT] Edit mode activated');
         
@@ -2149,6 +2160,12 @@ window.cancelEdit = function() {
     document.getElementById('btn-cancel-edit').style.display = 'none';
     document.getElementById('btn-save-opp').style.display = 'none';
     document.getElementById('btn-close-detail').style.display = 'inline-block';
+
+    // Restaurar botones won/lost si la opp está abierta
+    const isOpen = currentOpportunityData &&
+        (currentOpportunityData.close_outcome === 'open' || !currentOpportunityData.close_outcome);
+    document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
+    document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
 }
 
 /**
@@ -2585,10 +2602,23 @@ function createKanbanColumn(column, stagesMap = {}) {
     const header = document.createElement('div');
     header.className = 'kanban-column-header';
     const stageName = column.stage_name || column.stage_key || 'Sin nombre';
+    const stageDesc = stagesMap && stagesMap[column.stage_id] ? stagesMap[column.stage_id].description : null;
+    const tooltipIcon = stageDesc
+        ? `<i class="bi bi-info-circle ms-1 stage-tooltip-icon"
+              style="cursor:help;font-size:0.85rem;color:#6c757d;"
+              title="${stageDesc.replace(/"/g, '&quot;')}"></i>`
+        : '';
     header.innerHTML = `
-        <h5>${stageName}</h5>
+        <h5>${stageName}${tooltipIcon}</h5>
         <span class="badge bg-secondary">${column.opportunities ? column.opportunities.length : 0}</span>
     `;
+    // Inicializar tooltip Bootstrap si hay descripción
+    if (stageDesc) {
+        const iconEl = header.querySelector('.stage-tooltip-icon');
+        if (iconEl && typeof bootstrap !== 'undefined') {
+            new bootstrap.Tooltip(iconEl, { trigger: 'hover', placement: 'bottom' });
+        }
+    }
     col.appendChild(header);
     
     // Column body (cards container)
@@ -2968,14 +2998,17 @@ function renderOpportunityTasks(tasks) {
                         </div>
                         ${task.description ? `<div class="small mt-1">${escapeHtml(task.description).substring(0, 100)}${task.description.length > 100 ? '...' : ''}</div>` : ''}
                     </div>
-                    <div class="ms-3">
+                    <div class="ms-3 d-flex gap-1">
                         ${!isCompleted ? `
-                        <button class="btn btn-sm btn-outline-success" onclick="completeTaskFromOpp('${task.id}')">
+                        <button class="btn btn-sm btn-outline-success opp-task-complete" data-task-id="${task.id}" title="Completar">
                             <i class="bi bi-check-lg"></i>
                         </button>
                         ` : ''}
-                        <button class="btn btn-sm btn-outline-primary" onclick="editTaskFromOpp('${task.id}')">
+                        <button class="btn btn-sm btn-outline-primary opp-task-edit" data-task-id="${task.id}" title="Editar">
                             <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger opp-task-delete" data-task-id="${task.id}" data-task-title="${escapeHtml(task.title)}" title="Eliminar">
+                            <i class="bi bi-trash"></i>
                         </button>
                     </div>
                 </div>
@@ -2985,6 +3018,42 @@ function renderOpportunityTasks(tasks) {
     
     html += '</div>';
     contentDiv.innerHTML = html;
+
+    // Adjuntar listeners directamente a cada botón (innerHTML reemplaza el DOM,
+    // no hay acumulación de listeners en re-renders)
+    contentDiv.querySelectorAll('.opp-task-complete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await completeTaskFromOpp(btn.dataset.taskId);
+        });
+    });
+
+    contentDiv.querySelectorAll('.opp-task-edit').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await editTaskFromOpp(btn.dataset.taskId);
+        });
+    });
+
+    contentDiv.querySelectorAll('.opp-task-delete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const title = btn.dataset.taskTitle || 'esta tarea';
+            if (!confirm(`¿Eliminar "${title}"?`)) return;
+            try {
+                const res = await fetch(`/tasks/${btn.dataset.taskId}`, {
+                    method: 'DELETE', credentials: 'include'
+                });
+                if (!res.ok) throw new Error('Error eliminando tarea');
+                showToast('Tarea eliminada', 'success');
+                await loadOpportunityTasks(currentOpportunityId);
+                if (typeof loadKanbanData === 'function') loadKanbanData();
+            } catch (err) {
+                console.error('[TASKS] Error deleting:', err);
+                showToast('Error al eliminar tarea', 'danger');
+            }
+        });
+    });
 }
 
 /**
@@ -3035,19 +3104,14 @@ window.showCreateTaskFromOpp = function() {
         showToast('Error: No hay oportunidad seleccionada', 'danger');
         return;
     }
-    
-    // Use the tasks.js function but pre-fill opportunity
-    showCreateTaskModal();
-    
-    // Wait for modal to load options, then pre-select opportunity
-    setTimeout(() => {
-        document.getElementById('task-opportunity').value = currentOpportunityId;
-        // Also pre-fill account if available
-        if (currentOpportunityData && currentOpportunityData.account_id) {
-            document.getElementById('task-account').value = currentOpportunityData.account_id;
-        }
-    }, 500);
+    // U2: pasar preselección directamente — se aplica tras loadTaskFormOptions
+    showCreateTaskModal({
+        opportunity_id: currentOpportunityId,
+        account_id: currentOpportunityData ? currentOpportunityData.account_id : null
+    });
 }
+
+// deleteTaskFromOpp eliminado — lógica movida a event delegation en renderOpportunityTasks
 
 /**
  * Edit task from opportunity
@@ -3086,6 +3150,148 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// ---------------------------------------------------------------------------
+// B5/B6 — Cerrar oportunidad como Ganada / Perdida
+// ---------------------------------------------------------------------------
+
+/**
+ * Abre el modal de confirmación para marcar como Ganada.
+ * Pre-rellena el valor esperado y muestra aviso si hay override activo.
+ */
+window.openWonConfirm = function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    document.getElementById('won-confirm-opp-name').textContent =
+        `"${opp.name || opp.account_name}"`;
+
+    // Advertencia si hay override de probabilidad
+    const warningEl = document.getElementById('won-override-warning');
+    if (opp.probability_override !== null && opp.probability_override !== undefined) {
+        document.getElementById('won-override-value').textContent =
+            (opp.probability_override * 100).toFixed(0);
+        warningEl.classList.remove('d-none');
+    } else {
+        warningEl.classList.add('d-none');
+    }
+
+    // Pre-rellenar valor esperado
+    document.getElementById('won-final-value').value = opp.expected_value_eur || 0;
+
+    // Fecha de hoy por defecto
+    document.getElementById('won-close-date').value = new Date().toISOString().split('T')[0];
+
+    // Ocultar modal de detalle y mostrar confirmación
+    bootstrap.Modal.getInstance(document.getElementById('oppDetailModal'))?.hide();
+    new bootstrap.Modal(document.getElementById('wonConfirmModal')).show();
+};
+
+/**
+ * Confirma el cierre como Ganada y llama al endpoint /kanban/{id}/close.
+ */
+window.confirmCloseWon = async function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    const wonValue = parseFloat(document.getElementById('won-final-value').value);
+    const closeDate = document.getElementById('won-close-date').value;
+
+    if (!closeDate) {
+        showToast('Indica la fecha de cierre', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/kanban/${opp.id}/close`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                close_outcome: 'won',
+                close_date: closeDate,
+                won_value_eur: isNaN(wonValue) ? opp.expected_value_eur : wonValue
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || `Error ${response.status}`);
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('wonConfirmModal'))?.hide();
+        showToast('Oportunidad marcada como Ganada', 'success');
+        await loadKanbanData();
+        if (typeof loadDashboard === 'function') await loadDashboard();
+
+    } catch (error) {
+        console.error('[CLOSE-WON] Error:', error);
+        showToast(`Error: ${error.message}`, 'danger');
+    }
+};
+
+/**
+ * Abre el modal de confirmación para marcar como Perdida.
+ */
+window.openLostConfirm = function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    document.getElementById('lost-confirm-opp-name').textContent =
+        `"${opp.name || opp.account_name}"`;
+    document.getElementById('lost-reason-input').value = '';
+    document.getElementById('lost-close-date').value = new Date().toISOString().split('T')[0];
+
+    bootstrap.Modal.getInstance(document.getElementById('oppDetailModal'))?.hide();
+    new bootstrap.Modal(document.getElementById('lostConfirmModal')).show();
+};
+
+/**
+ * Confirma el cierre como Perdida.
+ */
+window.confirmCloseLost = async function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    const lostReason = document.getElementById('lost-reason-input').value.trim();
+    const closeDate = document.getElementById('lost-close-date').value;
+
+    if (lostReason.length < 2) {
+        showToast('El motivo de pérdida es obligatorio (mín. 2 caracteres)', 'warning');
+        return;
+    }
+    if (!closeDate) {
+        showToast('Indica la fecha de cierre', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/kanban/${opp.id}/close`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                close_outcome: 'lost',
+                close_date: closeDate,
+                lost_reason: lostReason
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || `Error ${response.status}`);
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('lostConfirmModal'))?.hide();
+        showToast('Oportunidad marcada como Perdida', 'danger');
+        await loadKanbanData();
+        if (typeof loadDashboard === 'function') await loadDashboard();
+
+    } catch (error) {
+        console.error('[CLOSE-LOST] Error:', error);
+        showToast(`Error: ${error.message}`, 'danger');
+    }
+};
 
 console.log('[KANBAN] Module loaded, loadKanbanData registered');
 

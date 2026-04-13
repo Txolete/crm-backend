@@ -71,6 +71,7 @@ def get_kanban(
             id=stage.id,
             key=stage.key,
             name=stage.name,
+            description=stage.description,
             sort_order=stage.sort_order,
             outcome=stage.outcome
         )
@@ -462,6 +463,7 @@ def close_opportunity(
     if request.close_outcome == 'won':
         opportunity.won_value_eur = won_value
         opportunity.lost_reason = None
+        opportunity.probability_override = None  # B5/B6: limpiar override al ganar, probabilidad = 100%
     else:  # lost
         opportunity.lost_reason = request.lost_reason
         opportunity.won_value_eur = None
