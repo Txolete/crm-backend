@@ -641,9 +641,10 @@ def get_opportunity_tasks(
             detail="Opportunity not found"
         )
     
-    # Get tasks
+    # Get tasks (excluir canceladas — son soft-deletes)
     tasks = db.query(Task).filter(
-        Task.opportunity_id == opportunity_id
+        Task.opportunity_id == opportunity_id,
+        Task.status != 'cancelled'
     ).order_by(
         Task.due_date.asc().nullslast(),
         Task.created_at.desc()
