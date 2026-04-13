@@ -1608,7 +1608,13 @@ window.showOpportunityDetail = async function(opportunityId) {
         // Hide loading, show content
         document.getElementById('oppDetailLoading').style.display = 'none';
         document.getElementById('oppDetailContent').style.display = 'block';
-        
+
+        // B5/B6: mostrar botones won/lost ahora que todo ha cargado
+        const isOpen = currentOpportunityData &&
+            (currentOpportunityData.close_outcome === 'open' || !currentOpportunityData.close_outcome);
+        document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
+        document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
+
     } catch (error) {
         console.error('[DETAIL] Error loading opportunity:', error);
         document.getElementById('oppDetailLoading').innerHTML = `
@@ -1642,11 +1648,6 @@ async function loadOpportunityDetail(opportunityId) {
     
     // Show edit button
     document.getElementById('btn-edit-opp').style.display = 'inline-block';
-
-    // B5/B6: mostrar botones won/lost solo si la oportunidad está abierta
-    const isOpen = opp.close_outcome === 'open' || !opp.close_outcome;
-    document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
-    document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
     
     // Update modal title
     document.getElementById('oppDetailTitle').textContent = 
@@ -3173,6 +3174,7 @@ window.confirmCloseWon = async function() {
         bootstrap.Modal.getInstance(document.getElementById('wonConfirmModal'))?.hide();
         showToast('Oportunidad marcada como Ganada', 'success');
         await loadKanbanData();
+        if (typeof loadDashboard === 'function') await loadDashboard();
 
     } catch (error) {
         console.error('[CLOSE-WON] Error:', error);
@@ -3235,6 +3237,7 @@ window.confirmCloseLost = async function() {
         bootstrap.Modal.getInstance(document.getElementById('lostConfirmModal'))?.hide();
         showToast('Oportunidad marcada como Perdida', 'danger');
         await loadKanbanData();
+        if (typeof loadDashboard === 'function') await loadDashboard();
 
     } catch (error) {
         console.error('[CLOSE-LOST] Error:', error);
