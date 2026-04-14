@@ -1583,6 +1583,127 @@
                             </div>
                         </div>
 
+                        <!-- IA — Sprint 4E -->
+                        <div class="card mb-3 border-0" style="background: linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%); border: 1px solid #c7d2fe !important;">
+                            <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border-radius: 8px 8px 0 0;">
+                                <h6 class="mb-0 text-white">
+                                    <i class="bi bi-stars me-2"></i>Análisis con IA
+                                    <span id="ai-thread-badge" class="badge ms-2" style="background:rgba(255,255,255,0.25); font-size:0.7rem; display:none;">
+                                        <i class="bi bi-link-45deg"></i> Thread activo
+                                    </span>
+                                </h6>
+                                <button class="btn btn-sm text-white fw-bold" id="btn-ai-analyze"
+                                        onclick="analyzeWithAI()"
+                                        style="background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.4);">
+                                    <i class="bi bi-stars me-1"></i> Analizar con IA
+                                </button>
+                            </div>
+                            <div class="card-body p-3">
+                                <!-- Spinner de análisis -->
+                                <div id="ai-analyzing-spinner" style="display:none;" class="text-center py-3">
+                                    <div class="spinner-border spinner-border-sm text-indigo" role="status"></div>
+                                    <span class="ms-2 text-muted small">Analizando oportunidad...</span>
+                                </div>
+
+                                <!-- Síntesis ejecutiva -->
+                                <div id="ai-summary-section">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="letter-spacing:0.05em;">
+                                        Síntesis ejecutiva
+                                    </label>
+                                    <textarea id="ai-executive-summary"
+                                              class="form-control form-control-sm"
+                                              rows="4"
+                                              placeholder="Pulsa 'Analizar con IA' para generar una síntesis automática, o escribe aquí directamente..."
+                                              style="font-size:0.875rem; resize:vertical;"></textarea>
+                                    <div class="d-flex justify-content-end mt-1 gap-2">
+                                        <button class="btn btn-sm btn-outline-secondary" id="btn-save-summary" onclick="saveAISummary()" style="display:none;">
+                                            <i class="bi bi-floppy me-1"></i>Guardar síntesis
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Campos estratégicos -->
+                                <div class="row mt-3">
+                                    <div class="col-md-6 mb-2">
+                                        <label class="form-label small fw-bold text-muted text-uppercase" style="letter-spacing:0.05em;">Estado mental del cliente</label>
+                                        <select class="form-select form-select-sm" id="ai-mental-state">
+                                            <option value="">No definido</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <label class="form-label small fw-bold text-muted text-uppercase" style="letter-spacing:0.05em;">Tipo de oportunidad</label>
+                                        <select class="form-select form-select-sm" id="ai-opp-type">
+                                            <option value="">No definido</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="form-label small fw-bold text-muted text-uppercase" style="letter-spacing:0.05em;">Objetivo estratégico</label>
+                                        <input type="text" class="form-control form-control-sm" id="ai-strategic-objective"
+                                               placeholder="Ej: Estar posicionados cuando decidan avanzar">
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="form-label small fw-bold text-muted text-uppercase" style="letter-spacing:0.05em;">Próxima acción estratégica</label>
+                                        <input type="text" class="form-control form-control-sm" id="ai-next-action"
+                                               placeholder="Ej: Catch-up suave Q2 2026">
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-end mt-1">
+                                    <button class="btn btn-sm btn-outline-indigo" onclick="saveAIFields()"
+                                            style="border-color:#4f46e5; color:#4f46e5;">
+                                        <i class="bi bi-floppy me-1"></i>Guardar campos estratégicos
+                                    </button>
+                                </div>
+
+                                <!-- Mini-chat -->
+                                <div class="mt-3 pt-3 border-top">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="letter-spacing:0.05em;">
+                                        <i class="bi bi-chat-dots me-1"></i>Preguntar a la IA
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control" id="ai-chat-input"
+                                               placeholder="Ej: ¿Qué objeción anticipas? ¿Cómo abordar la próxima reunión?"
+                                               onkeydown="if(event.key==='Enter') sendAIChat()">
+                                        <button class="btn text-white" onclick="sendAIChat()" id="btn-ai-chat"
+                                                style="background:#4f46e5;">
+                                            <i class="bi bi-send"></i>
+                                        </button>
+                                    </div>
+                                    <div id="ai-chat-spinner" style="display:none;" class="mt-2 text-muted small">
+                                        <span class="spinner-border spinner-border-sm me-1"></span>Pensando...
+                                    </div>
+                                    <div id="ai-chat-response" class="mt-2" style="display:none;">
+                                        <div class="p-2 rounded small" style="background:#f0f0ff; border-left:3px solid #4f46e5; white-space:pre-wrap;" id="ai-chat-response-text"></div>
+                                    </div>
+                                    <!-- Historial colapsable -->
+                                    <div id="ai-history-section" class="mt-2" style="display:none;">
+                                        <button class="btn btn-link btn-sm p-0 text-muted" type="button"
+                                                data-bs-toggle="collapse" data-bs-target="#ai-history-collapse">
+                                            <i class="bi bi-clock-history me-1"></i>Ver historial de conversación
+                                        </button>
+                                        <div class="collapse mt-2" id="ai-history-collapse">
+                                            <div id="ai-history-content" class="small" style="max-height:200px; overflow-y:auto;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ChatGPT URL (para cuando se trabaje en web) -->
+                                <div class="mt-3 pt-2 border-top">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="letter-spacing:0.05em;">
+                                        <i class="bi bi-link me-1"></i>Thread externo (URL ChatGPT)
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="url" class="form-control" id="ai-chatgpt-url"
+                                               placeholder="https://chat.openai.com/...">
+                                        <button class="btn btn-outline-secondary" id="btn-open-chat"
+                                                onclick="openChatGPTUrl()" title="Abrir en nueva pestaña">
+                                            <i class="bi bi-box-arrow-up-right"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" id="ai-thread-id-display" style="font-family:monospace; font-size:0.7rem;"></small>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Timeline de actividades -->
                         <div class="card mb-3">
                             <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">

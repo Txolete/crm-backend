@@ -1601,9 +1601,12 @@ window.showOpportunityDetail = async function(opportunityId) {
         
         // Load tasks (NUEVO - PASO 4)
         await loadOpportunityTasks(opportunityId);
-        
+
         // Load activities
         await loadOpportunityActivities(opportunityId);
+
+        // Load AI section (Sprint 4E)
+        if (currentOpportunityData) await loadAISection(currentOpportunityData);
         
         // Hide loading, show content
         document.getElementById('oppDetailLoading').style.display = 'none';
@@ -3233,6 +3236,227 @@ window.confirmCloseWon = async function() {
 /**
  * Abre el modal de confirmación para marcar como Perdida.
  */
+// ============================================================================
+// AI — Sprint 4E
+// ============================================================================
+
+/**
+ * Rellena el bloque AI cuando se abre la ficha de oportunidad.
+ * Carga los selectores de estado mental y tipo, y muestra los valores guardados.
+ */
+async function loadAISection(opp) {
+    // Síntesis ejecutiva
+    const summaryEl = document.getElementById('ai-executive-summary');
+    summaryEl.value = opp.executive_summary || '';
+    summaryEl.addEventListener('input', () => {
+        document.getElementById('btn-save-summary').style.display = 'inline-block';
+    }, { once: false });
+
+    // Objetivo y próxima acción
+    document.getElementById('ai-strategic-objective').value = opp.strategic_objective || '';
+    document.getElementById('ai-next-action').value = opp.next_strategic_action || '';
+
+    // ChatGPT URL / thread
+    document.getElementById('ai-chatgpt-url').value = opp.chatgpt_url || '';
+    if (opp.chatgpt_thread_id) {
+        document.getElementById('ai-thread-badge').style.display = 'inline-block';
+        document.getElementById('ai-thread-id-display').textContent = `Thread: ${opp.chatgpt_thread_id}`;
+        document.getElementById('ai-history-section').style.display = 'block';
+    } else {
+        document.getElementById('ai-thread-badge').style.display = 'none';
+        document.getElementById('ai-thread-id-display').textContent = '';
+        document.getElementById('ai-history-section').style.display = 'none';
+    }
+
+    // Reset chat
+    document.getElementById('ai-chat-response').style.display = 'none';
+    document.getElementById('ai-chat-input').value = '';
+
+    // Cargar selectores desde API
+    await Promise.all([
+        _loadAISelect('/config/client-mental-states', 'ai-mental-state', opp.client_mental_state_id),
+        _loadAISelect('/config/opportunity-types', 'ai-opp-type', opp.opportunity_type_id)
+    ]);
+}
+
+async function _loadAISelect(url, selectId, selectedValue) {
+    const select = document.getElementById(selectId);
+    select.innerHTML = '<option value="">No definido</option>';
+    try {
+        const res = await fetch(url, { credentials: 'include' });
+        if (res.ok) {
+            const items = await res.json();
+            items.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.name;
+                if (item.id === selectedValue) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+    } catch(e) { /* silencioso */ }
+}
+
+/**
+ * Llama a POST /opportunities/{id}/ai/analyze y actualiza la síntesis.
+ */
+window.analyzeWithAI = async function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    const btn = document.getElementById('btn-ai-analyze');
+    const spinner = document.getElementById('ai-analyzing-spinner');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analizando...';
+    spinner.style.display = 'block';
+
+    try {
+        const res = await fetch(`/opportunities/${opp.id}/ai/analyze`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || `Error ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        // Actualizar UI con la síntesis generada
+        document.getElementById('ai-executive-summary').value = data.executive_summary;
+        document.getElementById('btn-save-summary').style.display = 'none';
+
+        // Actualizar thread_id en datos locales
+        currentOpportunityData.executive_summary = data.executive_summary;
+        currentOpportunityData.chatgpt_thread_id = data.thread_id;
+
+        document.getElementById('ai-thread-badge').style.display = 'inline-block';
+        document.getElementById('ai-thread-id-display').textContent = `Thread: ${data.thread_id}`;
+        document.getElementById('ai-history-section').style.display = 'block';
+
+        showToast('✨ Análisis completado', 'success');
+
+    } catch(e) {
+        console.error('[AI] analyze error:', e);
+        showToast(`Error al analizar: ${e.message}`, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i> Analizar con IA';
+        spinner.style.display = 'none';
+    }
+};
+
+/**
+ * Guarda solo la síntesis ejecutiva editada manualmente.
+ */
+window.saveAISummary = async function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+    const summary = document.getElementById('ai-executive-summary').value;
+    try {
+        const res = await fetch(`/opportunities/${opp.id}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ executive_summary: summary })
+        });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        currentOpportunityData.executive_summary = summary;
+        document.getElementById('btn-save-summary').style.display = 'none';
+        showToast('Síntesis guardada', 'success');
+    } catch(e) {
+        showToast(`Error al guardar: ${e.message}`, 'danger');
+    }
+};
+
+/**
+ * Guarda los campos estratégicos (estado mental, tipo, objetivo, próxima acción, URL).
+ */
+window.saveAIFields = async function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+    const payload = {
+        client_mental_state_id: document.getElementById('ai-mental-state').value || null,
+        opportunity_type_id: document.getElementById('ai-opp-type').value || null,
+        strategic_objective: document.getElementById('ai-strategic-objective').value || null,
+        next_strategic_action: document.getElementById('ai-next-action').value || null,
+        chatgpt_url: document.getElementById('ai-chatgpt-url').value || null
+    };
+    try {
+        const res = await fetch(`/opportunities/${opp.id}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        Object.assign(currentOpportunityData, payload);
+        showToast('Campos estratégicos guardados', 'success');
+    } catch(e) {
+        showToast(`Error al guardar: ${e.message}`, 'danger');
+    }
+};
+
+/**
+ * Envía un mensaje al thread de IA de la oportunidad.
+ */
+window.sendAIChat = async function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    const input = document.getElementById('ai-chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    if (!opp.chatgpt_thread_id) {
+        showToast('Primero analiza la oportunidad con IA para iniciar el thread', 'warning');
+        return;
+    }
+
+    const chatSpinner = document.getElementById('ai-chat-spinner');
+    const chatResponse = document.getElementById('ai-chat-response');
+    const chatBtn = document.getElementById('btn-ai-chat');
+
+    chatSpinner.style.display = 'block';
+    chatResponse.style.display = 'none';
+    chatBtn.disabled = true;
+
+    try {
+        const res = await fetch(`/opportunities/${opp.id}/ai/chat`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || `Error ${res.status}`);
+        }
+        const data = await res.json();
+        document.getElementById('ai-chat-response-text').textContent = data.response;
+        chatResponse.style.display = 'block';
+        input.value = '';
+    } catch(e) {
+        console.error('[AI] chat error:', e);
+        showToast(`Error: ${e.message}`, 'danger');
+    } finally {
+        chatSpinner.style.display = 'none';
+        chatBtn.disabled = false;
+    }
+};
+
+/**
+ * Abre la URL de ChatGPT en nueva pestaña.
+ */
+window.openChatGPTUrl = function() {
+    const url = document.getElementById('ai-chatgpt-url').value;
+    if (url) window.open(url, '_blank');
+    else showToast('No hay URL configurada', 'warning');
+};
+
 window.openLostConfirm = async function() {
     const opp = currentOpportunityData;
     if (!opp) return;
