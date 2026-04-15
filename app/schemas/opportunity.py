@@ -26,6 +26,7 @@ class OpportunityBase(BaseModel):
     hold_reason: Optional[str] = None
     chatgpt_thread_id: Optional[str] = None
     chatgpt_url: Optional[str] = None
+    external_session_notes: Optional[str] = None
 
 
 class OpportunityCreate(OpportunityBase):
@@ -53,6 +54,7 @@ class OpportunityUpdate(BaseModel):
     hold_reason: Optional[str] = None
     chatgpt_thread_id: Optional[str] = None
     chatgpt_url: Optional[str] = None
+    external_session_notes: Optional[str] = None
 
 
 class OpportunityCloseRequest(BaseModel):
@@ -92,6 +94,8 @@ class OpportunityResponse(BaseModel):
     hold_reason: Optional[str] = None
     chatgpt_thread_id: Optional[str] = None
     chatgpt_url: Optional[str] = None
+    external_session_notes: Optional[str] = None
+    ai_chat_history: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -144,6 +148,8 @@ class OpportunityDetailResponse(BaseModel):
     hold_reason: Optional[str] = None
     chatgpt_thread_id: Optional[str] = None
     chatgpt_url: Optional[str] = None
+    external_session_notes: Optional[str] = None
+    ai_chat_history: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

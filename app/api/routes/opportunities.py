@@ -342,7 +342,7 @@ def update_opportunity(
         "probability_override", "forecast_close_month", "owner_user_id", "status",
         "opportunity_type_id", "client_mental_state_id", "strategic_objective",
         "next_strategic_action", "executive_summary", "hold_reason",
-        "chatgpt_thread_id", "chatgpt_url"
+        "chatgpt_thread_id", "chatgpt_url", "external_session_notes"
     ]
     for field in simple_fields:
         if field in update_fields:

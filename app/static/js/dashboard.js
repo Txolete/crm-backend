@@ -3245,31 +3245,29 @@ window.confirmCloseWon = async function() {
  */
 async function loadAISection(opp) {
     // Síntesis ejecutiva
-    const summaryEl = document.getElementById('ai-executive-summary');
-    summaryEl.value = opp.executive_summary || '';
-    summaryEl.addEventListener('input', () => {
-        document.getElementById('btn-save-summary').style.display = 'inline-block';
-    }, { once: false });
+    document.getElementById('ai-executive-summary').value = opp.executive_summary || '';
 
-    // Objetivo y próxima acción
+    // Objetivo (usuario) y próxima acción (IA)
     document.getElementById('ai-strategic-objective').value = opp.strategic_objective || '';
     document.getElementById('ai-next-action').value = opp.next_strategic_action || '';
 
-    // ChatGPT URL / thread
+    // Sesión externa
     document.getElementById('ai-chatgpt-url').value = opp.chatgpt_url || '';
+    document.getElementById('ai-external-notes').value = opp.external_session_notes || '';
+
+    // Badge "Analizado"
     if (opp.chatgpt_thread_id) {
         document.getElementById('ai-thread-badge').style.display = 'inline-block';
-        document.getElementById('ai-thread-id-display').textContent = `Thread: ${opp.chatgpt_thread_id}`;
         document.getElementById('ai-history-section').style.display = 'block';
     } else {
         document.getElementById('ai-thread-badge').style.display = 'none';
-        document.getElementById('ai-thread-id-display').textContent = '';
         document.getElementById('ai-history-section').style.display = 'none';
     }
 
     // Reset chat
     document.getElementById('ai-chat-response').style.display = 'none';
     document.getElementById('ai-chat-input').value = '';
+    document.getElementById('ai-history-collapse').style.display = 'none';
 
     // Cargar selectores desde API
     await Promise.all([
@@ -3297,7 +3295,8 @@ async function _loadAISelect(url, selectId, selectedValue) {
 }
 
 /**
- * Llama a POST /opportunities/{id}/ai/analyze y actualiza la síntesis.
+ * Llama a POST /opportunities/{id}/ai/analyze.
+ * Guarda síntesis + próxima acción propuesta por la IA.
  */
 window.analyzeWithAI = async function() {
     const opp = currentOpportunityData;
@@ -3324,65 +3323,46 @@ window.analyzeWithAI = async function() {
 
         const data = await res.json();
 
-        // Actualizar UI con la síntesis generada
+        // Actualizar UI
         document.getElementById('ai-executive-summary').value = data.executive_summary;
-        document.getElementById('btn-save-summary').style.display = 'none';
+        // Próxima acción propuesta por IA — solo si viene no vacía
+        if (data.next_strategic_action) {
+            document.getElementById('ai-next-action').value = data.next_strategic_action;
+        }
 
-        // Actualizar thread_id en datos locales
         currentOpportunityData.executive_summary = data.executive_summary;
+        currentOpportunityData.next_strategic_action = data.next_strategic_action;
         currentOpportunityData.chatgpt_thread_id = data.thread_id;
 
         document.getElementById('ai-thread-badge').style.display = 'inline-block';
-        document.getElementById('ai-thread-id-display').textContent = `Thread: ${data.thread_id}`;
         document.getElementById('ai-history-section').style.display = 'block';
 
-        showToast('✨ Análisis completado', 'success');
+        showToast('✨ Análisis completado — síntesis y próxima acción actualizadas', 'success');
 
     } catch(e) {
         console.error('[AI] analyze error:', e);
         showToast(`Error al analizar: ${e.message}`, 'danger');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-stars me-1"></i> Analizar con IA';
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Analizar con IA';
         spinner.style.display = 'none';
     }
 };
 
 /**
- * Guarda solo la síntesis ejecutiva editada manualmente.
- */
-window.saveAISummary = async function() {
-    const opp = currentOpportunityData;
-    if (!opp) return;
-    const summary = document.getElementById('ai-executive-summary').value;
-    try {
-        const res = await fetch(`/opportunities/${opp.id}`, {
-            method: 'PUT',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ executive_summary: summary })
-        });
-        if (!res.ok) throw new Error(`Error ${res.status}`);
-        currentOpportunityData.executive_summary = summary;
-        document.getElementById('btn-save-summary').style.display = 'none';
-        showToast('Síntesis guardada', 'success');
-    } catch(e) {
-        showToast(`Error al guardar: ${e.message}`, 'danger');
-    }
-};
-
-/**
- * Guarda los campos estratégicos (estado mental, tipo, objetivo, próxima acción, URL).
+ * Guarda todos los campos IA: síntesis, campos estratégicos, URL externa, notas externas.
  */
 window.saveAIFields = async function() {
     const opp = currentOpportunityData;
     if (!opp) return;
     const payload = {
+        executive_summary: document.getElementById('ai-executive-summary').value || null,
         client_mental_state_id: document.getElementById('ai-mental-state').value || null,
         opportunity_type_id: document.getElementById('ai-opp-type').value || null,
         strategic_objective: document.getElementById('ai-strategic-objective').value || null,
         next_strategic_action: document.getElementById('ai-next-action').value || null,
-        chatgpt_url: document.getElementById('ai-chatgpt-url').value || null
+        chatgpt_url: document.getElementById('ai-chatgpt-url').value || null,
+        external_session_notes: document.getElementById('ai-external-notes').value || null
     };
     try {
         const res = await fetch(`/opportunities/${opp.id}`, {
@@ -3393,14 +3373,14 @@ window.saveAIFields = async function() {
         });
         if (!res.ok) throw new Error(`Error ${res.status}`);
         Object.assign(currentOpportunityData, payload);
-        showToast('Campos estratégicos guardados', 'success');
+        showToast('Campos IA guardados', 'success');
     } catch(e) {
         showToast(`Error al guardar: ${e.message}`, 'danger');
     }
 };
 
 /**
- * Envía un mensaje al thread de IA de la oportunidad.
+ * Envía un mensaje al chat IA de la oportunidad (con contexto completo).
  */
 window.sendAIChat = async function() {
     const opp = currentOpportunityData;
@@ -3411,7 +3391,7 @@ window.sendAIChat = async function() {
     if (!message) return;
 
     if (!opp.chatgpt_thread_id) {
-        showToast('Primero analiza la oportunidad con IA para iniciar el thread', 'warning');
+        showToast('Primero analiza la oportunidad con IA', 'warning');
         return;
     }
 
@@ -3438,6 +3418,10 @@ window.sendAIChat = async function() {
         document.getElementById('ai-chat-response-text').textContent = data.response;
         chatResponse.style.display = 'block';
         input.value = '';
+        // Refrescar historial si está abierto
+        if (document.getElementById('ai-history-collapse').style.display !== 'none') {
+            await loadAIHistory();
+        }
     } catch(e) {
         console.error('[AI] chat error:', e);
         showToast(`Error: ${e.message}`, 'danger');
@@ -3448,7 +3432,79 @@ window.sendAIChat = async function() {
 };
 
 /**
- * Abre la URL de ChatGPT en nueva pestaña.
+ * Toggle del historial de conversación (carga de BD).
+ */
+window.toggleAIHistory = async function() {
+    const collapse = document.getElementById('ai-history-collapse');
+    if (collapse.style.display === 'none') {
+        await loadAIHistory();
+        collapse.style.display = 'block';
+    } else {
+        collapse.style.display = 'none';
+    }
+};
+
+async function loadAIHistory() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+    const container = document.getElementById('ai-history-content');
+    container.innerHTML = '<span class="text-muted">Cargando...</span>';
+    try {
+        const res = await fetch(`/opportunities/${opp.id}/ai/history`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Error al cargar historial');
+        const data = await res.json();
+        if (!data.messages || data.messages.length === 0) {
+            container.innerHTML = '<span class="text-muted">Sin historial de conversación todavía.</span>';
+            return;
+        }
+        container.innerHTML = data.messages.map(m => {
+            const isUser = m.role === 'user';
+            const ts = m.created_at ? new Date(m.created_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
+            return `<div class="mb-2 ${isUser ? 'text-end' : ''}">
+                <span class="badge mb-1" style="background:${isUser ? '#4f46e5' : '#e5e7eb'}; color:${isUser ? 'white' : '#374151'}">
+                    ${isUser ? 'Tú' : 'IA'} ${ts ? '· ' + ts : ''}
+                </span>
+                <div class="p-2 rounded" style="background:${isUser ? '#eef2ff' : '#f9fafb'}; white-space:pre-wrap; text-align:left; font-size:0.82rem;">
+                    ${m.content.replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+                </div>
+            </div>`;
+        }).join('');
+        container.scrollTop = container.scrollHeight;
+    } catch(e) {
+        container.innerHTML = `<span class="text-danger">Error: ${e.message}</span>`;
+    }
+}
+
+/**
+ * Copia el contexto completo de la oportunidad al portapapeles.
+ * Para pegar en ChatGPT Pro, Claude, etc.
+ */
+window.copyContextToClipboard = async function() {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+    const btn = document.getElementById('btn-ai-copy-context');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>';
+    try {
+        const res = await fetch(`/opportunities/${opp.id}/ai/context`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Error al obtener contexto');
+        const data = await res.json();
+        await navigator.clipboard.writeText(data.context);
+        btn.innerHTML = '<i class="bi bi-clipboard-check me-1"></i>¡Copiado!';
+        showToast('Contexto copiado — pégalo en ChatGPT Pro / Claude', 'success');
+        setTimeout(() => {
+            btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copiar contexto';
+            btn.disabled = false;
+        }, 2500);
+    } catch(e) {
+        showToast(`Error: ${e.message}`, 'danger');
+        btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copiar contexto';
+        btn.disabled = false;
+    }
+};
+
+/**
+ * Abre la URL de sesión externa en nueva pestaña.
  */
 window.openChatGPTUrl = function() {
     const url = document.getElementById('ai-chatgpt-url').value;

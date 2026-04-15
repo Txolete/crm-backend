@@ -37,6 +37,9 @@ class Opportunity(Base):
     hold_reason = Column(String, nullable=True)
     chatgpt_thread_id = Column(String(200), nullable=True)
     chatgpt_url = Column(String(500), nullable=True)
+    # Sprint 4E v2 — historial chat IA y notas de sesión externa
+    ai_chat_history = Column(String, nullable=True)       # JSON array de Q&A
+    external_session_notes = Column(String, nullable=True) # conclusiones copiadas de ChatGPT Pro / Claude
     created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

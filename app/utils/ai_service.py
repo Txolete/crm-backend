@@ -27,16 +27,16 @@ class AIProvider(ABC):
     """Contrato que todo provider de IA debe cumplir."""
 
     @abstractmethod
-    def analyze_opportunity(self, context: str, thread_id: Optional[str] = None) -> tuple[str, str]:
+    def analyze_opportunity(self, context: str, thread_id: Optional[str] = None) -> tuple[str, str, str]:
         """
-        Envía el contexto de una oportunidad al modelo y devuelve la síntesis.
+        Envía el contexto de una oportunidad al modelo y devuelve síntesis + próxima acción.
 
         Args:
             context: Markdown estructurado con todos los datos de la oportunidad
             thread_id: ID del thread previo (continúa conversación si existe)
 
         Returns:
-            (síntesis: str, thread_id: str)
+            (síntesis: str, next_action: str, thread_id: str)
         """
         ...
 
@@ -112,10 +112,14 @@ Responde siempre en español. Sé directo y accionable."""
             raise
 
     def _analyze_with_chat(self, context: str, thread_id: Optional[str]) -> tuple[str, str]:
-        """Usa Chat Completions API (sin Assistants)."""
-        prompt = f"""Analiza la siguiente oportunidad comercial y genera:
-1. Una síntesis ejecutiva (4-5 líneas)
-2. La próxima acción estratégica recomendada
+        """Usa Chat Completions API (sin Assistants). Devuelve síntesis y próxima acción por separado."""
+        prompt = f"""Analiza la siguiente oportunidad comercial y responde con este formato EXACTO (respeta los marcadores):
+
+SÍNTESIS:
+[4-5 líneas de síntesis ejecutiva: situación actual, momentum, riesgos principales]
+
+PRÓXIMA ACCIÓN:
+[1 acción concreta, específica y accionable para el comercial. Máximo 2 líneas.]
 
 --- CONTEXTO DE LA OPORTUNIDAD ---
 {context}
@@ -128,32 +132,41 @@ Responde siempre en español. Sé directo y accionable."""
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=600
+            max_tokens=700
         )
-        synthesis = response.choices[0].message.content.strip()
+        raw = response.choices[0].message.content.strip()
 
-        # Sin Assistants API no hay thread real — generamos un ID sintético
-        # para que la UI sepa que ya se analizó
+        # Parsear los dos bloques del output estructurado
+        synthesis, next_action = _parse_analysis_response(raw)
+
         import hashlib
         synthetic_thread_id = thread_id or f"chat_{hashlib.md5(context[:100].encode()).hexdigest()[:16]}"
-        return synthesis, synthetic_thread_id
+        return synthesis, next_action, synthetic_thread_id
 
-    def _analyze_with_assistant(self, context: str, thread_id: Optional[str]) -> tuple[str, str]:
+    def _analyze_with_assistant(self, context: str, thread_id: Optional[str]) -> tuple[str, str, str]:
         """Usa Assistants API con threads persistentes."""
-        # Crear o recuperar thread
         if thread_id and thread_id.startswith("thread_"):
             thread = self._client.beta.threads.retrieve(thread_id)
         else:
             thread = self._client.beta.threads.create()
 
-        # Añadir mensaje con el contexto actualizado
+        prompt = f"""Analiza esta oportunidad y responde con este formato EXACTO:
+
+SÍNTESIS:
+[4-5 líneas de síntesis ejecutiva]
+
+PRÓXIMA ACCIÓN:
+[1 acción concreta y accionable. Máximo 2 líneas.]
+
+--- CONTEXTO ---
+{context}"""
+
         self._client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=f"Analiza esta oportunidad y genera síntesis ejecutiva:\n\n{context}"
+            content=prompt
         )
 
-        # Ejecutar el assistant
         run = self._client.beta.threads.runs.create_and_poll(
             thread_id=thread.id,
             assistant_id=self._assistant_id,
@@ -164,8 +177,9 @@ Responde siempre en español. Sé directo y accionable."""
             raise RuntimeError(f"Assistant run failed with status: {run.status}")
 
         messages = self._client.beta.threads.messages.list(thread_id=thread.id, limit=1)
-        synthesis = messages.data[0].content[0].text.value.strip()
-        return synthesis, thread.id
+        raw = messages.data[0].content[0].text.value.strip()
+        synthesis, next_action = _parse_analysis_response(raw)
+        return synthesis, next_action, thread.id
 
     def chat(self, message: str, thread_id: str, context: Optional[str] = None) -> str:
         """Envía mensaje libre al thread, inyectando siempre el contexto de la oportunidad."""
@@ -227,6 +241,32 @@ Responde siempre en español. Sé directo y accionable."""
         except Exception as e:
             logger.warning(f"[AI] get_thread_messages error: {e}")
             return []
+
+
+# ============================================================================
+# PARSER — extrae bloques estructurados de la respuesta IA
+# ============================================================================
+
+def _parse_analysis_response(raw: str) -> tuple[str, str]:
+    """
+    Parsea la respuesta estructurada del modelo.
+    Espera bloques marcados con 'SÍNTESIS:' y 'PRÓXIMA ACCIÓN:'.
+    Si no encuentra los marcadores, devuelve el texto completo como síntesis.
+    """
+    synthesis = raw
+    next_action = ""
+
+    # Buscar marcadores (case-insensitive, con/sin tilde)
+    import re
+    pattern = re.split(r'(?i)PR[OÓ]XIMA\s+ACCI[OÓ]N\s*:', raw, maxsplit=1)
+    if len(pattern) == 2:
+        next_action = pattern[1].strip()
+        # Limpiar la síntesis quitando el marcador SÍNTESIS: si está
+        synthesis_raw = pattern[0]
+        synthesis_match = re.split(r'(?i)S[IÍ]NTESIS\s*:', synthesis_raw, maxsplit=1)
+        synthesis = synthesis_match[-1].strip() if len(synthesis_match) > 1 else synthesis_raw.strip()
+
+    return synthesis, next_action
 
 
 # ============================================================================
@@ -319,6 +359,13 @@ def build_opportunity_context(opportunity, account, contacts: list, activities: 
     if exec_summary:
         lines.append("## Síntesis ejecutiva anterior")
         lines.append(exec_summary)
+        lines.append("")
+
+    # ── Conclusiones de sesión externa (ChatGPT Pro / Claude / etc.) ─────────
+    external_notes = getattr(opportunity, 'external_session_notes', None)
+    if external_notes:
+        lines.append("## Conclusiones de sesión externa (análisis profundo previo)")
+        lines.append(external_notes)
         lines.append("")
 
     # ── Stakeholders ──────────────────────────────────────────────────────────

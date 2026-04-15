@@ -30,6 +30,7 @@ router = APIRouter(tags=["AI"])
 
 class AIAnalyzeResponse(BaseModel):
     executive_summary: str
+    next_strategic_action: str
     thread_id: str
     message: str = "Análisis completado"
 
@@ -46,12 +47,16 @@ class AIChatResponse(BaseModel):
 class AIHistoryMessage(BaseModel):
     role: str
     content: str
-    created_at: Optional[int] = None
+    created_at: Optional[str] = None
 
 
 class AIHistoryResponse(BaseModel):
     thread_id: str
     messages: list[AIHistoryMessage]
+
+
+class AIContextResponse(BaseModel):
+    context: str
 
 
 # ============================================================================
@@ -172,7 +177,7 @@ async def analyze_opportunity(
     logger.info(f"[AI] Analyzing opportunity {opportunity_id} (thread: {opp.chatgpt_thread_id})")
 
     try:
-        synthesis, thread_id = ai.analyze_opportunity(context, thread_id=opp.chatgpt_thread_id)
+        synthesis, next_action, thread_id = ai.analyze_opportunity(context, thread_id=opp.chatgpt_thread_id)
     except Exception as e:
         logger.error(f"[AI] Provider error: {e}", exc_info=True)
         raise HTTPException(
@@ -180,8 +185,9 @@ async def analyze_opportunity(
             detail=f"AI provider error: {str(e)}"
         )
 
-    # Guardar síntesis y thread_id en BD
+    # Guardar síntesis, próxima acción y thread_id en BD
     opp.executive_summary = synthesis
+    opp.next_strategic_action = next_action
     opp.chatgpt_thread_id = thread_id
     opp.updated_at = get_utc_now()
     db.commit()
@@ -190,6 +196,7 @@ async def analyze_opportunity(
 
     return AIAnalyzeResponse(
         executive_summary=synthesis,
+        next_strategic_action=next_action,
         thread_id=thread_id
     )
 
@@ -242,12 +249,26 @@ async def chat_with_opportunity(
                             detail=f"Error al construir el prompt: {str(e)}")
 
     try:
-        response = ai.chat(request.message.strip(), thread_id=opp.chatgpt_thread_id, context=context)
+        response_text = ai.chat(request.message.strip(), thread_id=opp.chatgpt_thread_id, context=context)
     except Exception as e:
         logger.error(f"[AI] Chat error: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI provider error: {str(e)}")
 
-    return AIChatResponse(response=response, thread_id=opp.chatgpt_thread_id)
+    # Guardar Q&A en historial de BD
+    import json
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        history = json.loads(opp.ai_chat_history) if opp.ai_chat_history else []
+    except Exception:
+        history = []
+    history.append({"role": "user", "content": request.message.strip(), "created_at": now_iso})
+    history.append({"role": "assistant", "content": response_text, "created_at": now_iso})
+    opp.ai_chat_history = json.dumps(history, ensure_ascii=False)
+    opp.updated_at = get_utc_now()
+    db.commit()
+
+    return AIChatResponse(response=response_text, thread_id=opp.chatgpt_thread_id)
 
 
 @router.get("/opportunities/{opportunity_id}/ai/history", response_model=AIHistoryResponse)
@@ -257,22 +278,45 @@ async def get_ai_history(
     current_user: User = Depends(get_current_user_from_cookie)
 ):
     """
-    Recupera el historial de mensajes del thread de IA de una oportunidad.
-    Solo disponible cuando se usa Assistants API (thread_id empieza por 'thread_').
+    Recupera el historial de Q&A del mini-chat guardado en BD.
     """
+    import json
     opp = _get_opportunity_or_404(opportunity_id, db)
 
-    if not opp.chatgpt_thread_id:
-        return AIHistoryResponse(thread_id="", messages=[])
-
     try:
-        ai = get_ai_provider()
-        messages = ai.get_thread_messages(opp.chatgpt_thread_id)
-    except Exception as e:
-        logger.warning(f"[AI] History error: {e}")
+        messages = json.loads(opp.ai_chat_history) if opp.ai_chat_history else []
+    except Exception:
         messages = []
 
     return AIHistoryResponse(
-        thread_id=opp.chatgpt_thread_id,
+        thread_id=opp.chatgpt_thread_id or "",
         messages=[AIHistoryMessage(**m) for m in messages]
     )
+
+
+@router.get("/opportunities/{opportunity_id}/ai/context", response_model=AIContextResponse)
+async def get_ai_context(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie)
+):
+    """
+    Devuelve el contexto Markdown completo de la oportunidad (sin llamar a OpenAI).
+    Usado por el botón 'Copiar contexto' para pegar en ChatGPT Pro / Claude web.
+    """
+    try:
+        opp, account, contacts, activities, tasks = _build_context_for_opportunity(opportunity_id, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AI] Error building context for {opportunity_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error al construir contexto: {str(e)}")
+
+    try:
+        context = build_opportunity_context(opp, account, contacts, activities, tasks)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error al generar el Markdown: {str(e)}")
+
+    return AIContextResponse(context=context)
