@@ -67,18 +67,20 @@ def _get_opportunity_or_404(opportunity_id: str, db: Session) -> Opportunity:
 
 def _build_context_for_opportunity(opportunity_id: str, db: Session) -> tuple:
     """Carga todos los datos necesarios para el contexto AI."""
-    from app.models.config import CfgStage, CfgStageProbability, CfgOpportunityType, CfgClientMentalState, CfgLostReason
+    from app.models.config import (
+        CfgStage, CfgStageProbability, CfgOpportunityType,
+        CfgClientMentalState, CfgLostReason, CfgRegion, CfgCustomerType
+    )
     from app.models.user import User as UserModel
 
     opp = _get_opportunity_or_404(opportunity_id, db)
 
-    # Enriquecer con nombres de relaciones
+    # Enriquecer oportunidad con nombres de relaciones
     account = db.query(Account).filter(Account.id == opp.account_id).first()
     stage = db.query(CfgStage).filter(CfgStage.id == opp.stage_id).first()
     stage_prob = db.query(CfgStageProbability).filter(CfgStageProbability.stage_id == opp.stage_id).first()
     owner = db.query(UserModel).filter(UserModel.id == opp.owner_user_id).first() if opp.owner_user_id else None
 
-    # Parche temporal de atributos para build_opportunity_context
     opp.account_name = account.name if account else ""
     opp.stage_name = stage.name if stage else ""
     opp.stage_probability = stage_prob.probability if stage_prob else None
@@ -92,22 +94,36 @@ def _build_context_for_opportunity(opportunity_id: str, db: Session) -> tuple:
         ms = db.query(CfgClientMentalState).filter(CfgClientMentalState.id == opp.client_mental_state_id).first()
         opp.client_mental_state_name = ms.name if ms else None
 
-    # Contactos de la cuenta
+    # Enriquecer cuenta con relaciones (región, tipo de cliente)
+    if account:
+        if account.region_id:
+            region = db.query(CfgRegion).filter(CfgRegion.id == account.region_id).first()
+            account.region_name = region.name if region else account.region_other_text or ""
+        else:
+            account.region_name = account.region_other_text or ""
+
+        if account.customer_type_id:
+            ctype = db.query(CfgCustomerType).filter(CfgCustomerType.id == account.customer_type_id).first()
+            account.customer_type_name = ctype.name if ctype else account.customer_type_other_text or ""
+        else:
+            account.customer_type_name = account.customer_type_other_text or ""
+
+    # Contactos de la cuenta con sus canales
     contacts = db.query(Contact).filter(Contact.account_id == opp.account_id).all()
     for c in contacts:
         c.channels = db.query(ContactChannel).filter(ContactChannel.contact_id == c.id).all()
 
-    # Actividades (últimas 10)
+    # Todas las actividades de la oportunidad (sin límite, ordenadas cronológicamente)
     activities = db.query(Activity).filter(
         Activity.opportunity_id == opportunity_id
-    ).order_by(Activity.occurred_at.desc()).limit(10).all()
+    ).order_by(Activity.occurred_at.asc()).all()
 
     # Tareas
     tasks = db.query(Task).filter(
         Task.opportunity_id == opportunity_id
     ).order_by(Task.due_date).all()
 
-    return opp, contacts, activities, tasks
+    return opp, account, contacts, activities, tasks
 
 
 # ============================================================================
@@ -134,7 +150,7 @@ async def analyze_opportunity(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
     try:
-        opp, contacts, activities, tasks = _build_context_for_opportunity(opportunity_id, db)
+        opp, account, contacts, activities, tasks = _build_context_for_opportunity(opportunity_id, db)
     except HTTPException:
         raise
     except Exception as e:
@@ -145,7 +161,7 @@ async def analyze_opportunity(
         )
 
     try:
-        context = build_opportunity_context(opp, contacts, activities, tasks)
+        context = build_opportunity_context(opp, account, contacts, activities, tasks)
     except Exception as e:
         logger.error(f"[AI] Error building prompt for {opportunity_id}: {e}", exc_info=True)
         raise HTTPException(

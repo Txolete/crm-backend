@@ -225,61 +225,96 @@ Responde siempre en español. Sé directo y accionable."""
 # CONTEXT BUILDER — prompt interno
 # ============================================================================
 
-def build_opportunity_context(opportunity, contacts: list, activities: list, tasks: list) -> str:
+def build_opportunity_context(opportunity, account, contacts: list, activities: list, tasks: list) -> str:
     """
     Construye el Markdown estructurado de una oportunidad para enviar como
-    contexto al modelo de IA. Es el prompt interno — no visible al usuario.
-
-    Este es el equivalente de Sprint 5A (export Markdown), pero usado
-    directamente como input a la API en lugar de copiarse al portapapeles.
+    contexto al modelo de IA. Incluye:
+    - Ficha completa del cliente (cuenta)
+    - Datos de la oportunidad y campos estratégicos IA
+    - Stakeholders con canales de contacto
+    - Timeline completo de actividades
+    - Tareas pendientes y completadas
     """
     lines = []
 
-    # Cabecera
+    # ── Cabecera ─────────────────────────────────────────────────────────────
     opp_name = getattr(opportunity, 'name', None) or getattr(opportunity, 'account_name', 'Sin nombre')
     account_name = getattr(opportunity, 'account_name', '')
-    lines.append(f"# {opp_name} — {account_name}")
+    lines.append(f"# Oportunidad: {opp_name}")
     lines.append("")
 
-    # Datos principales
+    # ── Ficha del cliente ─────────────────────────────────────────────────────
+    lines.append("## Ficha del cliente")
+    if account:
+        lines.append(f"**Empresa:** {account.name}")
+        if getattr(account, 'customer_type_name', None):
+            lines.append(f"**Tipo de cliente:** {account.customer_type_name}")
+        if getattr(account, 'region_name', None):
+            lines.append(f"**Provincia:** {account.region_name}")
+        if account.website:
+            lines.append(f"**Web:** {account.website}")
+        if account.email:
+            lines.append(f"**Email:** {account.email}")
+        if account.phone:
+            lines.append(f"**Teléfono:** {account.phone}")
+        if account.address:
+            lines.append(f"**Dirección:** {account.address}")
+        if account.tax_id:
+            lines.append(f"**CIF/NIF:** {account.tax_id}")
+        if account.notes:
+            lines.append(f"**Notas del cliente:**")
+            lines.append(account.notes)
+    else:
+        lines.append("Sin datos de cliente")
+    lines.append("")
+
+    # ── Datos de la oportunidad ───────────────────────────────────────────────
+    lines.append("## Oportunidad")
     stage_name = getattr(opportunity, 'stage_name', '')
-    value = getattr(opportunity, 'expected_value_eur', 0)
+    value = getattr(opportunity, 'expected_value_eur', 0) or 0
     prob = getattr(opportunity, 'probability_override', None)
     stage_prob = getattr(opportunity, 'stage_probability', None)
     prob_display = f"{int((prob or stage_prob or 0) * 100)}%"
     owner = getattr(opportunity, 'owner_user_name', '') or ''
     close_month = getattr(opportunity, 'forecast_close_month', '') or ''
+    opp_type = getattr(opportunity, 'opportunity_type_name', None)
 
-    lines.append(f"**Stage:** {stage_name} | **Valor:** {value:,.0f}€ | **Probabilidad:** {prob_display} | **Owner:** {owner}")
-    lines.append(f"**Cierre previsto:** {close_month}")
+    lines.append(f"**Stage:** {stage_name} | **Valor:** {value:,.0f}€ | **Probabilidad:** {prob_display}")
+    lines.append(f"**Comercial responsable:** {owner} | **Cierre previsto:** {close_month}")
+    if opp_type:
+        lines.append(f"**Tipo de oportunidad:** {opp_type}")
+
+    stage_detail = getattr(opportunity, 'stage_detail', None)
+    if stage_detail:
+        lines.append(f"**Detalle del stage:** {stage_detail}")
     lines.append("")
 
-    # Estado mental del cliente
+    # ── Estado mental del cliente ─────────────────────────────────────────────
     mental_state = getattr(opportunity, 'client_mental_state_name', None)
     lines.append("## Estado mental del cliente")
     lines.append(mental_state or "No definido")
     lines.append("")
 
-    # Campos estratégicos
+    # ── Campos estratégicos ───────────────────────────────────────────────────
     strategic_obj = getattr(opportunity, 'strategic_objective', None)
-    lines.append("## Objetivo de esta oportunidad")
+    lines.append("## Objetivo estratégico de esta oportunidad")
     lines.append(strategic_obj or "No definido")
     lines.append("")
 
     next_action = getattr(opportunity, 'next_strategic_action', None)
-    lines.append("## Próxima acción estratégica")
+    lines.append("## Próxima acción estratégica definida")
     lines.append(next_action or "No definida")
     lines.append("")
 
-    # Síntesis previa (si existe)
+    # ── Síntesis previa ───────────────────────────────────────────────────────
     exec_summary = getattr(opportunity, 'executive_summary', None)
     if exec_summary:
-        lines.append("## Síntesis anterior")
+        lines.append("## Síntesis ejecutiva anterior")
         lines.append(exec_summary)
         lines.append("")
 
-    # Stakeholders
-    lines.append("## Stakeholders")
+    # ── Stakeholders ──────────────────────────────────────────────────────────
+    lines.append("## Contactos / Stakeholders")
     if contacts:
         for c in contacts:
             full_name = f"{getattr(c, 'first_name', '') or ''} {getattr(c, 'last_name', '') or ''}".strip() or "Sin nombre"
@@ -292,15 +327,22 @@ def build_opportunity_context(opportunity, contacts: list, activities: list, tas
                         email = ch.value
                     elif ch.type == 'phone':
                         phone = ch.value
-            lines.append(f"- {full_name} ({role}) — {email} / {phone}")
+            parts = [full_name]
+            if role:
+                parts.append(f"({role})")
+            if email:
+                parts.append(email)
+            if phone:
+                parts.append(phone)
+            lines.append(f"- {' — '.join(parts)}")
     else:
         lines.append("- Sin contactos registrados")
     lines.append("")
 
-    # Timeline (últimas 10 actividades)
-    lines.append("## Timeline (últimas actividades)")
+    # ── Timeline completo de actividades ──────────────────────────────────────
+    lines.append(f"## Timeline de actividades ({len(activities)} registros, orden cronológico)")
     if activities:
-        for act in activities[:10]:
+        for act in activities:
             occurred = getattr(act, 'occurred_at', '')
             if hasattr(occurred, 'strftime'):
                 occurred = occurred.strftime('%Y-%m-%d')
@@ -311,23 +353,28 @@ def build_opportunity_context(opportunity, contacts: list, activities: list, tas
         lines.append("- Sin actividad registrada")
     lines.append("")
 
-    # Tareas pendientes
+    # ── Tareas pendientes ─────────────────────────────────────────────────────
     open_tasks = [t for t in tasks if getattr(t, 'status', '') in ('open', 'in_progress')]
-    lines.append("## Tareas pendientes")
+    lines.append(f"## Tareas pendientes ({len(open_tasks)})")
     if open_tasks:
         for t in open_tasks:
             due = getattr(t, 'due_date', '')
             if isinstance(due, date):
                 due = due.strftime('%Y-%m-%d')
-            lines.append(f"- [ ] {t.title} — vence {due or 'sin fecha'}")
+            priority = getattr(t, 'priority', '')
+            desc = getattr(t, 'description', '') or ''
+            line = f"- [ ] [{priority}] {t.title} — vence {due or 'sin fecha'}"
+            if desc:
+                line += f" | {desc}"
+            lines.append(line)
     else:
         lines.append("- Sin tareas pendientes")
     lines.append("")
 
-    # Tareas completadas recientes
-    done_tasks = [t for t in tasks if getattr(t, 'status', '') == 'completed'][:5]
+    # ── Tareas completadas ────────────────────────────────────────────────────
+    done_tasks = [t for t in tasks if getattr(t, 'status', '') == 'completed']
     if done_tasks:
-        lines.append("## Tareas completadas (últimas 5)")
+        lines.append(f"## Tareas completadas ({len(done_tasks)})")
         for t in done_tasks:
             completed = getattr(t, 'completed_at', '')
             if hasattr(completed, 'strftime'):
