@@ -333,21 +333,22 @@ def update_opportunity(
                 opportunity.won_value_eur = None
                 logger.info(f"[RE-OPEN] Opportunity {opportunity.id} re-opened from closed state")
     
-    if opportunity_data.stage_detail is not None:
-        opportunity.stage_detail = opportunity_data.stage_detail
-    if opportunity_data.expected_value_eur is not None:
-        opportunity.expected_value_eur = opportunity_data.expected_value_eur
-    if opportunity_data.weighted_value_override_eur is not None:
-        opportunity.weighted_value_override_eur = opportunity_data.weighted_value_override_eur
-    if opportunity_data.probability_override is not None:
-        opportunity.probability_override = opportunity_data.probability_override
-    if opportunity_data.forecast_close_month is not None:
-        opportunity.forecast_close_month = opportunity_data.forecast_close_month
-    if opportunity_data.owner_user_id is not None:
-        opportunity.owner_user_id = opportunity_data.owner_user_id
-    if opportunity_data.status is not None:
-        opportunity.status = opportunity_data.status
-        logger.info(f"[STATUS] Opportunity {opportunity.id} status changed to {opportunity_data.status}")
+    # Usamos exclude_unset para distinguir "campo no enviado" de "campo enviado como null"
+    # Así probability_override=null borra el override correctamente
+    update_fields = opportunity_data.model_dump(exclude_unset=True)
+
+    simple_fields = [
+        "stage_detail", "expected_value_eur", "weighted_value_override_eur",
+        "probability_override", "forecast_close_month", "owner_user_id", "status",
+        "opportunity_type_id", "client_mental_state_id", "strategic_objective",
+        "next_strategic_action", "executive_summary", "hold_reason",
+        "chatgpt_thread_id", "chatgpt_url"
+    ]
+    for field in simple_fields:
+        if field in update_fields:
+            setattr(opportunity, field, update_fields[field])
+            if field == "status":
+                logger.info(f"[STATUS] Opportunity {opportunity.id} status changed to {update_fields[field]}")
     
     opportunity.updated_at = get_utc_now()
     
