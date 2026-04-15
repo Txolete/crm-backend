@@ -2209,15 +2209,14 @@ window.saveOpportunityChanges = async function() {
             owner_user_id: ownerId
         };
         
-        // Add overrides if provided
-        if (weightedOverride && weightedOverride.trim() !== '') {
-            updateData.weighted_value_override_eur = parseFloat(weightedOverride);
-        }
-        
-        if (probabilityOverride && probabilityOverride.trim() !== '') {
-            // Convert percentage to decimal (0-1)
-            updateData.probability_override = parseFloat(probabilityOverride) / 100;
-        }
+        // Overrides: si el campo está vacío mandamos null explícito para borrarlo
+        updateData.weighted_value_override_eur = (weightedOverride && weightedOverride.trim() !== '')
+            ? parseFloat(weightedOverride)
+            : null;
+
+        updateData.probability_override = (probabilityOverride && probabilityOverride.trim() !== '')
+            ? parseFloat(probabilityOverride) / 100
+            : null;
         
         console.log('[EDIT] Update data:', updateData);
         
