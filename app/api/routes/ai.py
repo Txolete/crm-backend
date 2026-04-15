@@ -133,16 +133,32 @@ async def analyze_opportunity(
     except RuntimeError as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
-    opp, contacts, activities, tasks = _build_context_for_opportunity(opportunity_id, db)
+    try:
+        opp, contacts, activities, tasks = _build_context_for_opportunity(opportunity_id, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AI] Error building context for {opportunity_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al cargar contexto de la oportunidad: {str(e)}"
+        )
 
-    context = build_opportunity_context(opp, contacts, activities, tasks)
+    try:
+        context = build_opportunity_context(opp, contacts, activities, tasks)
+    except Exception as e:
+        logger.error(f"[AI] Error building prompt for {opportunity_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al construir el prompt: {str(e)}"
+        )
 
     logger.info(f"[AI] Analyzing opportunity {opportunity_id} (thread: {opp.chatgpt_thread_id})")
 
     try:
         synthesis, thread_id = ai.analyze_opportunity(context, thread_id=opp.chatgpt_thread_id)
     except Exception as e:
-        logger.error(f"[AI] Provider error: {e}")
+        logger.error(f"[AI] Provider error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"AI provider error: {str(e)}"
@@ -197,7 +213,7 @@ async def chat_with_opportunity(
     try:
         response = ai.chat(request.message.strip(), thread_id=opp.chatgpt_thread_id)
     except Exception as e:
-        logger.error(f"[AI] Chat error: {e}")
+        logger.error(f"[AI] Chat error: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI provider error: {str(e)}")
 
     return AIChatResponse(response=response, thread_id=opp.chatgpt_thread_id)
