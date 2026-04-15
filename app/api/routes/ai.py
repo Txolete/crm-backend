@@ -28,9 +28,23 @@ router = APIRouter(tags=["AI"])
 # SCHEMAS
 # ============================================================================
 
+class AITaskProposal(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[str] = None   # high | medium | low
+    due_days: Optional[int] = None   # días desde hoy
+
+
+class AIProbabilitySuggestion(BaseModel):
+    percentage: Optional[int] = None
+    justification: Optional[str] = None
+
+
 class AIAnalyzeResponse(BaseModel):
     executive_summary: str
     next_strategic_action: str
+    task_proposal: AITaskProposal
+    probability_suggestion: AIProbabilitySuggestion
     thread_id: str
     message: str = "Análisis completado"
 
@@ -177,7 +191,9 @@ async def analyze_opportunity(
     logger.info(f"[AI] Analyzing opportunity {opportunity_id} (thread: {opp.chatgpt_thread_id})")
 
     try:
-        synthesis, next_action, thread_id = ai.analyze_opportunity(context, thread_id=opp.chatgpt_thread_id)
+        synthesis, next_action, task_proposal, probability_suggestion, thread_id = ai.analyze_opportunity(
+            context, thread_id=opp.chatgpt_thread_id
+        )
     except Exception as e:
         logger.error(f"[AI] Provider error: {e}", exc_info=True)
         raise HTTPException(
@@ -197,6 +213,8 @@ async def analyze_opportunity(
     return AIAnalyzeResponse(
         executive_summary=synthesis,
         next_strategic_action=next_action,
+        task_proposal=AITaskProposal(**task_proposal) if task_proposal else AITaskProposal(),
+        probability_suggestion=AIProbabilitySuggestion(**probability_suggestion) if probability_suggestion else AIProbabilitySuggestion(),
         thread_id=thread_id
     )
 

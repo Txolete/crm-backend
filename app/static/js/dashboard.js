@@ -3264,10 +3264,13 @@ async function loadAISection(opp) {
         document.getElementById('ai-history-section').style.display = 'none';
     }
 
-    // Reset chat
+    // Reset chat y propuestas
     document.getElementById('ai-chat-response').style.display = 'none';
     document.getElementById('ai-chat-input').value = '';
     document.getElementById('ai-history-collapse').style.display = 'none';
+    document.getElementById('ai-proposals-section').style.display = 'none';
+    _aiTaskProposal = null;
+    _aiProbabilitySuggestion = null;
 
     // Cargar selectores desde API
     await Promise.all([
@@ -3323,9 +3326,8 @@ window.analyzeWithAI = async function() {
 
         const data = await res.json();
 
-        // Actualizar UI
+        // Síntesis y próxima acción
         document.getElementById('ai-executive-summary').value = data.executive_summary;
-        // Próxima acción propuesta por IA — solo si viene no vacía
         if (data.next_strategic_action) {
             document.getElementById('ai-next-action').value = data.next_strategic_action;
         }
@@ -3334,10 +3336,13 @@ window.analyzeWithAI = async function() {
         currentOpportunityData.next_strategic_action = data.next_strategic_action;
         currentOpportunityData.chatgpt_thread_id = data.thread_id;
 
+        // Mostrar propuestas IA (tarea + probabilidad)
+        _renderAIProposals(data.task_proposal, data.probability_suggestion);
+
         document.getElementById('ai-thread-badge').style.display = 'inline-block';
         document.getElementById('ai-history-section').style.display = 'block';
 
-        showToast('✨ Análisis completado — síntesis y próxima acción actualizadas', 'success');
+        showToast('✨ Análisis completado — síntesis, próxima acción y propuestas actualizadas', 'success');
 
     } catch(e) {
         console.error('[AI] analyze error:', e);
@@ -3510,6 +3515,97 @@ window.openChatGPTUrl = function() {
     const url = document.getElementById('ai-chatgpt-url').value;
     if (url) window.open(url, '_blank');
     else showToast('No hay URL configurada', 'warning');
+};
+
+// Variable global para guardar la última propuesta de tarea de la IA
+let _aiTaskProposal = null;
+let _aiProbabilitySuggestion = null;
+
+/**
+ * Renderiza las tarjetas de propuesta (tarea + probabilidad) tras el análisis.
+ */
+function _renderAIProposals(taskProposal, probabilitySuggestion) {
+    _aiTaskProposal = taskProposal;
+    _aiProbabilitySuggestion = probabilitySuggestion;
+
+    const section = document.getElementById('ai-proposals-section');
+
+    // Probabilidad
+    const pct = probabilitySuggestion && probabilitySuggestion.percentage != null
+        ? probabilitySuggestion.percentage : null;
+    document.getElementById('ai-prob-value').textContent = pct != null ? `${pct}%` : '—';
+    document.getElementById('ai-prob-justification').textContent =
+        (probabilitySuggestion && probabilitySuggestion.justification) || '';
+
+    // Tarea
+    const title = taskProposal && taskProposal.title ? taskProposal.title : null;
+    document.getElementById('ai-task-title').textContent = title || 'Sin propuesta de tarea';
+
+    if (taskProposal && (taskProposal.priority || taskProposal.due_days)) {
+        const prioMap = { high: '🔴 Alta', medium: '🟡 Media', low: '🟢 Baja' };
+        const prio = prioMap[taskProposal.priority] || taskProposal.priority || '';
+        const days = taskProposal.due_days ? `· vence en ${taskProposal.due_days} días` : '';
+        document.getElementById('ai-task-meta').textContent = [prio, days].filter(Boolean).join(' ');
+    } else {
+        document.getElementById('ai-task-meta').textContent = '';
+    }
+
+    section.style.display = 'block';
+}
+
+/**
+ * Aplica la probabilidad sugerida por la IA como override en el campo del form.
+ */
+window.applyAIProbability = function() {
+    if (!_aiProbabilitySuggestion || _aiProbabilitySuggestion.percentage == null) {
+        showToast('No hay probabilidad sugerida', 'warning');
+        return;
+    }
+    // Buscar el campo de probability override en el formulario principal
+    const el = document.getElementById('probability-override');
+    if (el) {
+        el.value = _aiProbabilitySuggestion.percentage;
+        showToast(`Override de probabilidad fijado a ${_aiProbabilitySuggestion.percentage}% — recuerda guardar la oportunidad`, 'info');
+    } else {
+        showToast('Abre el formulario de la oportunidad para aplicar el override', 'info');
+    }
+};
+
+/**
+ * Abre el modal de crear tarea pre-rellenado con la propuesta de la IA.
+ */
+window.createTaskFromAI = async function() {
+    const opp = currentOpportunityData;
+    if (!opp || !_aiTaskProposal) return;
+
+    // Calcular fecha de vencimiento
+    let dueDate = '';
+    if (_aiTaskProposal.due_days) {
+        const d = new Date();
+        d.setDate(d.getDate() + _aiTaskProposal.due_days);
+        dueDate = d.toISOString().split('T')[0];
+    }
+
+    await showCreateTaskModal({
+        opportunity_id: opp.id,
+        account_id: opp.account_id,
+        title: _aiTaskProposal.title || '',
+        description: _aiTaskProposal.description || '',
+        priority: _aiTaskProposal.priority || 'medium',
+        due_date: dueDate
+    });
+};
+
+/**
+ * Copia el prompt de resumen al portapapeles.
+ */
+window.copyPromptText = function() {
+    const text = document.getElementById('ai-summary-prompt-text').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('btn-copy-prompt');
+        btn.innerHTML = '<i class="bi bi-clipboard-check"></i> ¡Copiado!';
+        setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i> Copiar'; }, 2000);
+    });
 };
 
 window.openLostConfirm = async function() {

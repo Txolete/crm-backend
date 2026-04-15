@@ -27,16 +27,12 @@ class AIProvider(ABC):
     """Contrato que todo provider de IA debe cumplir."""
 
     @abstractmethod
-    def analyze_opportunity(self, context: str, thread_id: Optional[str] = None) -> tuple[str, str, str]:
+    def analyze_opportunity(self, context: str, thread_id: Optional[str] = None) -> tuple:
         """
-        Envía el contexto de una oportunidad al modelo y devuelve síntesis + próxima acción.
-
-        Args:
-            context: Markdown estructurado con todos los datos de la oportunidad
-            thread_id: ID del thread previo (continúa conversación si existe)
+        Envía el contexto de una oportunidad al modelo.
 
         Returns:
-            (síntesis: str, next_action: str, thread_id: str)
+            (síntesis: str, next_action: str, task_proposal: dict, probability_suggestion: dict, thread_id: str)
         """
         ...
 
@@ -111,15 +107,25 @@ Responde siempre en español. Sé directo y accionable."""
             logger.error(f"[AI] analyze_opportunity error: {e}")
             raise
 
-    def _analyze_with_chat(self, context: str, thread_id: Optional[str]) -> tuple[str, str]:
-        """Usa Chat Completions API (sin Assistants). Devuelve síntesis y próxima acción por separado."""
-        prompt = f"""Analiza la siguiente oportunidad comercial y responde con este formato EXACTO (respeta los marcadores):
+    def _analyze_with_chat(self, context: str, thread_id: Optional[str]) -> tuple[str, str, str]:
+        """Usa Chat Completions API. Devuelve síntesis, próxima acción, tarea propuesta y probabilidad."""
+        prompt = f"""Analiza la siguiente oportunidad comercial y responde con este formato EXACTO (respeta todos los marcadores):
 
 SÍNTESIS:
-[4-5 líneas de síntesis ejecutiva: situación actual, momentum, riesgos principales]
+[4-5 líneas: situación actual, momentum de la relación, riesgos principales]
 
 PRÓXIMA ACCIÓN:
-[1 acción concreta, específica y accionable para el comercial. Máximo 2 líneas.]
+[1 acción estratégica concreta y accionable. Máximo 2 líneas.]
+
+TAREA PROPUESTA:
+Título: [título corto y accionable para la tarea, máximo 80 caracteres]
+Descripción: [qué hay que hacer exactamente y qué se busca conseguir. 1-3 frases.]
+Prioridad: [alta|media|baja]
+Días hasta vencimiento: [número entero, ej: 7]
+
+PROBABILIDAD SUGERIDA:
+Porcentaje: [número entre 0 y 100]
+Justificación: [1 línea explicando por qué ese porcentaje]
 
 --- CONTEXTO DE LA OPORTUNIDAD ---
 {context}
@@ -132,16 +138,15 @@ PRÓXIMA ACCIÓN:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=700
+            max_tokens=900
         )
         raw = response.choices[0].message.content.strip()
 
-        # Parsear los dos bloques del output estructurado
-        synthesis, next_action = _parse_analysis_response(raw)
+        synthesis, next_action, task_proposal, probability_suggestion = _parse_analysis_response(raw)
 
         import hashlib
         synthetic_thread_id = thread_id or f"chat_{hashlib.md5(context[:100].encode()).hexdigest()[:16]}"
-        return synthesis, next_action, synthetic_thread_id
+        return synthesis, next_action, task_proposal, probability_suggestion, synthetic_thread_id
 
     def _analyze_with_assistant(self, context: str, thread_id: Optional[str]) -> tuple[str, str, str]:
         """Usa Assistants API con threads persistentes."""
@@ -178,8 +183,8 @@ PRÓXIMA ACCIÓN:
 
         messages = self._client.beta.threads.messages.list(thread_id=thread.id, limit=1)
         raw = messages.data[0].content[0].text.value.strip()
-        synthesis, next_action = _parse_analysis_response(raw)
-        return synthesis, next_action, thread.id
+        synthesis, next_action, task_proposal, probability_suggestion = _parse_analysis_response(raw)
+        return synthesis, next_action, task_proposal, probability_suggestion, thread.id
 
     def chat(self, message: str, thread_id: str, context: Optional[str] = None) -> str:
         """Envía mensaje libre al thread, inyectando siempre el contexto de la oportunidad."""
@@ -247,26 +252,100 @@ PRÓXIMA ACCIÓN:
 # PARSER — extrae bloques estructurados de la respuesta IA
 # ============================================================================
 
-def _parse_analysis_response(raw: str) -> tuple[str, str]:
+def _parse_analysis_response(raw: str) -> tuple:
     """
-    Parsea la respuesta estructurada del modelo.
-    Espera bloques marcados con 'SÍNTESIS:' y 'PRÓXIMA ACCIÓN:'.
-    Si no encuentra los marcadores, devuelve el texto completo como síntesis.
-    """
-    synthesis = raw
-    next_action = ""
+    Parsea la respuesta estructurada del modelo en 4 bloques:
+    SÍNTESIS / PRÓXIMA ACCIÓN / TAREA PROPUESTA / PROBABILIDAD SUGERIDA
 
-    # Buscar marcadores (case-insensitive, con/sin tilde)
+    Returns:
+        (synthesis: str, next_action: str, task_proposal: dict, probability_suggestion: dict)
+    """
     import re
-    pattern = re.split(r'(?i)PR[OÓ]XIMA\s+ACCI[OÓ]N\s*:', raw, maxsplit=1)
-    if len(pattern) == 2:
-        next_action = pattern[1].strip()
-        # Limpiar la síntesis quitando el marcador SÍNTESIS: si está
-        synthesis_raw = pattern[0]
-        synthesis_match = re.split(r'(?i)S[IÍ]NTESIS\s*:', synthesis_raw, maxsplit=1)
-        synthesis = synthesis_match[-1].strip() if len(synthesis_match) > 1 else synthesis_raw.strip()
 
-    return synthesis, next_action
+    # Dividir por marcadores principales
+    markers = [
+        r'(?i)S[IÍ]NTESIS\s*:',
+        r'(?i)PR[OÓ]XIMA\s+ACCI[OÓ]N\s*:',
+        r'(?i)TAREA\s+PROPUESTA\s*:',
+        r'(?i)PROBABILIDAD\s+SUGERIDA\s*:',
+    ]
+    combined = '|'.join(f'({m})' for m in markers)
+    parts = re.split(combined, raw)
+
+    # Reconstruir mapa {marcador_normalizado: contenido}
+    blocks = {}
+    i = 0
+    while i < len(parts):
+        part = (parts[i] or '').strip()
+        if not part:
+            i += 1
+            continue
+        # ¿Es un marcador?
+        is_marker = any(re.match(m, part, re.IGNORECASE) for m in markers)
+        if is_marker:
+            content = parts[i + 1].strip() if i + 1 < len(parts) else ''
+            key = re.sub(r'[^a-zA-Z]', '', part).upper()
+            blocks[key] = content
+            i += 2
+        else:
+            i += 1
+
+    def get_block(*keys):
+        for k in keys:
+            for bk, bv in blocks.items():
+                if k in bk:
+                    return bv
+        return ''
+
+    synthesis = get_block('SNTESIS', 'SINTESIS') or raw
+    next_action = get_block('PRXIMA', 'PROXIMA', 'ACCIN', 'ACCION')
+
+    # Parsear TAREA PROPUESTA en dict
+    task_raw = get_block('TAREA')
+    task_proposal: dict = {}
+    if task_raw:
+        for line in task_raw.splitlines():
+            if ':' in line:
+                k, _, v = line.partition(':')
+                k = k.strip().lower()
+                v = v.strip()
+                if 'tulo' in k or 'titulo' in k:
+                    task_proposal['title'] = v
+                elif 'escripci' in k or 'descripcion' in k:
+                    task_proposal['description'] = v
+                elif 'rioridad' in k or 'prioridad' in k:
+                    p = v.lower()
+                    task_proposal['priority'] = 'high' if 'alt' in p else ('low' if 'baj' in p else 'medium')
+                elif 'as' in k and ('venc' in k or 'días' in k or 'dias' in k):
+                    try:
+                        task_proposal['due_days'] = int(re.search(r'\d+', v).group())
+                    except Exception:
+                        task_proposal['due_days'] = 7
+
+    # Parsear PROBABILIDAD SUGERIDA en dict
+    prob_raw = get_block('PROBABILIDAD')
+    probability_suggestion: dict = {}
+    if prob_raw:
+        for line in prob_raw.splitlines():
+            if ':' in line:
+                k, _, v = line.partition(':')
+                k = k.strip().lower()
+                v = v.strip()
+                if 'porcentaje' in k or 'porcent' in k:
+                    try:
+                        num = re.search(r'\d+', v)
+                        probability_suggestion['percentage'] = int(num.group()) if num else None
+                    except Exception:
+                        pass
+                elif 'justif' in k:
+                    probability_suggestion['justification'] = v
+        # Fallback: buscar número % en el bloque completo
+        if 'percentage' not in probability_suggestion:
+            m = re.search(r'(\d{1,3})\s*%', prob_raw)
+            if m:
+                probability_suggestion['percentage'] = int(m.group(1))
+
+    return synthesis, next_action, task_proposal, probability_suggestion
 
 
 # ============================================================================
