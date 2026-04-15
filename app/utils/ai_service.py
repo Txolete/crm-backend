@@ -282,7 +282,8 @@ def build_opportunity_context(opportunity, contacts: list, activities: list, tas
     lines.append("## Stakeholders")
     if contacts:
         for c in contacts:
-            role = getattr(c, 'role_name', '') or ''
+            full_name = f"{getattr(c, 'first_name', '') or ''} {getattr(c, 'last_name', '') or ''}".strip() or "Sin nombre"
+            role = getattr(c, 'role_name', '') or getattr(c, 'contact_role_id', '') or ''
             email = ''
             phone = ''
             if hasattr(c, 'channels') and c.channels:
@@ -291,7 +292,7 @@ def build_opportunity_context(opportunity, contacts: list, activities: list, tas
                         email = ch.value
                     elif ch.type == 'phone':
                         phone = ch.value
-            lines.append(f"- {c.name} ({role}) — {email} / {phone}")
+            lines.append(f"- {full_name} ({role}) — {email} / {phone}")
     else:
         lines.append("- Sin contactos registrados")
     lines.append("")
