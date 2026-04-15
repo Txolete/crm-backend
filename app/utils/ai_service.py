@@ -41,13 +41,16 @@ class AIProvider(ABC):
         ...
 
     @abstractmethod
-    def chat(self, message: str, thread_id: str) -> str:
+    def chat(self, message: str, thread_id: str, context: Optional[str] = None) -> str:
         """
         Envía un mensaje libre al thread existente de una oportunidad.
 
         Args:
             message: Pregunta o mensaje del comercial
             thread_id: ID del thread de la oportunidad
+            context: Contexto completo de la oportunidad (Markdown). Se inyecta
+                     en el system message para que el modelo siempre tenga la
+                     información actualizada, aunque no haya threads persistentes.
 
         Returns:
             Respuesta del modelo
@@ -164,21 +167,26 @@ Responde siempre en español. Sé directo y accionable."""
         synthesis = messages.data[0].content[0].text.value.strip()
         return synthesis, thread.id
 
-    def chat(self, message: str, thread_id: str) -> str:
-        """Envía mensaje libre al thread."""
+    def chat(self, message: str, thread_id: str, context: Optional[str] = None) -> str:
+        """Envía mensaje libre al thread, inyectando siempre el contexto de la oportunidad."""
         try:
             if self._assistant_id and thread_id.startswith("thread_"):
                 return self._chat_with_assistant(message, thread_id)
             else:
-                # Sin thread real, usamos chat completion simple
+                # Chat Completions: inyectamos el contexto en el system message
+                # para que el modelo siempre sepa de qué oportunidad se habla
+                system = self.SYSTEM_PROMPT
+                if context:
+                    system += f"\n\n---\nCONTEXTO ACTUAL DE LA OPORTUNIDAD (datos en tiempo real):\n\n{context}\n---"
+
                 response = self._client.chat.completions.create(
                     model=self._model,
                     messages=[
-                        {"role": "system", "content": self.SYSTEM_PROMPT},
+                        {"role": "system", "content": system},
                         {"role": "user", "content": message}
                     ],
                     temperature=0.4,
-                    max_tokens=400
+                    max_tokens=500
                 )
                 return response.choices[0].message.content.strip()
         except Exception as e:

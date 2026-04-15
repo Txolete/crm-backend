@@ -210,7 +210,23 @@ async def chat_with_opportunity(
     - '¿Cómo abordar la próxima reunión?'
     - '¿Qué riesgos ves en esta oportunidad?'
     """
-    opp = _get_opportunity_or_404(opportunity_id, db)
+    if not request.message or not request.message.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El mensaje no puede estar vacío")
+
+    try:
+        ai = get_ai_provider()
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+    # Construir contexto completo para que el chat tenga memoria de la oportunidad
+    try:
+        opp, account, contacts, activities, tasks = _build_context_for_opportunity(opportunity_id, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AI] Error building chat context for {opportunity_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error al cargar contexto: {str(e)}")
 
     if not opp.chatgpt_thread_id:
         raise HTTPException(
@@ -219,15 +235,14 @@ async def chat_with_opportunity(
         )
 
     try:
-        ai = get_ai_provider()
-    except RuntimeError as e:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
-
-    if not request.message or not request.message.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El mensaje no puede estar vacío")
+        context = build_opportunity_context(opp, account, contacts, activities, tasks)
+    except Exception as e:
+        logger.error(f"[AI] Error building chat prompt for {opportunity_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error al construir el prompt: {str(e)}")
 
     try:
-        response = ai.chat(request.message.strip(), thread_id=opp.chatgpt_thread_id)
+        response = ai.chat(request.message.strip(), thread_id=opp.chatgpt_thread_id, context=context)
     except Exception as e:
         logger.error(f"[AI] Chat error: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI provider error: {str(e)}")
