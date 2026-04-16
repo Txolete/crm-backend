@@ -262,82 +262,70 @@ def _parse_analysis_response(raw: str) -> tuple:
     """
     import re
 
-    # Dividir por marcadores principales
-    markers = [
-        r'(?i)S[IÍ]NTESIS\s*:',
-        r'(?i)PR[OÓ]XIMA\s+ACCI[OÓ]N\s*:',
-        r'(?i)TAREA\s+PROPUESTA\s*:',
-        r'(?i)PROBABILIDAD\s+SUGERIDA\s*:',
-    ]
-    combined = '|'.join(f'({m})' for m in markers)
-    parts = re.split(combined, raw)
+    def extract_block(text: str, marker: str) -> str:
+        """Extrae el contenido entre un marcador y el siguiente marcador o fin de texto."""
+        # Buscar el marcador (case-insensitive)
+        m = re.search(marker, text, re.IGNORECASE)
+        if not m:
+            return ''
+        start = m.end()
+        # Buscar el siguiente marcador principal
+        next_markers = [
+            r'S[IÍ]NTESIS\s*:',
+            r'PR[OÓ]XIMA\s+ACCI[OÓ]N\s*:',
+            r'TAREA\s+PROPUESTA\s*:',
+            r'PROBABILIDAD\s+SUGERIDA\s*:',
+        ]
+        end = len(text)
+        for nm in next_markers:
+            nm2 = re.search(nm, text[start:], re.IGNORECASE)
+            if nm2:
+                candidate = start + nm2.start()
+                if candidate < end:
+                    end = candidate
+        return text[start:end].strip()
 
-    # Reconstruir mapa {marcador_normalizado: contenido}
-    blocks = {}
-    i = 0
-    while i < len(parts):
-        part = (parts[i] or '').strip()
-        if not part:
-            i += 1
-            continue
-        # ¿Es un marcador?
-        is_marker = any(re.match(m, part, re.IGNORECASE) for m in markers)
-        if is_marker:
-            content = parts[i + 1].strip() if i + 1 < len(parts) else ''
-            key = re.sub(r'[^a-zA-Z]', '', part).upper()
-            blocks[key] = content
-            i += 2
-        else:
-            i += 1
-
-    def get_block(*keys):
-        for k in keys:
-            for bk, bv in blocks.items():
-                if k in bk:
-                    return bv
-        return ''
-
-    synthesis = get_block('SNTESIS', 'SINTESIS') or raw
-    next_action = get_block('PRXIMA', 'PROXIMA', 'ACCIN', 'ACCION')
+    synthesis    = extract_block(raw, r'S[IÍ]NTESIS\s*:') or raw
+    next_action  = extract_block(raw, r'PR[OÓ]XIMA\s+ACCI[OÓ]N\s*:')
+    task_raw     = extract_block(raw, r'TAREA\s+PROPUESTA\s*:')
+    prob_raw     = extract_block(raw, r'PROBABILIDAD\s+SUGERIDA\s*:')
 
     # Parsear TAREA PROPUESTA en dict
-    task_raw = get_block('TAREA')
     task_proposal: dict = {}
     if task_raw:
         for line in task_raw.splitlines():
             if ':' in line:
                 k, _, v = line.partition(':')
-                k = k.strip().lower()
+                k_low = k.strip().lower()
                 v = v.strip()
-                if 'tulo' in k or 'titulo' in k:
+                if 'tulo' in k_low or 'titulo' in k_low:
                     task_proposal['title'] = v
-                elif 'escripci' in k or 'descripcion' in k:
+                elif 'escripci' in k_low:
                     task_proposal['description'] = v
-                elif 'rioridad' in k or 'prioridad' in k:
+                elif 'rioridad' in k_low:
                     p = v.lower()
                     task_proposal['priority'] = 'high' if 'alt' in p else ('low' if 'baj' in p else 'medium')
-                elif 'as' in k and ('venc' in k or 'días' in k or 'dias' in k):
+                elif 'as' in k_low and ('venc' in k_low or 'día' in k_low or 'dia' in k_low):
                     try:
                         task_proposal['due_days'] = int(re.search(r'\d+', v).group())
                     except Exception:
                         task_proposal['due_days'] = 7
 
     # Parsear PROBABILIDAD SUGERIDA en dict
-    prob_raw = get_block('PROBABILIDAD')
     probability_suggestion: dict = {}
     if prob_raw:
         for line in prob_raw.splitlines():
             if ':' in line:
                 k, _, v = line.partition(':')
-                k = k.strip().lower()
+                k_low = k.strip().lower()
                 v = v.strip()
-                if 'porcentaje' in k or 'porcent' in k:
+                if 'porcentaje' in k_low or 'porcent' in k_low:
                     try:
                         num = re.search(r'\d+', v)
                         probability_suggestion['percentage'] = int(num.group()) if num else None
                     except Exception:
                         pass
-                elif 'justif' in k:
+                elif 'justif' in k_low:
                     probability_suggestion['justification'] = v
         # Fallback: buscar número % en el bloque completo
         if 'percentage' not in probability_suggestion:
