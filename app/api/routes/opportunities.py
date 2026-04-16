@@ -261,6 +261,8 @@ def get_opportunity(
         hold_reason=opportunity.hold_reason,
         chatgpt_thread_id=opportunity.chatgpt_thread_id,
         chatgpt_url=opportunity.chatgpt_url,
+        external_session_notes=opportunity.external_session_notes,
+        ai_chat_history=opportunity.ai_chat_history,
         created_at=opportunity.created_at,
         updated_at=opportunity.updated_at
     )
