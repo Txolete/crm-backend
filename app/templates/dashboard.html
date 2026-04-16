@@ -1832,59 +1832,6 @@
                             </div>
                         </div>
 
-                        <!-- Sprint 5D: Modal de retrospectiva al cierre -->
-                        <div class="modal fade" id="aiRetroModal" tabindex="-1" data-bs-backdrop="static">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <div class="modal-header" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);">
-                                        <h5 class="modal-title text-white">
-                                            <i class="bi bi-stars me-2"></i>Retrospectiva IA
-                                        </h5>
-                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <p class="text-muted small mb-3">
-                                            Ayuda al sistema a aprender de esta oportunidad. Tu feedback mejora los análisis futuros.
-                                        </p>
-                                        <input type="hidden" id="retro-outcome-id">
-                                        <div class="mb-3">
-                                            <label class="form-label fw-bold small">¿Qué funcionó bien?</label>
-                                            <textarea class="form-control form-control-sm" id="retro-what-worked" rows="2"
-                                                      placeholder="Ej: El follow-up semanal, el caso de uso personalizado..."></textarea>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label fw-bold small">¿Qué no funcionó?</label>
-                                            <textarea class="form-control form-control-sm" id="retro-what-failed" rows="2"
-                                                      placeholder="Ej: Tardamos demasiado en responder, precio competitivo..."></textarea>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label fw-bold small">¿El análisis IA fue útil?</label>
-                                            <select class="form-select form-select-sm" id="retro-ai-useful">
-                                                <option value="">— Sin valorar —</option>
-                                                <option value="yes">Sí, fue útil</option>
-                                                <option value="partial">Parcialmente útil</option>
-                                                <option value="no">No fue útil</option>
-                                            </select>
-                                        </div>
-                                        <div class="mb-2">
-                                            <label class="form-label fw-bold small">Notas adicionales</label>
-                                            <textarea class="form-control form-control-sm" id="retro-notes" rows="2"
-                                                      placeholder="Cualquier observación relevante para el equipo..."></textarea>
-                                        </div>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
-                                            Omitir
-                                        </button>
-                                        <button type="button" class="btn btn-sm text-white" onclick="saveRetroFeedback()"
-                                                style="background:#4f46e5;">
-                                            <i class="bi bi-floppy me-1"></i>Guardar feedback
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Timeline de actividades -->
                         <div class="card mb-3">
                             <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
@@ -1986,6 +1933,59 @@
     </div>
 
     <!-- Modal Confirmar Ganada (B5/B6) -->
+    <!-- Sprint 5D: Modal de retrospectiva — FUERA de oppDetailModal para evitar nesting -->
+    <div class="modal fade" id="aiRetroModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-stars me-2"></i>Retrospectiva IA
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Ayuda al sistema a aprender de esta oportunidad. Tu feedback mejora los análisis futuros.
+                    </p>
+                    <input type="hidden" id="retro-outcome-id">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">¿Qué funcionó bien?</label>
+                        <textarea class="form-control form-control-sm" id="retro-what-worked" rows="2"
+                                  placeholder="Ej: El follow-up semanal, el caso de uso personalizado..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">¿Qué no funcionó?</label>
+                        <textarea class="form-control form-control-sm" id="retro-what-failed" rows="2"
+                                  placeholder="Ej: Tardamos demasiado en responder, precio competitivo..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">¿El análisis IA fue útil?</label>
+                        <select class="form-select form-select-sm" id="retro-ai-useful">
+                            <option value="">— Sin valorar —</option>
+                            <option value="yes">Sí, fue útil</option>
+                            <option value="partial">Parcialmente útil</option>
+                            <option value="no">No fue útil</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-bold small">Notas adicionales</label>
+                        <textarea class="form-control form-control-sm" id="retro-notes" rows="2"
+                                  placeholder="Cualquier observación relevante para el equipo..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+                        Omitir
+                    </button>
+                    <button type="button" class="btn btn-sm text-white" onclick="saveRetroFeedback()"
+                            style="background:#4f46e5;">
+                        <i class="bi bi-floppy me-1"></i>Guardar feedback
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="wonConfirmModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
