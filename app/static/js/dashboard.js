@@ -3857,10 +3857,23 @@ window.openRetroModal = function(toastId) {
     const toastEl = document.getElementById(toastId);
     if (toastEl) bootstrap.Toast.getInstance(toastEl)?.hide();
 
-    const retroEl = document.getElementById('aiRetroModal');
-    const existing = bootstrap.Modal.getInstance(retroEl);
-    if (existing) existing.dispose();
-    new bootstrap.Modal(retroEl).show();
+    // Cerrar cualquier modal abierto (oppDetailModal, wonConfirmModal, etc.)
+    document.querySelectorAll('.modal.show').forEach(el => {
+        bootstrap.Modal.getInstance(el)?.hide();
+    });
+
+    // Esperar a que todos los modales terminen de cerrarse y limpiar backdrops
+    setTimeout(() => {
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+
+        const retroEl = document.getElementById('aiRetroModal');
+        const existing = bootstrap.Modal.getInstance(retroEl);
+        if (existing) existing.dispose();
+        new bootstrap.Modal(retroEl).show();
+    }, 350);
 };
 
 /**
