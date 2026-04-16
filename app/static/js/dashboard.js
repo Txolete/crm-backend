@@ -513,6 +513,7 @@ function bindEvents() {
         tasksTab.addEventListener('shown.bs.tab', async function () {
             if (!tasksFilterInitialized) {
                 await initTasksUserFilter();
+                await loadTaskTypeFilter();
                 tasksFilterInitialized = true;
             }
             loadMyTasks();
@@ -3979,3 +3980,158 @@ window.addEventListener('load', function() {
     console.log('[DASHBOARD] Current hash on window.load:', window.location.hash);
     activateKanbanIfNeeded('window-load');
 });
+
+// ============================================================================
+// 5C — Calendario de tareas (FullCalendar)
+// ============================================================================
+
+let _taskCalendarInstance = null;
+
+/**
+ * Inicializa o refresca el calendario de tareas.
+ * Se llama al activar el sub-tab "Calendario".
+ */
+window.initTaskCalendar = async function() {
+    const el = document.getElementById('task-calendar');
+    if (!el) return;
+
+    // Cargar tareas abiertas del usuario actual
+    let tasks = [];
+    try {
+        const userId = document.getElementById('filter-task-user')?.value || '';
+        const typeId  = document.getElementById('filter-task-type')?.value  || '';
+        let url = '/tasks?status=open&status=in_progress&limit=200';
+        if (userId) url += `&assigned_to=${userId}`;
+        if (typeId)  url += `&task_template_id=${typeId}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if (res.ok) tasks = await res.json();
+    } catch(e) { console.warn('[Calendar] Error loading tasks:', e); }
+
+    // Convertir tareas a eventos FullCalendar
+    const events = tasks
+        .filter(t => t.due_date)
+        .map(t => ({
+            id: t.id,
+            title: t.title,
+            start: t.due_date,
+            allDay: true,
+            color: t.priority === 'high' ? '#ef4444' : t.priority === 'medium' ? '#f97316' : '#6b7280',
+            extendedProps: t
+        }));
+
+    // Destruir instancia previa si existe
+    if (_taskCalendarInstance) {
+        _taskCalendarInstance.destroy();
+        _taskCalendarInstance = null;
+    }
+
+    _taskCalendarInstance = new FullCalendar.Calendar(el, {
+        initialView: 'dayGridMonth',
+        locale: 'es',
+        height: 'auto',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,listWeek'
+        },
+        buttonText: { today: 'Hoy', month: 'Mes', week: 'Semana', list: 'Lista' },
+        events: events,
+        eventClick: function(info) {
+            // Abrir modal de la tarea al hacer click en el evento
+            const task = info.event.extendedProps;
+            if (typeof openTaskModal === 'function') {
+                openTaskModal(task.id);
+            } else if (typeof viewTaskDetails === 'function') {
+                viewTaskDetails(task);
+            }
+        },
+        eventDidMount: function(info) {
+            // Tooltip con descripción si existe
+            if (info.event.extendedProps.description) {
+                info.el.title = info.event.extendedProps.description;
+            }
+        }
+    });
+    _taskCalendarInstance.render();
+};
+
+// ============================================================================
+// 5D — Export .ics (Outlook / Google Calendar)
+// ============================================================================
+
+/**
+ * Genera y descarga un fichero .ics con la tarea actualmente abierta en el modal.
+ * Funciona 100% en cliente — sin llamada al servidor.
+ */
+window.exportTaskICS = function() {
+    // Leer datos del modal de tarea
+    const title    = document.getElementById('task-title')?.value?.trim()       || 'Tarea CRM';
+    const desc     = document.getElementById('task-description')?.value?.trim() || '';
+    const dueDateV = document.getElementById('task-due-date')?.value            || '';
+
+    if (!dueDateV) {
+        showToast('La tarea no tiene fecha de vencimiento', 'warning');
+        return;
+    }
+
+    // Formatear fecha para .ics: YYYYMMDD
+    const dateStr = dueDateV.replace(/-/g, '');
+    const now     = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+    // Información adicional de la tarea (cuenta/oportunidad si está visible)
+    const opp  = document.getElementById('task-opportunity-name')?.textContent?.trim() || '';
+    const acct = document.getElementById('task-account-name')?.textContent?.trim()     || '';
+    let fullDesc = desc;
+    if (opp)  fullDesc += (fullDesc ? ' — ' : '') + opp;
+    if (acct) fullDesc += (fullDesc ? ' — ' : '') + acct;
+
+    const ics = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//CRM ASICXXI//ES',
+        'BEGIN:VEVENT',
+        `UID:${now}-crm@asicxxi`,
+        `DTSTAMP:${now}`,
+        `DTSTART;VALUE=DATE:${dateStr}`,
+        `DTEND;VALUE=DATE:${dateStr}`,
+        `SUMMARY:${title}`,
+        fullDesc ? `DESCRIPTION:${fullDesc.replace(/\n/g, '\\n')}` : '',
+        'END:VEVENT',
+        'END:VCALENDAR'
+    ].filter(Boolean).join('\r\n');
+
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${title.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40)}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Fichero .ics descargado — ábrelo para añadirlo a tu calendario', 'success');
+};
+
+// ============================================================================
+// 5E — Filtro por tipo de tarea
+// ============================================================================
+
+/**
+ * Carga los tipos de tarea (cfg_task_templates) en el select de filtro.
+ * Se llama al inicializar la pestaña de tareas.
+ */
+async function loadTaskTypeFilter() {
+    const select = document.getElementById('filter-task-type');
+    if (!select || select.options.length > 1) return; // ya cargado
+    try {
+        const res = await fetch('/config/task-templates', { credentials: 'include' });
+        if (!res.ok) return;
+        const items = await res.json();
+        items.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.name;
+            select.appendChild(opt);
+        });
+    } catch(e) { /* silencioso */ }
+}
