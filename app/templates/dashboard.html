@@ -1923,6 +1923,12 @@
                     <button type="button" class="btn btn-outline-success" id="btn-mark-won" style="display: none;" onclick="openWonConfirm()">
                         <i class="bi bi-trophy"></i> Marcar como Ganada
                     </button>
+                    <!-- Sprint 5D: Añadir retrospectiva a oportunidades ya cerradas sin retro -->
+                    <button type="button" class="btn btn-outline-secondary" id="btn-add-retro" style="display: none;"
+                            onclick="openRetroForClosedOpp()"
+                            title="Añadir retrospectiva IA a esta oportunidad cerrada">
+                        <i class="bi bi-stars me-1"></i>Retrospectiva IA
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btn-close-detail">Cerrar</button>
                     <button type="button" class="btn btn-primary" id="btn-edit-opp">Editar</button>
                     <button type="button" class="btn btn-secondary" id="btn-cancel-edit" style="display: none;">Cancelar</button>

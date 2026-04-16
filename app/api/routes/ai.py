@@ -575,6 +575,94 @@ async def get_agents_analysis(
     )
 
 
+@router.post("/opportunities/{opportunity_id}/ai/ensure-outcome")
+async def ensure_opportunity_outcome(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie)
+):
+    """
+    Crea un registro opportunity_outcomes para una oportunidad cerrada que no lo tiene.
+    Usado para añadir retrospectiva a oportunidades cerradas antes de Sprint 5.
+    Devuelve el outcome_id (existente o recién creado).
+    """
+    from app.models.opportunity import OpportunityOutcome, Task, Activity as ActModel
+    from app.models.account import Account as AccountModel
+    from app.models.config import CfgStage, CfgOpportunityType, CfgClientMentalState, CfgStageProbability, CfgLostReason
+    from app.utils.audit import generate_id
+    from datetime import datetime, timezone
+
+    opp = _get_opportunity_or_404(opportunity_id, db)
+
+    if opp.close_outcome not in ('won', 'lost'):
+        raise HTTPException(status_code=400, detail="La oportunidad no está cerrada")
+
+    # Si ya existe un outcome, devolverlo
+    existing = db.query(OpportunityOutcome).filter(
+        OpportunityOutcome.opportunity_id == opportunity_id
+    ).first()
+    if existing:
+        return {"outcome_id": existing.id, "created": False}
+
+    # Crear snapshot retroactivo
+    account = db.query(AccountModel).filter(AccountModel.id == opp.account_id).first()
+    stage = db.query(CfgStage).filter(CfgStage.id == opp.stage_id).first()
+
+    opp_type_name = None
+    if opp.opportunity_type_id:
+        ot = db.query(CfgOpportunityType).filter(CfgOpportunityType.id == opp.opportunity_type_id).first()
+        opp_type_name = ot.name if ot else None
+
+    mental_state_name = None
+    if opp.client_mental_state_id:
+        ms = db.query(CfgClientMentalState).filter(CfgClientMentalState.id == opp.client_mental_state_id).first()
+        mental_state_name = ms.name if ms else None
+
+    activity_count = db.query(ActModel).filter(ActModel.opportunity_id == opportunity_id).count()
+    task_count = db.query(Task).filter(Task.opportunity_id == opportunity_id).count()
+
+    final_prob = opp.probability_override
+    if final_prob is None:
+        sp = db.query(CfgStageProbability).filter(CfgStageProbability.stage_id == opp.stage_id).first()
+        final_prob = sp.probability if sp else None
+
+    days_in_pipeline = None
+    if opp.created_at and opp.close_date:
+        try:
+            close = opp.close_date.date() if hasattr(opp.close_date, 'date') else opp.close_date
+            created = opp.created_at.date() if hasattr(opp.created_at, 'date') else opp.created_at
+            days_in_pipeline = (close - created).days
+        except Exception:
+            pass
+
+    outcome = OpportunityOutcome(
+        id=generate_id(),
+        opportunity_id=opportunity_id,
+        outcome=opp.close_outcome,
+        close_date=opp.close_date,
+        final_value_eur=opp.won_value_eur if opp.close_outcome == 'won' else opp.expected_value_eur,
+        lost_reason_id=opp.lost_reason_id,
+        lost_reason_detail=opp.lost_reason_detail,
+        account_name=account.name if account else None,
+        opportunity_name=opp.name,
+        opportunity_type=opp_type_name,
+        stage_at_close=stage.name if stage else opp.close_outcome,
+        days_in_pipeline=days_in_pipeline,
+        activity_count=activity_count,
+        task_count=task_count,
+        final_probability=final_prob,
+        client_mental_state=mental_state_name,
+        strategic_objective=opp.strategic_objective,
+        executive_summary_at_close=opp.executive_summary,
+        owner_user_id=opp.owner_user_id,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(outcome)
+    db.commit()
+    logger.info(f"[AI] Retroactive outcome created for {opportunity_id} ({opp.close_outcome})")
+    return {"outcome_id": outcome.id, "created": True}
+
+
 @router.get("/opportunities/{opportunity_id}/ai/context", response_model=AIContextResponse)
 async def get_ai_context(
     opportunity_id: str,

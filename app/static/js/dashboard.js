@@ -1618,6 +1618,9 @@ window.showOpportunityDetail = async function(opportunityId) {
         document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
         document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
 
+        // Sprint 5D: botón retrospectiva para oportunidades cerradas
+        _updateRetroButton();
+
     } catch (error) {
         console.error('[DETAIL] Error loading opportunity:', error);
         document.getElementById('oppDetailLoading').innerHTML = `
@@ -2169,6 +2172,7 @@ window.cancelEdit = function() {
         (currentOpportunityData.close_outcome === 'open' || !currentOpportunityData.close_outcome);
     document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
     document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
+    _updateRetroButton();
 }
 
 /**
@@ -3797,6 +3801,60 @@ window.confirmCloseLost = async function() {
 // ============================================================================
 // Sprint 5D — Retrospectiva al cierre
 // ============================================================================
+
+/**
+ * Muestra u oculta el botón "Retrospectiva IA" según el estado de la oportunidad.
+ * Visible solo si: cerrada (won/lost) y sin retro previa (lo chequeamos contra BD).
+ */
+async function _updateRetroButton() {
+    const btn = document.getElementById('btn-add-retro');
+    if (!btn) return;
+    const opp = currentOpportunityData;
+    if (!opp || opp.close_outcome === 'open' || !opp.close_outcome) {
+        btn.style.display = 'none';
+        return;
+    }
+    // Oportunidad cerrada — comprobar si ya tiene outcome con retro
+    try {
+        const res = await fetch(`/opportunities/${opp.id}/ai/ensure-outcome`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (!res.ok) { btn.style.display = 'none'; return; }
+        const data = await res.json();
+        // Guardar outcome_id para el modal
+        document.getElementById('retro-outcome-id').value = data.outcome_id || '';
+        document.getElementById('aiRetroModal').dataset.oppId = opp.id;
+        btn.style.display = 'inline-block';
+    } catch(e) {
+        btn.style.display = 'none';
+    }
+}
+
+/**
+ * Abre el modal de retrospectiva desde la ficha de una oportunidad ya cerrada.
+ */
+window.openRetroForClosedOpp = function() {
+    // Resetear campos
+    ['retro-what-worked', 'retro-what-failed', 'retro-notes'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const aiUseful = document.getElementById('retro-ai-useful');
+    if (aiUseful) aiUseful.value = '';
+
+    // Cerrar el detail modal primero para evitar nesting
+    const detailModal = bootstrap.Modal.getInstance(document.getElementById('oppDetailModal'));
+    if (detailModal) detailModal.hide();
+
+    setTimeout(() => {
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        new bootstrap.Modal(document.getElementById('aiRetroModal')).show();
+    }, 350);
+};
 
 /**
  * Abre el modal de retrospectiva IA tras cerrar una oportunidad.
