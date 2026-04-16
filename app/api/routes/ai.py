@@ -487,6 +487,94 @@ async def save_ai_feedback(
     return {"message": "Feedback guardado", "outcome_id": request.outcome_id}
 
 
+class AIAgentsAnalysisRequest(BaseModel):
+    client: str = ""
+    sales: str = ""
+    memory: str = ""
+
+
+class AIAgentsAnalysisResponse(BaseModel):
+    client: str = ""
+    sales: str = ""
+    memory: str = ""
+    analyzed_at: Optional[str] = None
+
+
+@router.post("/opportunities/{opportunity_id}/ai/agents-analysis")
+async def save_agents_analysis(
+    opportunity_id: str,
+    request: AIAgentsAnalysisRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie)
+):
+    """
+    Sprint 5A — Persiste el último análisis multi-agente en ai_chat_history.
+    Guarda una entrada especial de tipo 'agents' con los tres análisis como JSON.
+    """
+    import json
+    from datetime import datetime, timezone
+
+    opp = _get_opportunity_or_404(opportunity_id, db)
+
+    # Leer historial actual, quitar entrada agents previa si existe, añadir la nueva
+    try:
+        history = json.loads(opp.ai_chat_history) if opp.ai_chat_history else []
+    except Exception:
+        history = []
+
+    history = [h for h in history if h.get("role") != "agents"]  # eliminar anterior
+    history.append({
+        "role": "agents",
+        "content": json.dumps({
+            "client": request.client,
+            "sales": request.sales,
+            "memory": request.memory
+        }, ensure_ascii=False),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    opp.ai_chat_history = json.dumps(history, ensure_ascii=False)
+    opp.updated_at = get_utc_now()
+    db.commit()
+    return {"message": "Análisis guardado"}
+
+
+@router.get("/opportunities/{opportunity_id}/ai/agents-analysis", response_model=AIAgentsAnalysisResponse)
+async def get_agents_analysis(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie)
+):
+    """
+    Sprint 5A — Devuelve el último análisis multi-agente guardado.
+    """
+    import json
+
+    opp = _get_opportunity_or_404(opportunity_id, db)
+
+    try:
+        history = json.loads(opp.ai_chat_history) if opp.ai_chat_history else []
+    except Exception:
+        history = []
+
+    # Buscar la última entrada de tipo 'agents'
+    agents_entry = next((h for h in reversed(history) if h.get("role") == "agents"), None)
+    if not agents_entry:
+        return AIAgentsAnalysisResponse()
+
+    try:
+        content = json.loads(agents_entry["content"])
+    except Exception:
+        return AIAgentsAnalysisResponse()
+
+    return AIAgentsAnalysisResponse(
+        client=content.get("client", ""),
+        sales=content.get("sales", ""),
+        memory=content.get("memory", ""),
+        analyzed_at=agents_entry.get("created_at")
+    )
+
+
 @router.get("/opportunities/{opportunity_id}/ai/context", response_model=AIContextResponse)
 async def get_ai_context(
     opportunity_id: str,

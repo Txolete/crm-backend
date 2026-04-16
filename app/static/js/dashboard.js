@@ -3285,11 +3285,48 @@ async function loadAISection(opp) {
         if (icon) { icon.classList.remove('bi-chevron-up'); icon.classList.add('bi-chevron-down'); }
     });
 
-    // Cargar selectores desde API
+    // Cargar selectores + último análisis de agentes desde API en paralelo
     await Promise.all([
         _loadAISelect('/config/client-mental-states', 'ai-mental-state', opp.client_mental_state_id),
-        _loadAISelect('/config/opportunity-types', 'ai-opp-type', opp.opportunity_type_id)
+        _loadAISelect('/config/opportunity-types', 'ai-opp-type', opp.opportunity_type_id),
+        _loadLastAgentsAnalysis(opp.id)
     ]);
+}
+
+/**
+ * Carga el último análisis multi-agente guardado y rellena los paneles.
+ */
+async function _loadLastAgentsAnalysis(oppId) {
+    try {
+        const res = await fetch(`/opportunities/${oppId}/ai/agents-analysis`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || (!data.client && !data.sales && !data.memory)) return;
+
+        document.getElementById('ai-agents-section').style.display = 'block';
+        ['client', 'sales', 'memory'].forEach(agent => {
+            const text = document.getElementById(`ai-agent-${agent}-text`);
+            if (text && data[agent]) text.textContent = data[agent];
+        });
+    } catch(e) { /* silencioso */ }
+}
+
+/**
+ * Sprint 5A — Persiste los tres análisis en ai_chat_history como entrada especial.
+ * Formato: {"role":"agents","content":{client,sales,memory},"created_at":"..."}
+ */
+async function _saveAgentsAnalysis(oppId, analyses) {
+    try {
+        const res = await fetch(`/opportunities/${oppId}/ai/agents-analysis`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(analyses)
+        });
+        if (!res.ok) console.warn('[AI] agents-analysis save error:', res.status);
+    } catch(e) {
+        console.warn('[AI] agents-analysis save error:', e);
+    }
 }
 
 /**
@@ -3391,7 +3428,14 @@ window.analyzeWithAI = async function() {
         document.getElementById('ai-thread-badge').style.display = 'inline-block';
         document.getElementById('ai-history-section').style.display = 'block';
 
-        // Guardar automáticamente síntesis + thread_id en BD
+        // Persistir los tres análisis en BD (ai_chat_history como entrada especial)
+        await _saveAgentsAnalysis(opp.id, {
+            client: data.client?.analysis || '',
+            sales:  data.sales?.analysis  || '',
+            memory: data.memory?.analysis || ''
+        });
+
+        // También guardar síntesis ejecutiva
         await saveAIFields();
 
         showToast('Análisis completado — tres perspectivas disponibles', 'success');
@@ -3761,38 +3805,63 @@ window.confirmCloseLost = async function() {
  */
 function _showRetroModal(closeData) {
     const opp = currentOpportunityData;
-    if (!opp) return;
+    const oppId = opp?.id || '';
+    const outcomeId = closeData?.outcome_id || '';
 
-    // Resetear campos
+    // Preparar datos en el modal (aunque no se abra aún)
     ['retro-what-worked', 'retro-what-failed', 'retro-notes'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
     const aiUseful = document.getElementById('retro-ai-useful');
     if (aiUseful) aiUseful.value = '';
-
-    // Guardar outcome_id para el submit (si viene en la respuesta del close)
-    const outcomeId = closeData?.outcome_id || '';
     document.getElementById('retro-outcome-id').value = outcomeId;
+    document.getElementById('aiRetroModal').dataset.oppId = oppId;
 
-    // Guardar opp.id en el modal para usarlo en saveRetroFeedback
-    document.getElementById('aiRetroModal').dataset.oppId = opp.id;
+    // En lugar de encadenar modales (que atasca Bootstrap),
+    // mostramos un toast con botón para que el usuario abra el retro cuando quiera
+    if (!outcomeId) return; // sin outcome_id no tiene sentido el feedback
 
-    // Esperar a que el modal de cierre haya limpiado su backdrop y luego abrir el retro
-    setTimeout(() => {
-        // Limpiar backdrops huérfanos que Bootstrap deja a veces al encadenar modales
-        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-        document.body.classList.remove('modal-open');
-        document.body.style.overflow = '';
-        document.body.style.paddingRight = '';
-
-        const retroEl = document.getElementById('aiRetroModal');
-        const existing = bootstrap.Modal.getInstance(retroEl);
-        if (existing) existing.dispose();
-        const modal = new bootstrap.Modal(retroEl, { backdrop: true, keyboard: true });
-        modal.show();
-    }, 600);
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+    const toastId = `retro-toast-${Date.now()}`;
+    container.insertAdjacentHTML('beforeend', `
+        <div id="${toastId}" class="toast align-items-center border-0" role="alert" data-bs-delay="12000">
+            <div class="d-flex">
+                <div class="toast-body" style="background:linear-gradient(135deg,#4f46e5,#7c3aed); color:white; border-radius:6px;">
+                    <i class="bi bi-stars me-1"></i>
+                    Oportunidad cerrada.
+                    <button class="btn btn-sm btn-light ms-2" style="font-size:0.78rem;"
+                            onclick="openRetroModal('${toastId}')">
+                        Añadir retrospectiva IA
+                    </button>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>`);
+    const toastEl = document.getElementById(toastId);
+    new bootstrap.Toast(toastEl).show();
 }
+
+/**
+ * Abre el modal de retrospectiva desde el toast (todos los otros modales ya están cerrados).
+ */
+window.openRetroModal = function(toastId) {
+    // Cerrar el toast
+    const toastEl = document.getElementById(toastId);
+    if (toastEl) bootstrap.Toast.getInstance(toastEl)?.hide();
+
+    const retroEl = document.getElementById('aiRetroModal');
+    const existing = bootstrap.Modal.getInstance(retroEl);
+    if (existing) existing.dispose();
+    new bootstrap.Modal(retroEl).show();
+};
 
 /**
  * Guarda el feedback de retrospectiva via POST /opportunities/{id}/ai/feedback.
@@ -3828,12 +3897,6 @@ window.saveRetroFeedback = async function() {
         console.warn('[Retro] Error guardando feedback:', e);
     } finally {
         bootstrap.Modal.getInstance(modal)?.hide();
-        // Limpiar backdrop por si acaso
-        setTimeout(() => {
-            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-            document.body.classList.remove('modal-open');
-            document.body.style.overflow = '';
-        }, 300);
     }
 };
 
