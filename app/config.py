@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1"  # gpt-4.1 | gpt-4o | gpt-4o-mini — configurable vía OPENAI_MODEL en .env
     ai_enabled: bool = True
 
+    # Sprint 5A — Tres agentes especializados (Assistant IDs opcionales)
+    # Si no están configurados, usa Chat Completions con system prompt de rol
+    openai_agent_client_id: str = ""   # Agente "Cliente" — perspectiva del comprador
+    openai_agent_sales_id: str = ""    # Agente "Comercial" — táctica y siguiente movimiento
+    openai_agent_memory_id: str = ""   # Agente "Memoria Corporativa" — patrones históricos
+
     # PASO 8 - Automations
     automations_enabled: bool = True
     auto_run_time: str = "07:00"  # HH:MM format

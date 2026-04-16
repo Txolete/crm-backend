@@ -1,9 +1,11 @@
 """
-AI Integration endpoints — Sprint 4E
+AI Integration endpoints — Sprint 4E / Sprint 5A
 
-POST /opportunities/{id}/ai/analyze  — genera/actualiza síntesis ejecutiva
-POST /opportunities/{id}/ai/chat     — mensaje libre al thread de la oportunidad
-GET  /opportunities/{id}/ai/history  — historial del thread
+POST /opportunities/{id}/ai/analyze        — genera/actualiza síntesis ejecutiva (agente único)
+POST /opportunities/{id}/ai/analyze-multi  — Sprint 5A: tres agentes en paralelo
+POST /opportunities/{id}/ai/chat           — mensaje libre al thread de la oportunidad
+GET  /opportunities/{id}/ai/history        — historial del thread
+POST /opportunities/{id}/ai/feedback       — Sprint 5D: feedback de retrospectiva al cierre
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -71,6 +73,28 @@ class AIHistoryResponse(BaseModel):
 
 class AIContextResponse(BaseModel):
     context: str
+
+
+# Sprint 5A — Multi-agent
+class AIAgentResult(BaseModel):
+    analysis: str
+    thread_id: str
+
+
+class AIMultiAgentResponse(BaseModel):
+    client: AIAgentResult
+    sales: AIAgentResult
+    memory: AIAgentResult
+    message: str = "Análisis multi-agente completado"
+
+
+# Sprint 5D — Feedback de retrospectiva
+class AIFeedbackRequest(BaseModel):
+    outcome_id: str                       # ID del registro en opportunity_outcomes
+    what_worked: Optional[str] = None
+    what_failed: Optional[str] = None
+    ai_useful: Optional[str] = None       # 'yes' | 'no' | 'partial'
+    notes: Optional[str] = None
 
 
 # ============================================================================
@@ -310,6 +334,157 @@ async def get_ai_history(
         thread_id=opp.chatgpt_thread_id or "",
         messages=[AIHistoryMessage(**m) for m in messages]
     )
+
+
+@router.post("/opportunities/{opportunity_id}/ai/analyze-multi", response_model=AIMultiAgentResponse)
+async def analyze_multi_agent(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie)
+):
+    """
+    Sprint 5A — Ejecuta los tres agentes especializados en paralelo.
+    Devuelve tres perspectivas: Cliente, Comercial y Memoria Corporativa.
+    """
+    try:
+        ai = get_ai_provider()
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+    try:
+        opp, account, contacts, activities, tasks = _build_context_for_opportunity(opportunity_id, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AI-Multi] Error building context for {opportunity_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al cargar contexto: {str(e)}")
+
+    try:
+        context = build_opportunity_context(opp, account, contacts, activities, tasks)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al construir el prompt: {str(e)}")
+
+    # Cargar histórico de oportunidades similares cerradas para el agente Memoria
+    historical_context = _build_historical_context(opportunity_id, opp, db)
+
+    # Recuperar thread IDs previos de los tres agentes (guardados en BD como JSON)
+    import json
+    try:
+        agent_threads = json.loads(opp.chatgpt_thread_id) if (
+            opp.chatgpt_thread_id and opp.chatgpt_thread_id.startswith("{")
+        ) else {}
+    except Exception:
+        agent_threads = {}
+
+    logger.info(f"[AI-Multi] Analyzing opportunity {opportunity_id} with 3 agents")
+
+    try:
+        results = ai.analyze_multi_agent(context, historical_context=historical_context, thread_ids=agent_threads)
+    except Exception as e:
+        logger.error(f"[AI-Multi] Provider error: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"AI provider error: {str(e)}")
+
+    # Guardar thread IDs de los tres agentes en chatgpt_thread_id (como JSON)
+    new_threads = {
+        "client": results["client"]["thread_id"],
+        "sales":  results["sales"]["thread_id"],
+        "memory": results["memory"]["thread_id"],
+    }
+    opp.chatgpt_thread_id = json.dumps(new_threads)
+    opp.updated_at = get_utc_now()
+    db.commit()
+
+    logger.info(f"[AI-Multi] Opportunity {opportunity_id} analyzed by 3 agents.")
+
+    return AIMultiAgentResponse(
+        client=AIAgentResult(**results["client"]),
+        sales=AIAgentResult(**results["sales"]),
+        memory=AIAgentResult(**results["memory"]),
+    )
+
+
+def _build_historical_context(opportunity_id: str, opp, db: Session) -> Optional[str]:
+    """
+    Construye un resumen de oportunidades similares cerradas para el agente Memoria.
+    Busca por tipo de oportunidad o por rango de valor similar.
+    """
+    try:
+        from app.models.opportunity import OpportunityOutcome
+        from app.models.config import CfgLostReason
+
+        query = db.query(OpportunityOutcome).filter(
+            OpportunityOutcome.opportunity_id != opportunity_id
+        )
+
+        # Filtrar por tipo similar si existe
+        if opp.opportunity_type_id:
+            from app.models.config import CfgOpportunityType
+            ot = db.query(CfgOpportunityType).filter(
+                CfgOpportunityType.id == opp.opportunity_type_id
+            ).first()
+            if ot:
+                query = query.filter(OpportunityOutcome.opportunity_type == ot.name)
+
+        outcomes = query.order_by(OpportunityOutcome.created_at.desc()).limit(10).all()
+
+        if not outcomes:
+            return None
+
+        lines = [f"Se encontraron {len(outcomes)} oportunidades similares cerradas:\n"]
+        for o in outcomes:
+            result_label = "GANADA" if o.outcome == "won" else "PERDIDA"
+            lines.append(
+                f"- [{result_label}] {o.opportunity_name or 'Sin nombre'} "
+                f"({o.account_name or '?'}) — "
+                f"Valor: {o.final_value_eur:,.0f}€ — "
+                f"Stage cierre: {o.stage_at_close or '?'} — "
+                f"Días en pipeline: {o.days_in_pipeline or '?'}"
+            )
+            if o.outcome == "lost" and o.lost_reason_detail:
+                lines.append(f"  Motivo pérdida: {o.lost_reason_detail}")
+            if o.retro_what_worked:
+                lines.append(f"  Qué funcionó: {o.retro_what_worked}")
+            if o.retro_what_failed:
+                lines.append(f"  Qué falló: {o.retro_what_failed}")
+
+        return "\n".join(lines)
+    except Exception as e:
+        logger.warning(f"[AI-Multi] Error building historical context: {e}")
+        return None
+
+
+@router.post("/opportunities/{opportunity_id}/ai/feedback")
+async def save_ai_feedback(
+    opportunity_id: str,
+    request: AIFeedbackRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie)
+):
+    """
+    Sprint 5D — Guarda el feedback de retrospectiva en opportunity_outcomes.
+    Se llama desde el modal de cierre de oportunidad.
+    """
+    from app.models.opportunity import OpportunityOutcome
+
+    outcome = db.query(OpportunityOutcome).filter(
+        OpportunityOutcome.id == request.outcome_id
+    ).first()
+
+    if not outcome:
+        raise HTTPException(status_code=404, detail="Outcome record not found")
+
+    # Verificar que pertenece a esta oportunidad
+    if outcome.opportunity_id != opportunity_id:
+        raise HTTPException(status_code=403, detail="Outcome does not belong to this opportunity")
+
+    outcome.retro_what_worked = request.what_worked
+    outcome.retro_what_failed = request.what_failed
+    outcome.retro_ai_useful = request.ai_useful
+    outcome.retro_notes = request.notes
+    db.commit()
+
+    logger.info(f"[AI] Feedback saved for outcome {request.outcome_id} (opp {opportunity_id})")
+    return {"message": "Feedback guardado", "outcome_id": request.outcome_id}
 
 
 @router.get("/opportunities/{opportunity_id}/ai/context", response_model=AIContextResponse)

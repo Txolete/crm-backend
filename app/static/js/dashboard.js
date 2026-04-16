@@ -3221,8 +3221,10 @@ window.confirmCloseWon = async function() {
             throw new Error(err.detail || `Error ${response.status}`);
         }
 
+        const closeData = await response.json();
         bootstrap.Modal.getInstance(document.getElementById('wonConfirmModal'))?.hide();
         showToast('Oportunidad marcada como Ganada', 'success');
+        _showRetroModal(closeData);
         await loadKanbanData();
         if (typeof loadDashboard === 'function') await loadDashboard();
 
@@ -3264,13 +3266,24 @@ async function loadAISection(opp) {
         document.getElementById('ai-history-section').style.display = 'none';
     }
 
-    // Reset chat y propuestas
+    // Reset chat, propuestas y paneles de agentes
     document.getElementById('ai-chat-response').style.display = 'none';
     document.getElementById('ai-chat-input').value = '';
     document.getElementById('ai-history-collapse').style.display = 'none';
     document.getElementById('ai-proposals-section').style.display = 'none';
+    document.getElementById('ai-agents-section').style.display = 'none';
     _aiTaskProposal = null;
     _aiProbabilitySuggestion = null;
+
+    // Reset paneles de los tres agentes
+    ['client', 'sales', 'memory'].forEach(agent => {
+        const panel = document.getElementById(`ai-agent-${agent}-panel`);
+        const text = document.getElementById(`ai-agent-${agent}-text`);
+        const icon = document.getElementById(`ai-agent-${agent}-icon`);
+        if (panel) panel.style.display = 'none';
+        if (text) text.textContent = '';
+        if (icon) { icon.classList.remove('bi-chevron-up'); icon.classList.add('bi-chevron-down'); }
+    });
 
     // Cargar selectores desde API
     await Promise.all([
@@ -3278,6 +3291,21 @@ async function loadAISection(opp) {
         _loadAISelect('/config/opportunity-types', 'ai-opp-type', opp.opportunity_type_id)
     ]);
 }
+
+/**
+ * Sprint 5A — Toggle de panel de un agente (abrir/cerrar).
+ */
+window.toggleAgentPanel = function(agent) {
+    const panel = document.getElementById(`ai-agent-${agent}-panel`);
+    const icon  = document.getElementById(`ai-agent-${agent}-icon`);
+    if (!panel) return;
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    if (icon) {
+        icon.classList.toggle('bi-chevron-down', isOpen);
+        icon.classList.toggle('bi-chevron-up', !isOpen);
+    }
+};
 
 async function _loadAISelect(url, selectId, selectedValue) {
     const select = document.getElementById(selectId);
@@ -3298,8 +3326,9 @@ async function _loadAISelect(url, selectId, selectedValue) {
 }
 
 /**
- * Llama a POST /opportunities/{id}/ai/analyze.
- * Guarda síntesis + próxima acción propuesta por la IA.
+ * Sprint 5A — Llama a POST /opportunities/{id}/ai/analyze-multi.
+ * Ejecuta los tres agentes en paralelo y rellena los tres paneles.
+ * También mantiene el flujo clásico de síntesis ejecutiva.
  */
 window.analyzeWithAI = async function() {
     const opp = currentOpportunityData;
@@ -3309,11 +3338,24 @@ window.analyzeWithAI = async function() {
     const spinner = document.getElementById('ai-analyzing-spinner');
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analizando...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Consultando agentes...';
     spinner.style.display = 'block';
 
+    // Mostrar paneles con spinners internos y abrirlos
+    document.getElementById('ai-agents-section').style.display = 'block';
+    ['client', 'sales', 'memory'].forEach(agent => {
+        const panel = document.getElementById(`ai-agent-${agent}-panel`);
+        const spin  = document.getElementById(`ai-agent-${agent}-spinner`);
+        const text  = document.getElementById(`ai-agent-${agent}-text`);
+        const icon  = document.getElementById(`ai-agent-${agent}-icon`);
+        if (panel) panel.style.display = 'block';
+        if (spin)  spin.style.display = 'block';
+        if (text)  text.textContent = '';
+        if (icon)  { icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up'); }
+    });
+
     try {
-        const res = await fetch(`/opportunities/${opp.id}/ai/analyze`, {
+        const res = await fetch(`/opportunities/${opp.id}/ai/analyze-multi`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' }
@@ -3326,26 +3368,40 @@ window.analyzeWithAI = async function() {
 
         const data = await res.json();
 
-        // Síntesis y próxima acción
-        document.getElementById('ai-executive-summary').value = data.executive_summary;
-        if (data.next_strategic_action) {
-            document.getElementById('ai-next-action').value = data.next_strategic_action;
+        // Rellenar los tres paneles
+        ['client', 'sales', 'memory'].forEach(agent => {
+            const spin = document.getElementById(`ai-agent-${agent}-spinner`);
+            const text = document.getElementById(`ai-agent-${agent}-text`);
+            if (spin) spin.style.display = 'none';
+            if (text) text.textContent = data[agent]?.analysis || '—';
+        });
+
+        // El análisis del agente "Comercial" rellena también la síntesis ejecutiva
+        if (data.sales?.analysis) {
+            document.getElementById('ai-executive-summary').value = data.sales.analysis;
+            currentOpportunityData.executive_summary = data.sales.analysis;
         }
 
-        currentOpportunityData.executive_summary = data.executive_summary;
-        currentOpportunityData.next_strategic_action = data.next_strategic_action;
-        currentOpportunityData.chatgpt_thread_id = data.thread_id;
-
-        // Mostrar propuestas IA (tarea + probabilidad)
-        _renderAIProposals(data.task_proposal, data.probability_suggestion);
+        currentOpportunityData.chatgpt_thread_id = JSON.stringify({
+            client: data.client?.thread_id || '',
+            sales:  data.sales?.thread_id  || '',
+            memory: data.memory?.thread_id || ''
+        });
 
         document.getElementById('ai-thread-badge').style.display = 'inline-block';
         document.getElementById('ai-history-section').style.display = 'block';
 
-        showToast('✨ Análisis completado — síntesis, próxima acción y propuestas actualizadas', 'success');
+        showToast('Análisis completado — tres perspectivas disponibles', 'success');
 
     } catch(e) {
-        console.error('[AI] analyze error:', e);
+        console.error('[AI] analyze-multi error:', e);
+        // Ocultar spinners y mostrar error en paneles
+        ['client', 'sales', 'memory'].forEach(agent => {
+            const spin = document.getElementById(`ai-agent-${agent}-spinner`);
+            const text = document.getElementById(`ai-agent-${agent}-text`);
+            if (spin) spin.style.display = 'none';
+            if (text) text.textContent = `Error: ${e.message}`;
+        });
         showToast(`Error al analizar: ${e.message}`, 'danger');
     } finally {
         btn.disabled = false;
@@ -3678,14 +3734,88 @@ window.confirmCloseLost = async function() {
             throw new Error(err.detail || `Error ${response.status}`);
         }
 
+        const closeData = await response.json();
         bootstrap.Modal.getInstance(document.getElementById('lostConfirmModal'))?.hide();
         showToast('Oportunidad marcada como Perdida', 'danger');
+        _showRetroModal(closeData);
         await loadKanbanData();
         if (typeof loadDashboard === 'function') await loadDashboard();
 
     } catch (error) {
         console.error('[CLOSE-LOST] Error:', error);
         showToast(`Error: ${error.message}`, 'danger');
+    }
+};
+
+// ============================================================================
+// Sprint 5D — Retrospectiva al cierre
+// ============================================================================
+
+/**
+ * Abre el modal de retrospectiva IA tras cerrar una oportunidad.
+ * closeData puede incluir outcome_id si el backend lo devuelve;
+ * si no, buscamos el último outcome de la oportunidad.
+ */
+function _showRetroModal(closeData) {
+    const opp = currentOpportunityData;
+    if (!opp) return;
+
+    // Resetear campos
+    ['retro-what-worked', 'retro-what-failed', 'retro-notes'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const aiUseful = document.getElementById('retro-ai-useful');
+    if (aiUseful) aiUseful.value = '';
+
+    // Guardar outcome_id para el submit (si viene en la respuesta del close)
+    const outcomeId = closeData?.outcome_id || '';
+    document.getElementById('retro-outcome-id').value = outcomeId;
+
+    // Guardar opp.id en el modal para usarlo en saveRetroFeedback
+    document.getElementById('aiRetroModal').dataset.oppId = opp.id;
+
+    // Pequeño delay para que el modal de cierre se haya cerrado
+    setTimeout(() => {
+        const modal = new bootstrap.Modal(document.getElementById('aiRetroModal'));
+        modal.show();
+    }, 400);
+}
+
+/**
+ * Guarda el feedback de retrospectiva via POST /opportunities/{id}/ai/feedback.
+ */
+window.saveRetroFeedback = async function() {
+    const modal = document.getElementById('aiRetroModal');
+    const oppId = modal.dataset.oppId;
+    const outcomeId = document.getElementById('retro-outcome-id').value;
+
+    if (!oppId || !outcomeId) {
+        bootstrap.Modal.getInstance(modal)?.hide();
+        return;
+    }
+
+    const payload = {
+        outcome_id: outcomeId,
+        what_worked: document.getElementById('retro-what-worked').value.trim() || null,
+        what_failed:  document.getElementById('retro-what-failed').value.trim() || null,
+        ai_useful:    document.getElementById('retro-ai-useful').value || null,
+        notes:        document.getElementById('retro-notes').value.trim() || null
+    };
+
+    try {
+        const res = await fetch(`/opportunities/${oppId}/ai/feedback`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        showToast('Feedback guardado — gracias por mejorar el sistema', 'success');
+    } catch(e) {
+        console.warn('[Retro] Error guardando feedback:', e);
+    } finally {
+        bootstrap.Modal.getInstance(modal)?.hide();
     }
 };
 

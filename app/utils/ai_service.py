@@ -1,10 +1,15 @@
 """
-AI Service Layer — Sprint 4E
+AI Service Layer — Sprint 4E / Sprint 5A
 Interfaz abstracta intercambiable entre providers de IA.
 
 Providers disponibles:
-  - OpenAIProvider (por defecto) — usa Threads API de OpenAI
+  - OpenAIProvider (por defecto) — usa Chat Completions o Assistants API
   - Futuro: AnthropicProvider, LocalLLMProvider
+
+Sprint 5A — Tres agentes especializados:
+  - AGENT_CLIENT: perspectiva del comprador
+  - AGENT_SALES: táctica y siguiente movimiento del vendedor
+  - AGENT_MEMORY: patrones del histórico de oportunidades cerradas
 
 Para cambiar de provider: solo cambiar AI_PROVIDER en .env.
 El resto del código (endpoints, frontend, BD) no cambia nada.
@@ -20,11 +25,81 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# SYSTEM PROMPTS — Tres agentes Sprint 5A
+# ============================================================================
+
+SYSTEM_PROMPT_CLIENT = """Eres el agente "Cliente" de un CRM B2B del sector energético en España.
+Tu única perspectiva es la del COMPRADOR: el cliente potencial.
+
+Cuando recibas el contexto de una oportunidad:
+1. Analiza qué está pensando realmente el cliente en este momento
+2. Identifica las objeciones que NO ha dicho en voz alta (miedos, dudas, bloqueos internos)
+3. Detecta qué le frenaría de tomar una decisión ahora mismo
+4. Señala qué necesitaría ver u oír para avanzar con confianza
+5. Si hay estado mental del cliente definido, úsalo como punto de partida
+
+Responde SOLO desde la perspectiva del cliente. No des consejos al vendedor.
+Sé directo, psicológico y basado en los datos del contexto.
+Responde siempre en español. Máximo 5-6 líneas."""
+
+SYSTEM_PROMPT_SALES = """Eres el agente "Comercial" de un CRM B2B del sector energético en España.
+Eres un vendedor experto con 15 años de experiencia en ventas B2B energéticas.
+
+Cuando recibas el contexto de una oportunidad:
+1. Evalúa el trabajo del comercial responsable: ¿está haciendo bien su trabajo?
+2. Detecta errores, omisiones o movimientos subóptimos en el histórico de actividades
+3. Di qué haría un top performer en este momento exacto
+4. Propón el movimiento concreto más efectivo para avanzar la oportunidad ahora mismo
+5. Sé crítico si es necesario — el objetivo es ganar, no quedar bien
+
+Responde SOLO desde la perspectiva del vendedor experto.
+Sé directo, táctico y accionable. Sin rodeos.
+Responde siempre en español. Máximo 5-6 líneas."""
+
+SYSTEM_PROMPT_MEMORY = """Eres el agente "Memoria Corporativa" de un CRM B2B del sector energético en España.
+Tu función es detectar patrones en el historial de oportunidades cerradas y aplicarlos a la oportunidad actual.
+
+Cuando recibas el contexto de una oportunidad y el histórico de casos similares:
+1. Identifica patrones de éxito y fracaso en oportunidades similares (sector, valor, stage, tipo)
+2. Compara el comportamiento actual con los casos ganados: ¿qué tienen en común?
+3. Compara con los casos perdidos: ¿hay señales de alerta presentes aquí también?
+4. Estima una probabilidad real basada en el histórico (no en la configurada en el CRM)
+5. Si no hay suficientes datos históricos, indícalo claramente
+
+Responde con datos concretos del histórico si los tienes, o con patrones generales del sector si no.
+Responde siempre en español. Máximo 6-7 líneas."""
+
+
+# ============================================================================
 # INTERFAZ ABSTRACTA
 # ============================================================================
 
 class AIProvider(ABC):
     """Contrato que todo provider de IA debe cumplir."""
+
+    @abstractmethod
+    def analyze_multi_agent(
+        self,
+        context: str,
+        historical_context: Optional[str] = None,
+        thread_ids: Optional[dict] = None
+    ) -> dict:
+        """
+        Sprint 5A — Ejecuta los tres agentes especializados.
+
+        Args:
+            context: Markdown completo de la oportunidad
+            historical_context: Resumen de oportunidades similares cerradas (para agente Memoria)
+            thread_ids: {"client": str, "sales": str, "memory": str} — thread IDs previos
+
+        Returns:
+            {
+                "client":  {"analysis": str, "thread_id": str},
+                "sales":   {"analysis": str, "thread_id": str},
+                "memory":  {"analysis": str, "thread_id": str},
+            }
+        """
+        ...
 
     @abstractmethod
     def analyze_opportunity(self, context: str, thread_id: Optional[str] = None) -> tuple:
@@ -87,14 +162,107 @@ Cuando recibas el contexto de una oportunidad:
 
 Responde siempre en español. Sé directo y accionable."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini", assistant_id: str = ""):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gpt-4o-mini",
+        assistant_id: str = "",
+        agent_client_id: str = "",
+        agent_sales_id: str = "",
+        agent_memory_id: str = "",
+    ):
         try:
             from openai import OpenAI
             self._client = OpenAI(api_key=api_key)
             self._model = model
             self._assistant_id = assistant_id or None
+            # Sprint 5A — IDs de los tres agentes especializados (vacío = usar Chat Completions)
+            self._agent_client_id = agent_client_id or ""
+            self._agent_sales_id = agent_sales_id or ""
+            self._agent_memory_id = agent_memory_id or ""
         except ImportError:
             raise RuntimeError("openai package not installed. Run: pip install openai>=1.30.0")
+
+    def analyze_multi_agent(
+        self,
+        context: str,
+        historical_context: Optional[str] = None,
+        thread_ids: Optional[dict] = None
+    ) -> dict:
+        """
+        Sprint 5A — Ejecuta los tres agentes en secuencia y devuelve sus análisis.
+        (En producción se pueden ejecutar en paralelo con asyncio; aquí secuencial para simplicidad.)
+        """
+        thread_ids = thread_ids or {}
+
+        agents = [
+            ("client",  SYSTEM_PROMPT_CLIENT,  self._agent_client_id),
+            ("sales",   SYSTEM_PROMPT_SALES,   self._agent_sales_id),
+            ("memory",  SYSTEM_PROMPT_MEMORY,  self._agent_memory_id),
+        ]
+
+        results = {}
+        for agent_key, system_prompt, assistant_id in agents:
+            thread_id = thread_ids.get(agent_key)
+            # El agente de Memoria recibe también el histórico si existe
+            ctx = context
+            if agent_key == "memory" and historical_context:
+                ctx = context + "\n\n## Histórico de oportunidades similares cerradas\n" + historical_context
+
+            try:
+                if assistant_id and assistant_id.startswith("asst_"):
+                    analysis, new_thread_id = self._run_agent_with_assistant(
+                        ctx, assistant_id, thread_id
+                    )
+                else:
+                    analysis, new_thread_id = self._run_agent_with_chat(
+                        ctx, system_prompt, thread_id
+                    )
+                results[agent_key] = {"analysis": analysis, "thread_id": new_thread_id or ""}
+            except Exception as e:
+                logger.error(f"[AI] Agent '{agent_key}' error: {e}")
+                results[agent_key] = {"analysis": f"[Error en agente {agent_key}: {e}]", "thread_id": ""}
+
+        return results
+
+    def _run_agent_with_chat(self, context: str, system_prompt: str, thread_id: Optional[str]) -> tuple[str, str]:
+        """Ejecuta un agente usando Chat Completions."""
+        import hashlib
+        response = self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Analiza esta oportunidad:\n\n{context}"}
+            ],
+            temperature=0.4,
+            max_completion_tokens=600
+        )
+        analysis = response.choices[0].message.content.strip()
+        synthetic_id = thread_id or f"chat_{hashlib.md5(context[:80].encode()).hexdigest()[:16]}"
+        return analysis, synthetic_id
+
+    def _run_agent_with_assistant(self, context: str, assistant_id: str, thread_id: Optional[str]) -> tuple[str, str]:
+        """Ejecuta un agente usando Assistants API."""
+        if thread_id and thread_id.startswith("thread_"):
+            thread = self._client.beta.threads.retrieve(thread_id)
+        else:
+            thread = self._client.beta.threads.create()
+
+        self._client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=f"Analiza esta oportunidad:\n\n{context}"
+        )
+        run = self._client.beta.threads.runs.create_and_poll(
+            thread_id=thread.id,
+            assistant_id=assistant_id,
+            timeout=30
+        )
+        if run.status != "completed":
+            raise RuntimeError(f"Assistant run failed: {run.status}")
+        messages = self._client.beta.threads.messages.list(thread_id=thread.id, limit=1)
+        analysis = messages.data[0].content[0].text.value.strip()
+        return analysis, thread.id
 
     def analyze_opportunity(self, context: str, thread_id: Optional[str] = None) -> tuple[str, str]:
         """Analiza una oportunidad y devuelve síntesis + thread_id."""
@@ -533,7 +701,10 @@ def get_ai_provider() -> AIProvider:
         return OpenAIProvider(
             api_key=settings.openai_api_key,
             model=settings.openai_model,
-            assistant_id=settings.openai_assistant_id
+            assistant_id=settings.openai_assistant_id,
+            agent_client_id=settings.openai_agent_client_id,
+            agent_sales_id=settings.openai_agent_sales_id,
+            agent_memory_id=settings.openai_agent_memory_id,
         )
     # Futuro: elif provider == "anthropic": return AnthropicProvider(...)
     # Futuro: elif provider == "local": return LocalLLMProvider(...)
