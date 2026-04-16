@@ -199,6 +199,78 @@ class StageProbabilityResponse(StageProbabilityBase):
     stage_name: Optional[str] = None
 
 
+# === OPPORTUNITY TYPES ===
+class OpportunityTypeBase(BaseModel):
+    name: str
+    is_active: bool = True
+    sort_order: int = 0
+
+
+class OpportunityTypeCreate(OpportunityTypeBase):
+    pass
+
+
+class OpportunityTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+
+class OpportunityTypeResponse(OpportunityTypeBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+
+# === LOST REASONS ===
+class LostReasonBase(BaseModel):
+    name: str
+    is_active: bool = True
+    sort_order: int = 0
+
+
+class LostReasonCreate(LostReasonBase):
+    pass
+
+
+class LostReasonUpdate(BaseModel):
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+
+class LostReasonResponse(LostReasonBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+
+# === CLIENT MENTAL STATES ===
+class ClientMentalStateBase(BaseModel):
+    name: str
+    is_active: bool = True
+    sort_order: int = 0
+
+
+class ClientMentalStateCreate(ClientMentalStateBase):
+    pass
+
+
+class ClientMentalStateUpdate(BaseModel):
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+
+class ClientMentalStateResponse(ClientMentalStateBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+
 # === LIST RESPONSES ===
 class RegionsListResponse(BaseModel):
     regions: List[RegionResponse]
@@ -226,6 +298,18 @@ class StagesListResponse(BaseModel):
 
 class StageProbabilitiesListResponse(BaseModel):
     stage_probabilities: List[StageProbabilityResponse]
+
+
+class OpportunityTypesListResponse(BaseModel):
+    opportunity_types: List[OpportunityTypeResponse]
+
+
+class LostReasonsListResponse(BaseModel):
+    lost_reasons: List[LostReasonResponse]
+
+
+class ClientMentalStatesListResponse(BaseModel):
+    client_mental_states: List[ClientMentalStateResponse]
 
 
 # === USAGE CHECK ===

@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app.models import (
-    CfgStage, CfgStageProbability, CfgRegion, 
-    CfgCustomerType, CfgLeadSource, CfgContactRole, CfgTaskTemplate
+    CfgStage, CfgStageProbability, CfgRegion,
+    CfgCustomerType, CfgLeadSource, CfgContactRole, CfgTaskTemplate,
+    CfgOpportunityType, CfgLostReason, CfgClientMentalState
 )
 from pydantic import BaseModel
 
@@ -149,3 +150,51 @@ async def get_contact_roles(db: Session = Depends(get_db)):
 async def get_task_templates(db: Session = Depends(get_db)):
     """Get all task templates"""
     return db.query(CfgTaskTemplate).order_by(CfgTaskTemplate.sort_order).all()
+
+
+class OpportunityTypeSchema(BaseModel):
+    id: str
+    name: str
+    is_active: int
+    sort_order: int
+
+    class Config:
+        from_attributes = True
+
+
+class LostReasonSchema(BaseModel):
+    id: str
+    name: str
+    is_active: int
+    sort_order: int
+
+    class Config:
+        from_attributes = True
+
+
+class ClientMentalStateSchema(BaseModel):
+    id: str
+    name: str
+    is_active: int
+    sort_order: int
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/opportunity-types", response_model=List[OpportunityTypeSchema])
+async def get_opportunity_types(db: Session = Depends(get_db)):
+    """Get all active opportunity types"""
+    return db.query(CfgOpportunityType).filter(CfgOpportunityType.is_active == 1).order_by(CfgOpportunityType.sort_order).all()
+
+
+@router.get("/lost-reasons", response_model=List[LostReasonSchema])
+async def get_lost_reasons(db: Session = Depends(get_db)):
+    """Get all active lost reasons"""
+    return db.query(CfgLostReason).filter(CfgLostReason.is_active == 1).order_by(CfgLostReason.sort_order).all()
+
+
+@router.get("/client-mental-states", response_model=List[ClientMentalStateSchema])
+async def get_client_mental_states(db: Session = Depends(get_db)):
+    """Get all active client mental states"""
+    return db.query(CfgClientMentalState).filter(CfgClientMentalState.is_active == 1).order_by(CfgClientMentalState.sort_order).all()

@@ -87,6 +87,39 @@ const entityConfig = {
             { name: 'probability', label: 'Probabilidad (0-1)', type: 'number', required: true, min: 0, max: 1, step: 0.01 }
         ],
         columns: ['Etapa', 'Probabilidad', 'Acciones']
+    },
+    'opportunity-types': {
+        title: 'Tipos de Oportunidad',
+        endpoint: '/config-ui/opportunity-types',
+        responseKey: 'opportunity_types',
+        fields: [
+            { name: 'name', label: 'Nombre', type: 'text', required: true },
+            { name: 'sort_order', label: 'Orden', type: 'number', required: false, default: 0 },
+            { name: 'is_active', label: 'Activo', type: 'checkbox', required: false, default: true }
+        ],
+        columns: ['Nombre', 'Orden', 'Estado', 'Acciones']
+    },
+    'lost-reasons': {
+        title: 'Motivos de Pérdida',
+        endpoint: '/config-ui/lost-reasons',
+        responseKey: 'lost_reasons',
+        fields: [
+            { name: 'name', label: 'Nombre', type: 'text', required: true },
+            { name: 'sort_order', label: 'Orden', type: 'number', required: false, default: 0 },
+            { name: 'is_active', label: 'Activo', type: 'checkbox', required: false, default: true }
+        ],
+        columns: ['Nombre', 'Orden', 'Estado', 'Acciones']
+    },
+    'client-mental-states': {
+        title: 'Estado Mental del Cliente',
+        endpoint: '/config-ui/client-mental-states',
+        responseKey: 'client_mental_states',
+        fields: [
+            { name: 'name', label: 'Nombre', type: 'text', required: true },
+            { name: 'sort_order', label: 'Orden', type: 'number', required: false, default: 0 },
+            { name: 'is_active', label: 'Activo', type: 'checkbox', required: false, default: true }
+        ],
+        columns: ['Nombre', 'Orden', 'Estado', 'Acciones']
     }
 };
 
@@ -225,6 +258,17 @@ function renderRow(item) {
                     <td>${item.stage_name || item.stage_id}</td>
                     <td>${(item.probability * 100).toFixed(0)}%</td>
                     <td>${renderActions(item, true)}</td>
+                </tr>
+            `;
+        case 'opportunity-types':
+        case 'lost-reasons':
+        case 'client-mental-states':
+            return `
+                <tr>
+                    <td>${item.name}</td>
+                    <td>${item.sort_order}</td>
+                    <td><span class="badge badge-${item.is_active ? 'active' : 'inactive'}">${item.is_active ? 'Activo' : 'Inactivo'}</span></td>
+                    <td>${renderActions(item)}</td>
                 </tr>
             `;
         default:

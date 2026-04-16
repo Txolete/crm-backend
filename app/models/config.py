@@ -104,6 +104,51 @@ class CfgStage(Base):
     )
 
 
+class CfgOpportunityType(Base):
+    """
+    Tabla: cfg_opportunity_types
+    Tipos de oportunidad: Suministro eléctrico, Gas, Servicios energéticos...
+    """
+    __tablename__ = "cfg_opportunity_types"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    is_active = Column(Integer, nullable=False, default=1)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class CfgLostReason(Base):
+    """
+    Tabla: cfg_lost_reasons
+    Motivos de pérdida: Competencia, Precio, Timing, Presupuesto...
+    """
+    __tablename__ = "cfg_lost_reasons"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    is_active = Column(Integer, nullable=False, default=1)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class CfgClientMentalState(Base):
+    """
+    Tabla: cfg_client_mental_states
+    Estado mental del cliente: Explorando, Validando, Comparando, Decidiendo, Parado
+    """
+    __tablename__ = "cfg_client_mental_states"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    is_active = Column(Integer, nullable=False, default=1)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class CfgStageProbability(Base):
     """
     Tabla: cfg_stage_probabilities

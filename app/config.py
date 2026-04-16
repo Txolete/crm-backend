@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     app_name: str = "CRM Seguimiento Clientes"
     app_version: str = "0.5.0"
     
+    # Sprint 4E — AI Integration
+    ai_provider: str = "openai"        # openai | anthropic | local
+    openai_api_key: str = ""
+    openai_assistant_id: str = ""      # opcional — si se usa Assistants API
+    openai_model: str = "gpt-4.1"  # gpt-4.1 | gpt-4o | gpt-4o-mini — configurable vía OPENAI_MODEL en .env
+    ai_enabled: bool = True
+
     # PASO 8 - Automations
     automations_enabled: bool = True
     auto_run_time: str = "07:00"  # HH:MM format

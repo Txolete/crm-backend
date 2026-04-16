@@ -12,7 +12,8 @@ from app.models.account import Account
 from app.models.opportunity import Opportunity, Task
 from app.models.config import (
     CfgRegion, CfgCustomerType, CfgLeadSource,
-    CfgContactRole, CfgTaskTemplate, CfgStage, CfgStageProbability
+    CfgContactRole, CfgTaskTemplate, CfgStage, CfgStageProbability,
+    CfgOpportunityType, CfgLostReason, CfgClientMentalState
 )
 from app.schemas.config_ui import *
 from app.utils.auth import require_role
@@ -1166,3 +1167,249 @@ def delete_stage_probability(
     db.commit()
     
     return {"success": True, "message": "Stage probability deleted"}
+
+
+# ============================================================================
+# OPPORTUNITY TYPES
+# ============================================================================
+
+@router.get("/opportunity-types", response_model=OpportunityTypesListResponse)
+def list_opportunity_types(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    items = db.query(CfgOpportunityType).order_by(CfgOpportunityType.sort_order, CfgOpportunityType.name).all()
+    return OpportunityTypesListResponse(opportunity_types=[OpportunityTypeResponse(**i.__dict__) for i in items])
+
+
+@router.post("/opportunity-types", response_model=OpportunityTypeResponse)
+def create_opportunity_type(
+    request: OpportunityTypeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    existing = db.query(CfgOpportunityType).filter(CfgOpportunityType.name == request.name).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Opportunity type '{request.name}' already exists")
+
+    timestamp = get_utc_now()
+    item = CfgOpportunityType(
+        id=generate_id(),
+        name=request.name,
+        is_active=int(request.is_active),
+        sort_order=request.sort_order,
+        created_at=timestamp,
+        updated_at=timestamp
+    )
+    db.add(item)
+    create_audit_log(db=db, entity="config", entity_id=item.id, action="create_opportunity_type", user_id=current_user.id, after_data={"name": item.name})
+    db.commit()
+    db.refresh(item)
+    return OpportunityTypeResponse(**item.__dict__)
+
+
+@router.put("/opportunity-types/{item_id}", response_model=OpportunityTypeResponse)
+def update_opportunity_type(
+    item_id: str,
+    request: OpportunityTypeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    item = db.query(CfgOpportunityType).filter(CfgOpportunityType.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Opportunity type not found")
+
+    update_data = request.model_dump(exclude_unset=True)
+    if "is_active" in update_data:
+        update_data["is_active"] = int(update_data["is_active"])
+    for field, value in update_data.items():
+        setattr(item, field, value)
+    item.updated_at = get_utc_now()
+    create_audit_log(db=db, entity="config", entity_id=item.id, action="update_opportunity_type", user_id=current_user.id, after_data=update_data)
+    db.commit()
+    db.refresh(item)
+    return OpportunityTypeResponse(**item.__dict__)
+
+
+@router.delete("/opportunity-types/{item_id}")
+def delete_opportunity_type(
+    item_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    item = db.query(CfgOpportunityType).filter(CfgOpportunityType.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Opportunity type not found")
+
+    in_use = db.query(Opportunity).filter(Opportunity.opportunity_type_id == item_id).count()
+    if in_use:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cannot delete: used by {in_use} opportunities")
+
+    db.delete(item)
+    create_audit_log(db=db, entity="config", entity_id=item_id, action="delete_opportunity_type", user_id=current_user.id, after_data={"id": item_id})
+    db.commit()
+    return {"success": True, "message": "Opportunity type deleted"}
+
+
+# ============================================================================
+# LOST REASONS
+# ============================================================================
+
+@router.get("/lost-reasons", response_model=LostReasonsListResponse)
+def list_lost_reasons(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    items = db.query(CfgLostReason).order_by(CfgLostReason.sort_order, CfgLostReason.name).all()
+    return LostReasonsListResponse(lost_reasons=[LostReasonResponse(**i.__dict__) for i in items])
+
+
+@router.post("/lost-reasons", response_model=LostReasonResponse)
+def create_lost_reason(
+    request: LostReasonCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    existing = db.query(CfgLostReason).filter(CfgLostReason.name == request.name).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Lost reason '{request.name}' already exists")
+
+    timestamp = get_utc_now()
+    item = CfgLostReason(
+        id=generate_id(),
+        name=request.name,
+        is_active=int(request.is_active),
+        sort_order=request.sort_order,
+        created_at=timestamp,
+        updated_at=timestamp
+    )
+    db.add(item)
+    create_audit_log(db=db, entity="config", entity_id=item.id, action="create_lost_reason", user_id=current_user.id, after_data={"name": item.name})
+    db.commit()
+    db.refresh(item)
+    return LostReasonResponse(**item.__dict__)
+
+
+@router.put("/lost-reasons/{item_id}", response_model=LostReasonResponse)
+def update_lost_reason(
+    item_id: str,
+    request: LostReasonUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    item = db.query(CfgLostReason).filter(CfgLostReason.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lost reason not found")
+
+    update_data = request.model_dump(exclude_unset=True)
+    if "is_active" in update_data:
+        update_data["is_active"] = int(update_data["is_active"])
+    for field, value in update_data.items():
+        setattr(item, field, value)
+    item.updated_at = get_utc_now()
+    create_audit_log(db=db, entity="config", entity_id=item.id, action="update_lost_reason", user_id=current_user.id, after_data=update_data)
+    db.commit()
+    db.refresh(item)
+    return LostReasonResponse(**item.__dict__)
+
+
+@router.delete("/lost-reasons/{item_id}")
+def delete_lost_reason(
+    item_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    item = db.query(CfgLostReason).filter(CfgLostReason.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lost reason not found")
+
+    in_use = db.query(Opportunity).filter(Opportunity.lost_reason_id == item_id).count()
+    if in_use:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cannot delete: used by {in_use} opportunities")
+
+    db.delete(item)
+    create_audit_log(db=db, entity="config", entity_id=item_id, action="delete_lost_reason", user_id=current_user.id, after_data={"id": item_id})
+    db.commit()
+    return {"success": True, "message": "Lost reason deleted"}
+
+
+# ============================================================================
+# CLIENT MENTAL STATES
+# ============================================================================
+
+@router.get("/client-mental-states", response_model=ClientMentalStatesListResponse)
+def list_client_mental_states(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    items = db.query(CfgClientMentalState).order_by(CfgClientMentalState.sort_order, CfgClientMentalState.name).all()
+    return ClientMentalStatesListResponse(client_mental_states=[ClientMentalStateResponse(**i.__dict__) for i in items])
+
+
+@router.post("/client-mental-states", response_model=ClientMentalStateResponse)
+def create_client_mental_state(
+    request: ClientMentalStateCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    existing = db.query(CfgClientMentalState).filter(CfgClientMentalState.name == request.name).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Client mental state '{request.name}' already exists")
+
+    timestamp = get_utc_now()
+    item = CfgClientMentalState(
+        id=generate_id(),
+        name=request.name,
+        is_active=int(request.is_active),
+        sort_order=request.sort_order,
+        created_at=timestamp,
+        updated_at=timestamp
+    )
+    db.add(item)
+    create_audit_log(db=db, entity="config", entity_id=item.id, action="create_client_mental_state", user_id=current_user.id, after_data={"name": item.name})
+    db.commit()
+    db.refresh(item)
+    return ClientMentalStateResponse(**item.__dict__)
+
+
+@router.put("/client-mental-states/{item_id}", response_model=ClientMentalStateResponse)
+def update_client_mental_state(
+    item_id: str,
+    request: ClientMentalStateUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    item = db.query(CfgClientMentalState).filter(CfgClientMentalState.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client mental state not found")
+
+    update_data = request.model_dump(exclude_unset=True)
+    if "is_active" in update_data:
+        update_data["is_active"] = int(update_data["is_active"])
+    for field, value in update_data.items():
+        setattr(item, field, value)
+    item.updated_at = get_utc_now()
+    create_audit_log(db=db, entity="config", entity_id=item.id, action="update_client_mental_state", user_id=current_user.id, after_data=update_data)
+    db.commit()
+    db.refresh(item)
+    return ClientMentalStateResponse(**item.__dict__)
+
+
+@router.delete("/client-mental-states/{item_id}")
+def delete_client_mental_state(
+    item_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    item = db.query(CfgClientMentalState).filter(CfgClientMentalState.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client mental state not found")
+
+    in_use = db.query(Opportunity).filter(Opportunity.client_mental_state_id == item_id).count()
+    if in_use:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cannot delete: used by {in_use} opportunities")
+
+    db.delete(item)
+    create_audit_log(db=db, entity="config", entity_id=item_id, action="delete_client_mental_state", user_id=current_user.id, after_data={"id": item_id})
+    db.commit()
+    return {"success": True, "message": "Client mental state deleted"}

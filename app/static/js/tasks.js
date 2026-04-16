@@ -342,7 +342,7 @@ async function showCreateTaskModal(preselect = {}) {
     // Cargar opciones (async)
     await loadTaskFormOptions();
 
-    // U2: aplicar preselección después de que las opciones estén cargadas
+    // Aplicar preselección después de que las opciones estén cargadas
     if (preselect.opportunity_id) {
         const oppEl = document.getElementById('task-opportunity');
         if (oppEl) oppEl.value = preselect.opportunity_id;
@@ -350,6 +350,23 @@ async function showCreateTaskModal(preselect = {}) {
     if (preselect.account_id) {
         const accEl = document.getElementById('task-account');
         if (accEl) accEl.value = preselect.account_id;
+    }
+    // Prefill desde propuesta IA
+    if (preselect.title) {
+        const el = document.getElementById('task-title');
+        if (el) el.value = preselect.title;
+    }
+    if (preselect.description) {
+        const el = document.getElementById('task-description');
+        if (el) el.value = preselect.description;
+    }
+    if (preselect.priority) {
+        const el = document.getElementById('task-priority');
+        if (el) el.value = preselect.priority;
+    }
+    if (preselect.due_date) {
+        const el = document.getElementById('task-due-date');
+        if (el) el.value = preselect.due_date;
     }
 }
 
