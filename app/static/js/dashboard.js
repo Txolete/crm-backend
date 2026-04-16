@@ -3391,6 +3391,9 @@ window.analyzeWithAI = async function() {
         document.getElementById('ai-thread-badge').style.display = 'inline-block';
         document.getElementById('ai-history-section').style.display = 'block';
 
+        // Guardar automáticamente síntesis + thread_id en BD
+        await saveAIFields();
+
         showToast('Análisis completado — tres perspectivas disponibles', 'success');
 
     } catch(e) {
@@ -3775,11 +3778,20 @@ function _showRetroModal(closeData) {
     // Guardar opp.id en el modal para usarlo en saveRetroFeedback
     document.getElementById('aiRetroModal').dataset.oppId = opp.id;
 
-    // Pequeño delay para que el modal de cierre se haya cerrado
+    // Esperar a que el modal de cierre haya limpiado su backdrop y luego abrir el retro
     setTimeout(() => {
-        const modal = new bootstrap.Modal(document.getElementById('aiRetroModal'));
+        // Limpiar backdrops huérfanos que Bootstrap deja a veces al encadenar modales
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+
+        const retroEl = document.getElementById('aiRetroModal');
+        const existing = bootstrap.Modal.getInstance(retroEl);
+        if (existing) existing.dispose();
+        const modal = new bootstrap.Modal(retroEl, { backdrop: true, keyboard: true });
         modal.show();
-    }, 400);
+    }, 600);
 }
 
 /**
@@ -3816,6 +3828,12 @@ window.saveRetroFeedback = async function() {
         console.warn('[Retro] Error guardando feedback:', e);
     } finally {
         bootstrap.Modal.getInstance(modal)?.hide();
+        // Limpiar backdrop por si acaso
+        setTimeout(() => {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        }, 300);
     }
 };
 
