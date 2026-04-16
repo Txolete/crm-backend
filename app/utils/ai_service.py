@@ -138,7 +138,7 @@ Justificación: [1 línea explicando por qué ese porcentaje]
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=900
+            max_completion_tokens=900
         )
         raw = response.choices[0].message.content.strip()
 
@@ -205,7 +205,7 @@ PRÓXIMA ACCIÓN:
                         {"role": "user", "content": message}
                     ],
                     temperature=0.4,
-                    max_tokens=500
+                    max_completion_tokens=500
                 )
                 return response.choices[0].message.content.strip()
         except Exception as e:
