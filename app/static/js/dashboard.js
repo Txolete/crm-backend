@@ -2097,9 +2097,24 @@ window.switchToEditMode = async function() {
             const option = document.createElement('option');
             option.value = stage.id;
             option.textContent = stage.name;
+            option.dataset.outcome = stage.outcome || 'open';
             option.selected = stage.id === currentOpportunityData.stage_id;
             stageSelect.appendChild(option);
         });
+
+        // Interceptar selección de stage won/lost → abrir flujo de cierre con confirmación
+        stageSelect.onchange = function() {
+            const selected = this.options[this.selectedIndex];
+            const outcome = selected?.dataset?.outcome || 'open';
+            if (outcome === 'won' || outcome === 'lost') {
+                // Revertir el select al stage actual (el cierre se gestiona via modal)
+                this.value = currentOpportunityData.stage_id;
+                // Cancelar edición y abrir modal de confirmación de cierre
+                cancelEdit();
+                if (outcome === 'won') openWonConfirm();
+                else openLostConfirm();
+            }
+        };
         
         // Populate owner select
         const ownerSelect = document.getElementById('edit-owner');
@@ -2615,10 +2630,13 @@ function createKanbanColumn(column, stagesMap = {}) {
     const col = document.createElement('div');
     col.className = 'kanban-column';
     col.dataset.stageId = column.stage_id || 'unknown';
-    
+
     // Get stage info from stagesMap
     const stage = stagesMap[column.stage_id];
-    
+
+    // Guardar outcome en dataset para que handleDrop pueda detectar won/lost
+    if (stage) col.dataset.stageOutcome = stage.outcome || 'open';
+
     // Add 'closed' class for won/lost columns
     if (stage && (stage.outcome === 'won' || stage.outcome === 'lost')) {
         col.classList.add('closed');
@@ -2652,6 +2670,7 @@ function createKanbanColumn(column, stagesMap = {}) {
     const body = document.createElement('div');
     body.className = 'kanban-column-body';
     body.dataset.stageId = column.stage_id;
+    if (stage) body.dataset.stageOutcome = stage.outcome || 'open';
     
     // Make column body a drop target
     body.addEventListener('dragover', handleDragOver);
@@ -2804,78 +2823,70 @@ async function handleDrop(e) {
     
     const opportunityId = draggedCard.dataset.opportunityId;
     const newStageId = this.dataset.stageId;
+    const newStageOutcome = this.dataset.stageOutcome || 'open';
     const currentColumn = draggedCard.closest('.kanban-column-body');
     const currentStageId = currentColumn.dataset.stageId;
-    
+
     // Check if dropped in same column
     if (newStageId === currentStageId) {
         console.log('[DRAG] Dropped in same column, no action needed');
         return false;
     }
-    
-    console.log('[DRAG] Drop opportunity', opportunityId, 'to stage', newStageId);
-    
-    // Show loading indicator on card
+
+    console.log('[DRAG] Drop opportunity', opportunityId, 'to stage', newStageId, 'outcome:', newStageOutcome);
+
+    // Si se arrastra a columna won/lost → abrir el flujo de cierre con confirmación
+    // (igual que el botón "Ganada"/"Perdida" — incluye fecha, valor y retro)
+    if (newStageOutcome === 'won' || newStageOutcome === 'lost') {
+        try {
+            // Cargar datos de la oportunidad para el modal de confirmación
+            const res = await fetch(`/opportunities/${opportunityId}`, { credentials: 'include' });
+            if (res.ok) {
+                const oppData = await res.json();
+                currentOpportunityData = oppData;
+                currentOpportunityId = opportunityId;
+                if (newStageOutcome === 'won') {
+                    openWonConfirm();
+                } else {
+                    openLostConfirm();
+                }
+            }
+        } catch(e) {
+            console.error('[DRAG] Error loading opp for close confirm:', e);
+            showToast('Error al cargar la oportunidad', 'danger');
+        }
+        return false;
+    }
+
+    // Movimiento a stage abierto — PUT directo
     draggedCard.style.opacity = '0.5';
     draggedCard.style.pointerEvents = 'none';
-    
+
     try {
-        // Update opportunity stage via API
         const response = await fetch(`/opportunities/${opportunityId}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({
-                stage_id: newStageId
-            })
+            body: JSON.stringify({ stage_id: newStageId })
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Error al mover oportunidad');
         }
-        
+
         const result = await response.json();
         console.log('[DRAG] Move successful:', result);
 
-        // Si el drag cerró la oportunidad (stage won/lost), activar pipeline de retro
-        if (result.close_outcome === 'won' || result.close_outcome === 'lost') {
-            const oppId = opportunityId;
-            try {
-                const outRes = await fetch(`/opportunities/${oppId}/ai/ensure-outcome`, {
-                    method: 'POST', credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                if (outRes.ok) {
-                    const outData = await outRes.json();
-                    // Cargar datos mínimos en currentOpportunityData para _showRetroModal
-                    if (!currentOpportunityData || currentOpportunityData.id !== oppId) {
-                        currentOpportunityData = { id: oppId };
-                    }
-                    _showRetroModal({ outcome_id: outData.outcome_id });
-                }
-            } catch(e) { console.warn('[DRAG] ensure-outcome error:', e); }
-        }
-
-        // Show success toast
         const accountName = draggedCard.dataset.accountName || 'Oportunidad';
         showToast(`${accountName} movida correctamente`, 'success');
 
-        // Reload kanban to reflect changes
         await loadKanbanData();
+        if (typeof loadDashboard === 'function') await loadDashboard();
 
-        // Reload dashboard KPIs
-        if (typeof loadDashboard === 'function') {
-            await loadDashboard();
-        }
-        
     } catch (error) {
         console.error('[DRAG] Error moving opportunity:', error);
         showToast('Error al mover oportunidad: ' + error.message, 'danger');
-        
-        // Restore card state
         draggedCard.style.opacity = '1';
         draggedCard.style.pointerEvents = 'auto';
     }
@@ -4091,13 +4102,20 @@ window.initTaskCalendar = async function() {
         }
     } catch(e) { console.warn('[Calendar] Error loading tasks:', e); }
 
+    // Mostrar en el panel cuántas tareas sin fecha se quedan fuera
+    const sinFecha = tasks.filter(t => !t.due_date);
+    if (sinFecha.length > 0) {
+        el.dataset.sinFecha = sinFecha.length;
+        console.log(`[Calendar] ${sinFecha.length} tareas sin fecha (no se muestran en el calendario)`);
+    }
+
     // Convertir tareas a eventos FullCalendar
     const events = tasks
         .filter(t => t.due_date)
         .map(t => ({
             id: t.id,
             title: t.title,
-            start: t.due_date,
+            start: typeof t.due_date === 'string' ? t.due_date.split('T')[0] : t.due_date,
             allDay: true,
             color: t.priority === 'high' ? '#ef4444' : t.priority === 'medium' ? '#f97316' : '#6b7280',
             extendedProps: t

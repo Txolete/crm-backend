@@ -3,6 +3,7 @@ Tasks API endpoints
 CRUD completo para gestión de tareas
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 from app.database import get_db
@@ -28,7 +29,7 @@ router = APIRouter(prefix="/tasks", tags=["Tasks"])
 @router.get("", response_model=TaskListResponse)
 def list_tasks(
     assigned_to: Optional[str] = Query(None, description="Filter by assigned user ID"),
-    status: Optional[str] = Query(None, description="Filter by status"),
+    status: Optional[List[str]] = Query(None, description="Filter by status (repeatable)"),
     priority: Optional[str] = Query(None, description="Filter by priority"),
     opportunity_id: Optional[str] = Query(None, description="Filter by opportunity"),
     account_id: Optional[str] = Query(None, description="Filter by account"),
@@ -57,7 +58,10 @@ def list_tasks(
         query = query.filter(Task.assigned_to_user_id == assigned_to)
     
     if status:
-        query = query.filter(Task.status == status)
+        if isinstance(status, list):
+            query = query.filter(Task.status.in_(status))
+        else:
+            query = query.filter(Task.status == status)
     
     if priority:
         query = query.filter(Task.priority == priority)
