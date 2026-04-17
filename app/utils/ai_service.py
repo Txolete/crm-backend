@@ -96,7 +96,8 @@ class AIProvider(ABC):
         self,
         context: str,
         historical_context: Optional[str] = None,
-        thread_ids: Optional[dict] = None
+        thread_ids: Optional[dict] = None,
+        prompts: Optional[dict] = None,
     ) -> dict:
         """
         Sprint 5A — Ejecuta los tres agentes especializados.
@@ -261,18 +262,22 @@ Responde siempre en español. Sé directo y accionable."""
         context: str,
         historical_context: Optional[str] = None,
         thread_ids: Optional[dict] = None,   # ahora contiene response_ids, nombre legacy
+        prompts: Optional[dict] = None,
     ) -> dict:
         """
         Ejecuta los tres agentes especializados usando la Responses API.
         thread_ids es el JSON guardado en chatgpt_thread_id — ahora almacena
         response_ids (formato resp_...) en lugar de thread_ids de Assistants.
+        Si se pasan prompts (dict con keys 'client', 'sales', 'memory'), se usan
+        en lugar de los system prompts hardcoded.
         """
         response_ids = thread_ids or {}
+        effective_prompts = prompts or {}
 
         agents = [
-            ("client", SYSTEM_PROMPT_CLIENT),
-            ("sales",  SYSTEM_PROMPT_SALES),
-            ("memory", SYSTEM_PROMPT_MEMORY),
+            ("client", effective_prompts.get("client") or SYSTEM_PROMPT_CLIENT),
+            ("sales",  effective_prompts.get("sales")  or SYSTEM_PROMPT_SALES),
+            ("memory", effective_prompts.get("memory") or SYSTEM_PROMPT_MEMORY),
         ]
 
         results = {}

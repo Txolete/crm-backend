@@ -164,3 +164,17 @@ class CfgStageProbability(Base):
     __table_args__ = (
         CheckConstraint("probability BETWEEN 0 AND 1", name='check_probability'),
     )
+
+
+class CfgAiPrompt(Base):
+    """
+    Tabla: cfg_ai_prompts
+    System prompts editables para los tres agentes IA.
+    """
+    __tablename__ = "cfg_ai_prompts"
+
+    agent = Column(String(50), primary_key=True)   # 'client' | 'sales' | 'memory'
+    name = Column(String(100), nullable=False)
+    system_prompt = Column(String, nullable=False)
+    updated_at = Column(UTCDateTime(), nullable=True)
+    updated_by_user_id = Column(String(100), nullable=True)

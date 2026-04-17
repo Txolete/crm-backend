@@ -378,10 +378,20 @@ async def analyze_multi_agent(
     except Exception:
         agent_threads = {}
 
+    # Cargar prompts desde BD (fallback a constantes hardcoded si no existen)
+    from app.models.config import CfgAiPrompt
+    from app.utils.ai_service import SYSTEM_PROMPT_CLIENT, SYSTEM_PROMPT_SALES, SYSTEM_PROMPT_MEMORY
+    prompt_rows = {r.agent: r.system_prompt for r in db.query(CfgAiPrompt).all()}
+    prompts = {
+        "client": prompt_rows.get("client") or SYSTEM_PROMPT_CLIENT,
+        "sales":  prompt_rows.get("sales")  or SYSTEM_PROMPT_SALES,
+        "memory": prompt_rows.get("memory") or SYSTEM_PROMPT_MEMORY,
+    }
+
     logger.info(f"[AI-Multi] Analyzing opportunity {opportunity_id} with 3 agents")
 
     try:
-        results = ai.analyze_multi_agent(context, historical_context=historical_context, thread_ids=agent_threads)
+        results = ai.analyze_multi_agent(context, historical_context=historical_context, thread_ids=agent_threads, prompts=prompts)
     except Exception as e:
         logger.error(f"[AI-Multi] Provider error: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"AI provider error: {str(e)}")

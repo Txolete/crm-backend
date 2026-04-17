@@ -10,6 +10,7 @@ from app.models.config import (
     CfgOpportunityType,
     CfgLostReason,
     CfgClientMentalState,
+    CfgAiPrompt,
 )
 from app.models.account import Account, Contact, ContactChannel
 from app.models.opportunity import Opportunity, Task, Activity
@@ -30,6 +31,7 @@ __all__ = [
     "CfgOpportunityType",
     "CfgLostReason",
     "CfgClientMentalState",
+    "CfgAiPrompt",
     # Accounts & Contacts
     "Account",
     "Contact",
