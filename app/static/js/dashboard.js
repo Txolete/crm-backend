@@ -2240,18 +2240,13 @@ window.saveOpportunityChanges = async function() {
             throw new Error(error.detail || 'Error al actualizar oportunidad');
         }
         
-        console.log('[EDIT] Opportunity updated successfully');
+        const updatedOpp = await response.json();
+        console.log('[EDIT] Opportunity updated successfully', updatedOpp.close_outcome);
 
-        // Detectar si el nuevo stage cierra la oportunidad (won/lost)
-        // Para ello comparamos con stagesMap si está disponible
-        let autoClosedOutcome = null;
-        if (typeof stagesMap !== 'undefined') {
-            const newStage = Object.values(stagesMap).find(s => s.id === stageId);
-            if (newStage && (newStage.key === 'won' || newStage.key === 'lost' ||
-                newStage.outcome === 'won' || newStage.outcome === 'lost')) {
-                autoClosedOutcome = newStage.key || newStage.outcome;
-            }
-        }
+        // Detectar si el stage elegido cerró la oportunidad (backend auto-cierra stages won/lost)
+        const prevOutcome = currentOpportunityData?.close_outcome || 'open';
+        const autoClosedOutcome = (updatedOpp.close_outcome === 'won' || updatedOpp.close_outcome === 'lost')
+            && prevOutcome === 'open' ? updatedOpp.close_outcome : null;
 
         // Reload opportunity data
         await loadOpportunityDetail(currentOpportunityId);
@@ -2844,15 +2839,34 @@ async function handleDrop(e) {
         
         const result = await response.json();
         console.log('[DRAG] Move successful:', result);
-        
+
+        // Si el drag cerró la oportunidad (stage won/lost), activar pipeline de retro
+        if (result.close_outcome === 'won' || result.close_outcome === 'lost') {
+            const oppId = opportunityId;
+            try {
+                const outRes = await fetch(`/opportunities/${oppId}/ai/ensure-outcome`, {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (outRes.ok) {
+                    const outData = await outRes.json();
+                    // Cargar datos mínimos en currentOpportunityData para _showRetroModal
+                    if (!currentOpportunityData || currentOpportunityData.id !== oppId) {
+                        currentOpportunityData = { id: oppId };
+                    }
+                    _showRetroModal({ outcome_id: outData.outcome_id });
+                }
+            } catch(e) { console.warn('[DRAG] ensure-outcome error:', e); }
+        }
+
         // Show success toast
         const accountName = draggedCard.dataset.accountName || 'Oportunidad';
         showToast(`${accountName} movida correctamente`, 'success');
-        
+
         // Reload kanban to reflect changes
         await loadKanbanData();
-        
-        // Reload dashboard KPIs (FIX: nombre correcto de la función)
+
+        // Reload dashboard KPIs
         if (typeof loadDashboard === 'function') {
             await loadDashboard();
         }
@@ -4045,16 +4059,35 @@ window.initTaskCalendar = async function() {
     // Cargar tareas abiertas del usuario actual
     let tasks = [];
     try {
-        const userId = document.getElementById('filter-task-user')?.value || '';
-        const typeId  = document.getElementById('filter-task-type')?.value  || '';
-        let url = '/tasks?status=open&status=in_progress&limit=200';
-        if (userId) url += `&assigned_to=${userId}`;
-        if (typeId)  url += `&task_template_id=${typeId}`;
-        const res = await fetch(url, { credentials: 'include' });
+        const params = new URLSearchParams();
+        params.append('status', 'open');
+        params.append('status', 'in_progress');
+        params.append('limit', '500');
+
+        // Filtro de usuario: selector admin o usuario actual
+        const userFilterEl = document.getElementById('filter-task-user');
+        if (userFilterEl && userFilterEl.value) {
+            params.append('assigned_to', userFilterEl.value);
+        } else {
+            // Obtener usuario actual y filtrar por él (igual que loadMyTasks)
+            try {
+                const me = await getCurrentUser();
+                if (me && me.id && me.role !== 'admin') params.append('assigned_to', me.id);
+            } catch(e2) { /* si falla, mostrar todas */ }
+        }
+
+        // Filtro de tipo de tarea
+        const typeId = document.getElementById('filter-task-type')?.value || '';
+        if (typeId) params.append('task_template_id', typeId);
+
+        const res = await fetch(`/tasks?${params.toString()}`, { credentials: 'include' });
         if (res.ok) {
             const data = await res.json();
             // /tasks devuelve {tasks:[...], total:N} — normalizamos
             tasks = Array.isArray(data) ? data : (data.tasks || []);
+            console.log(`[Calendar] ${tasks.length} tareas cargadas, ${tasks.filter(t=>t.due_date).length} con fecha`);
+        } else {
+            console.warn('[Calendar] /tasks respondió', res.status);
         }
     } catch(e) { console.warn('[Calendar] Error loading tasks:', e); }
 
