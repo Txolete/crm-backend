@@ -4140,11 +4140,11 @@ window.initTaskCalendar = async function() {
         events: events,
         eventClick: function(info) {
             // Abrir modal de la tarea al hacer click en el evento
-            const task = info.event.extendedProps;
-            if (typeof openTaskModal === 'function') {
-                openTaskModal(task.id);
+            const taskId = info.event.id;  // id del evento = task.id (string)
+            if (typeof editTask === 'function') {
+                editTask(taskId);
             } else if (typeof viewTaskDetails === 'function') {
-                viewTaskDetails(task);
+                viewTaskDetails(taskId);
             }
         },
         eventDidMount: function(info) {

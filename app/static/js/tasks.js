@@ -769,11 +769,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 5E — Filtro por tipo de tarea dispara recarga
+    // 5E — Filtro por tipo de tarea dispara recarga lista y calendario
     const typeFilter = document.getElementById('filter-task-type');
     if (typeFilter) {
         typeFilter.addEventListener('change', function() {
             loadMyTasks();
+            // Si el sub-tab Calendario está activo, recargarlo también
+            const calTab = document.getElementById('calendar-tasks-subtab');
+            if (calTab && calTab.classList.contains('active') && typeof initTaskCalendar === 'function') {
+                initTaskCalendar();
+            }
         });
     }
 });
