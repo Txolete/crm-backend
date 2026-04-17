@@ -85,6 +85,8 @@ class AIMultiAgentResponse(BaseModel):
     client: AIAgentResult
     sales: AIAgentResult
     memory: AIAgentResult
+    task_proposal: Optional[dict] = None
+    probability_suggestion: Optional[dict] = None
     message: str = "Análisis multi-agente completado"
 
 
@@ -396,10 +398,22 @@ async def analyze_multi_agent(
 
     logger.info(f"[AI-Multi] Opportunity {opportunity_id} analyzed by 3 agents.")
 
+    # Extraer propuesta de tarea y sugerencia de probabilidad del agente Comercial
+    from app.utils.ai_service import _parse_analysis_response
+    try:
+        _, next_action, task_proposal, probability_suggestion = _parse_analysis_response(
+            results["sales"]["analysis"]
+        )
+    except Exception:
+        task_proposal = {}
+        probability_suggestion = {}
+
     return AIMultiAgentResponse(
         client=AIAgentResult(**results["client"]),
         sales=AIAgentResult(**results["sales"]),
         memory=AIAgentResult(**results["memory"]),
+        task_proposal=task_proposal or {},
+        probability_suggestion=probability_suggestion or {},
     )
 
 
@@ -602,7 +616,8 @@ async def ensure_opportunity_outcome(
         OpportunityOutcome.opportunity_id == opportunity_id
     ).first()
     if existing:
-        return {"outcome_id": existing.id, "created": False}
+        has_retro = bool(existing.retro_what_worked or existing.retro_what_failed or existing.retro_notes)
+        return {"outcome_id": existing.id, "created": False, "has_retro": has_retro}
 
     # Crear snapshot retroactivo
     account = db.query(AccountModel).filter(AccountModel.id == opp.account_id).first()

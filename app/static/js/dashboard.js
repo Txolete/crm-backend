@@ -2241,20 +2241,45 @@ window.saveOpportunityChanges = async function() {
         }
         
         console.log('[EDIT] Opportunity updated successfully');
-        
+
+        // Detectar si el nuevo stage cierra la oportunidad (won/lost)
+        // Para ello comparamos con stagesMap si está disponible
+        let autoClosedOutcome = null;
+        if (typeof stagesMap !== 'undefined') {
+            const newStage = Object.values(stagesMap).find(s => s.id === stageId);
+            if (newStage && (newStage.key === 'won' || newStage.key === 'lost' ||
+                newStage.outcome === 'won' || newStage.outcome === 'lost')) {
+                autoClosedOutcome = newStage.key || newStage.outcome;
+            }
+        }
+
         // Reload opportunity data
         await loadOpportunityDetail(currentOpportunityId);
         await loadOpportunityActivities(currentOpportunityId);
-        
+
         // Switch back to view mode
         cancelEdit();
-        
+
         // Reload kanban to reflect changes
         if (typeof loadKanbanData === 'function') {
             await loadKanbanData();
         }
         await loadDashboard();
-        
+
+        // Si se cerró via selector de stage, activar el pipeline de retro
+        if (autoClosedOutcome) {
+            try {
+                const outRes = await fetch(`/opportunities/${currentOpportunityId}/ai/ensure-outcome`, {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (outRes.ok) {
+                    const outData = await outRes.json();
+                    _showRetroModal({ outcome_id: outData.outcome_id });
+                }
+            } catch(e) { console.warn('[EDIT] ensure-outcome error:', e); }
+        }
+
         // Show success message at the END (after everything is reloaded)
         showToast('✅ Oportunidad actualizada exitosamente', 'success');
         
@@ -3418,10 +3443,15 @@ window.analyzeWithAI = async function() {
             if (text) text.textContent = data[agent]?.analysis || '—';
         });
 
-        // El análisis del agente "Comercial" rellena también la síntesis ejecutiva
+        // El análisis del agente "Comercial" rellena la síntesis ejecutiva
         if (data.sales?.analysis) {
             document.getElementById('ai-executive-summary').value = data.sales.analysis;
             currentOpportunityData.executive_summary = data.sales.analysis;
+        }
+
+        // Propuesta de tarea y probabilidad (extraídas del agente Comercial en el backend)
+        if (data.task_proposal || data.probability_suggestion) {
+            _renderAIProposals(data.task_proposal || {}, data.probability_suggestion || {});
         }
 
         currentOpportunityData.chatgpt_thread_id = JSON.stringify({
@@ -3826,7 +3856,20 @@ async function _updateRetroButton() {
         // Guardar outcome_id para el modal
         document.getElementById('retro-outcome-id').value = data.outcome_id || '';
         document.getElementById('aiRetroModal').dataset.oppId = opp.id;
-        btn.style.display = 'inline-block';
+        if (data.has_retro) {
+            // Ya tiene retrospectiva guardada — mostrar badge informativo, no botón de acción
+            btn.textContent = '✅ Retrospectiva guardada';
+            btn.disabled = true;
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-outline-secondary');
+            btn.style.display = 'inline-block';
+        } else {
+            btn.textContent = '📝 Retrospectiva IA';
+            btn.disabled = false;
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-outline-primary');
+            btn.style.display = 'inline-block';
+        }
     } catch(e) {
         btn.style.display = 'none';
     }
@@ -3964,9 +4007,13 @@ window.saveRetroFeedback = async function() {
             body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error(`Error ${res.status}`);
-        showToast('Feedback guardado — gracias por mejorar el sistema', 'success');
+        showToast('✅ Retrospectiva guardada — el sistema aprenderá de esta oportunidad', 'success');
+        // Ocultar el botón de retro en la ficha (ya no tiene sentido volver a añadirla)
+        const retroBtn = document.getElementById('btn-add-retro');
+        if (retroBtn) retroBtn.style.display = 'none';
     } catch(e) {
         console.warn('[Retro] Error guardando feedback:', e);
+        showToast('Error al guardar la retrospectiva — inténtalo de nuevo', 'danger');
     } finally {
         bootstrap.Modal.getInstance(modal)?.hide();
     }
@@ -4004,7 +4051,11 @@ window.initTaskCalendar = async function() {
         if (userId) url += `&assigned_to=${userId}`;
         if (typeId)  url += `&task_template_id=${typeId}`;
         const res = await fetch(url, { credentials: 'include' });
-        if (res.ok) tasks = await res.json();
+        if (res.ok) {
+            const data = await res.json();
+            // /tasks devuelve {tasks:[...], total:N} — normalizamos
+            tasks = Array.isArray(data) ? data : (data.tasks || []);
+        }
     } catch(e) { console.warn('[Calendar] Error loading tasks:', e); }
 
     // Convertir tareas a eventos FullCalendar
@@ -4085,6 +4136,8 @@ window.exportTaskICS = function() {
     if (opp)  fullDesc += (fullDesc ? ' — ' : '') + opp;
     if (acct) fullDesc += (fullDesc ? ' — ' : '') + acct;
 
+    // Evento con hora (9:00-10:00) para que no aparezca como "todo el día"
+    // y la fecha de fin coincida con la de inicio
     const ics = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
@@ -4092,8 +4145,8 @@ window.exportTaskICS = function() {
         'BEGIN:VEVENT',
         `UID:${now}-crm@asicxxi`,
         `DTSTAMP:${now}`,
-        `DTSTART;VALUE=DATE:${dateStr}`,
-        `DTEND;VALUE=DATE:${dateStr}`,
+        `DTSTART;TZID=Europe/Madrid:${dateStr}T090000`,
+        `DTEND;TZID=Europe/Madrid:${dateStr}T100000`,
         `SUMMARY:${title}`,
         fullDesc ? `DESCRIPTION:${fullDesc.replace(/\n/g, '\\n')}` : '',
         'END:VEVENT',
@@ -4120,18 +4173,33 @@ window.exportTaskICS = function() {
  * Carga los tipos de tarea (cfg_task_templates) en el select de filtro.
  * Se llama al inicializar la pestaña de tareas.
  */
+let _taskTypeFilterLoaded = false;
+
 async function loadTaskTypeFilter() {
     const select = document.getElementById('filter-task-type');
-    if (!select || select.options.length > 1) return; // ya cargado
+    if (!select || _taskTypeFilterLoaded) return;
     try {
         const res = await fetch('/config/task-templates', { credentials: 'include' });
-        if (!res.ok) return;
-        const items = await res.json();
+        if (!res.ok) {
+            console.warn('[TaskFilter] /config/task-templates returned', res.status);
+            return;
+        }
+        const data = await res.json();
+        // La respuesta puede ser array directo o {task_templates:[...]}
+        const items = Array.isArray(data) ? data : (data.task_templates || []);
+        if (!items.length) {
+            console.warn('[TaskFilter] No task templates returned');
+            return;
+        }
         items.forEach(item => {
             const opt = document.createElement('option');
             opt.value = item.id;
             opt.textContent = item.name;
             select.appendChild(opt);
         });
-    } catch(e) { /* silencioso */ }
+        _taskTypeFilterLoaded = true;
+        console.log(`[TaskFilter] Loaded ${items.length} task types`);
+    } catch(e) {
+        console.warn('[TaskFilter] Error loading task types:', e);
+    }
 }
