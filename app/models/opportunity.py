@@ -35,7 +35,7 @@ class Opportunity(Base):
     lost_reason_id = Column(String, ForeignKey('cfg_lost_reasons.id'), nullable=True)
     lost_reason_detail = Column(String, nullable=True)
     hold_reason = Column(String, nullable=True)
-    chatgpt_thread_id = Column(String(200), nullable=True)
+    chatgpt_thread_id = Column(String(1000), nullable=True)
     chatgpt_url = Column(String(500), nullable=True)
     # Sprint 4E v2 — historial chat IA y notas de sesión externa
     ai_chat_history = Column(String, nullable=True)       # JSON array de Q&A
