@@ -212,30 +212,45 @@ Responde siempre en español. Sé directo y accionable."""
         temperature: float = 0.4,
     ) -> tuple[str, str]:
         """
-        Llamada a la Responses API de OpenAI.
+        Llamada a la Responses API de OpenAI (openai>=1.66.0).
+        Si la versión instalada no la soporta, cae a Chat Completions.
 
         Devuelve (texto_respuesta, response_id).
         El response_id se guarda en BD y se pasa como previous_response_id
         en la siguiente llamada para mantener contexto entre análisis.
-
-        Si previous_response_id no es válido (None, vacío, o formato antiguo
-        como "thread_..." o "chat_..."), empieza conversación nueva.
         """
-        kwargs = {
-            "model": self._model,
-            "instructions": system_prompt,   # equivalente a system message
-            "input": user_message,
-            "max_output_tokens": max_tokens,
-            "temperature": temperature,
-        }
+        # Responses API — disponible desde openai 1.66.0
+        if hasattr(self._client, "responses"):
+            kwargs = {
+                "model": self._model,
+                "instructions": system_prompt,
+                "input": user_message,
+                "max_output_tokens": max_tokens,
+                "temperature": temperature,
+            }
+            # Encadenar con respuesta anterior si el ID es válido (formato "resp_...")
+            if previous_response_id and previous_response_id.startswith("resp_"):
+                kwargs["previous_response_id"] = previous_response_id
 
-        # Encadenar con respuesta anterior si el ID es válido (formato "resp_...")
-        if previous_response_id and previous_response_id.startswith("resp_"):
-            kwargs["previous_response_id"] = previous_response_id
+            response = self._client.responses.create(**kwargs)
+            text = response.output_text.strip()
+            return text, response.id
 
-        response = self._client.responses.create(**kwargs)
-        text = response.output_text.strip()
-        return text, response.id
+        # Fallback: Chat Completions (openai <1.66.0)
+        logger.warning("[AI] Responses API no disponible — usando Chat Completions (actualiza openai>=1.66.0)")
+        import hashlib
+        response = self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_message},
+            ],
+            temperature=temperature,
+            max_completion_tokens=max_tokens,
+        )
+        text = response.choices[0].message.content.strip()
+        synthetic_id = f"chat_{hashlib.md5(user_message[:80].encode()).hexdigest()[:16]}"
+        return text, synthetic_id
 
     # -----------------------------------------------------------------------
     # analyze_multi_agent — tres agentes especializados (Sprint 5A)
