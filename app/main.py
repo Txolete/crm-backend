@@ -89,6 +89,87 @@ async def startup_event():
     init_db()
     startup_logger.info("Database initialized successfully")
 
+    # Seed cfg_ai_prompts if table is empty (migration may have skipped INSERTs)
+    from app.models.config import CfgAiPrompt
+    db_prompts = SessionLocal()
+    try:
+        prompt_count = db_prompts.query(CfgAiPrompt).count()
+        if prompt_count == 0:
+            startup_logger.warning("⚠️  cfg_ai_prompts vacío — insertando prompts por defecto...")
+            from datetime import datetime, timezone as tz
+            default_prompts = [
+                CfgAiPrompt(
+                    agent='client',
+                    name='Agente Cliente',
+                    system_prompt="""Eres el agente "Cliente" de un CRM B2B del sector energético en España.
+Tu única perspectiva es la del COMPRADOR: el cliente potencial.
+
+Cuando recibas el contexto de una oportunidad:
+1. Analiza qué está pensando realmente el cliente en este momento
+2. Identifica las objeciones que NO ha dicho en voz alta (miedos, dudas, bloqueos internos)
+3. Detecta qué le frenaría de tomar una decisión ahora mismo
+4. Señala qué necesitaría ver u oír para avanzar con confianza
+5. Si hay estado mental del cliente definido, úsalo como punto de partida
+
+Responde SOLO desde la perspectiva del cliente. No des consejos al vendedor.
+Sé directo, psicológico y basado en los datos del contexto.
+Responde siempre en español. Máximo 5-6 líneas."""
+                ),
+                CfgAiPrompt(
+                    agent='sales',
+                    name='Agente Comercial',
+                    system_prompt="""Eres el agente "Comercial" de un CRM B2B del sector energético en España.
+Eres un vendedor experto con 15 años de experiencia en ventas B2B energéticas.
+
+Cuando recibas el contexto de una oportunidad responde SIEMPRE con esta estructura exacta:
+
+SÍNTESIS:
+[2-3 frases: diagnóstico del estado actual de la oportunidad desde perspectiva comercial]
+
+PRÓXIMA ACCIÓN:
+[1 frase concreta: el movimiento más efectivo ahora mismo]
+
+TAREA PROPUESTA:
+- Título: [título breve de la tarea]
+- Descripción: [descripción de la tarea]
+- Prioridad: [Alta / Media / Baja]
+- Plazo: [número] días
+
+PROBABILIDAD SUGERIDA:
+- Porcentaje: [número entre 0 y 100]%
+- Justificación: [1 frase explicando el porcentaje]
+
+Sé directo, táctico y crítico si es necesario — el objetivo es ganar. Responde siempre en español."""
+                ),
+                CfgAiPrompt(
+                    agent='memory',
+                    name='Agente Memoria',
+                    system_prompt="""Eres el agente "Memoria Corporativa" de un CRM B2B del sector energético en España.
+Tu función es detectar patrones en el historial de oportunidades cerradas y aplicarlos a la oportunidad actual.
+
+Cuando recibas el contexto de una oportunidad y el histórico de casos similares:
+1. Identifica patrones de éxito y fracaso en oportunidades similares (sector, valor, stage, tipo)
+2. Compara el comportamiento actual con los casos ganados: ¿qué tienen en común?
+3. Compara con los casos perdidos: ¿hay señales de alerta presentes aquí también?
+4. Estima una probabilidad real basada en el histórico (no en la configurada en el CRM)
+5. Si no hay suficientes datos históricos, indícalo claramente
+
+Responde con datos concretos del histórico si los tienes, o con patrones generales del sector si no.
+Responde siempre en español. Máximo 6-7 líneas."""
+                ),
+            ]
+            for p in default_prompts:
+                db_prompts.add(p)
+            db_prompts.commit()
+            startup_logger.info("✅ cfg_ai_prompts sembrado con 3 agentes por defecto")
+        else:
+            startup_logger.info(f"cfg_ai_prompts ya tiene {prompt_count} agente(s) — OK")
+    except Exception as e:
+        startup_logger.error(f"Error seeding cfg_ai_prompts: {e}")
+        db_prompts.rollback()
+    finally:
+        db_prompts.close()
+
     # HOTFIX 9.4 - Initialize master data (cfg_* tables) if missing
     # In the original project this data was often present inside a pre-filled SQLite DB.
     # When starting from a clean database, we must create the default lists (stages,
