@@ -35,7 +35,7 @@ class Opportunity(Base):
     lost_reason_id = Column(String, ForeignKey('cfg_lost_reasons.id'), nullable=True)
     lost_reason_detail = Column(String, nullable=True)
     hold_reason = Column(String, nullable=True)
-    chatgpt_thread_id = Column(String(200), nullable=True)
+    chatgpt_thread_id = Column(String(1000), nullable=True)
     chatgpt_url = Column(String(500), nullable=True)
     # Sprint 4E v2 — historial chat IA y notas de sesión externa
     ai_chat_history = Column(String, nullable=True)       # JSON array de Q&A
@@ -99,3 +99,48 @@ class Activity(Base):
     summary = Column(String, nullable=False)
     created_by_user_id = Column(String, ForeignKey('users.id'), nullable=True)
     created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class OpportunityOutcome(Base):
+    """
+    Tabla: opportunity_outcomes
+    Sprint 5B — Snapshot de una oportunidad al cierre (ganada o perdida).
+    Base de datos de aprendizaje para el agente de Memoria Corporativa.
+    """
+    __tablename__ = "opportunity_outcomes"
+
+    id = Column(String, primary_key=True)
+    opportunity_id = Column(String, ForeignKey('opportunities.id'), nullable=False)
+
+    # Resultado del cierre
+    outcome = Column(String, nullable=False)            # 'won' | 'lost'
+    close_date = Column(UTCDateTime(), nullable=True)
+    final_value_eur = Column(Float, nullable=True)
+    lost_reason_id = Column(String, ForeignKey('cfg_lost_reasons.id'), nullable=True)
+    lost_reason_detail = Column(String, nullable=True)
+
+    # Snapshot de contexto al cierre
+    account_name = Column(String, nullable=True)
+    opportunity_name = Column(String, nullable=True)
+    opportunity_type = Column(String, nullable=True)    # nombre del tipo
+    stage_at_close = Column(String, nullable=True)      # nombre del stage final
+    days_in_pipeline = Column(Integer, nullable=True)   # días desde creación hasta cierre
+    activity_count = Column(Integer, nullable=True)
+    task_count = Column(Integer, nullable=True)
+    final_probability = Column(Float, nullable=True)    # 0-1
+    client_mental_state = Column(String, nullable=True)
+    strategic_objective = Column(String, nullable=True)
+    executive_summary_at_close = Column(String, nullable=True)
+
+    # Sprint 5D — Feedback loop (retrospectiva del comercial)
+    retro_what_worked = Column(String, nullable=True)   # qué funcionó
+    retro_what_failed = Column(String, nullable=True)   # qué no funcionó
+    retro_ai_useful = Column(String, nullable=True)     # 'yes' | 'no' | 'partial'
+    retro_notes = Column(String, nullable=True)         # texto libre
+
+    owner_user_id = Column(String, ForeignKey('users.id'), nullable=True)
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        CheckConstraint("outcome IN ('won', 'lost')", name='check_outcome_result'),
+    )

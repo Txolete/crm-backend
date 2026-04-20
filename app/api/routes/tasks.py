@@ -3,6 +3,7 @@ Tasks API endpoints
 CRUD completo para gestión de tareas
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 from app.database import get_db
@@ -28,11 +29,13 @@ router = APIRouter(prefix="/tasks", tags=["Tasks"])
 @router.get("", response_model=TaskListResponse)
 def list_tasks(
     assigned_to: Optional[str] = Query(None, description="Filter by assigned user ID"),
-    status: Optional[str] = Query(None, description="Filter by status"),
+    status: Optional[List[str]] = Query(None, description="Filter by status (repeatable)"),
     priority: Optional[str] = Query(None, description="Filter by priority"),
     opportunity_id: Optional[str] = Query(None, description="Filter by opportunity"),
     account_id: Optional[str] = Query(None, description="Filter by account"),
     overdue: Optional[bool] = Query(None, description="Show only overdue tasks"),
+    task_template_id: Optional[str] = Query(None, description="Filter by task template (type)"),
+    limit: Optional[int] = Query(None, description="Max results"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie)
 ):
@@ -55,7 +58,10 @@ def list_tasks(
         query = query.filter(Task.assigned_to_user_id == assigned_to)
     
     if status:
-        query = query.filter(Task.status == status)
+        if isinstance(status, list):
+            query = query.filter(Task.status.in_(status))
+        else:
+            query = query.filter(Task.status == status)
     
     if priority:
         query = query.filter(Task.priority == priority)
@@ -75,12 +81,17 @@ def list_tasks(
                 Task.status.in_(['open', 'in_progress'])
             )
         )
-    
+
+    # 5E — Filtro por tipo de tarea
+    if task_template_id:
+        query = query.filter(Task.task_template_id == task_template_id)
+
     # Order by due_date (nulls last), then created_at
-    tasks = query.order_by(
+    q = query.order_by(
         Task.due_date.asc().nullslast(),
         Task.created_at.desc()
-    ).all()
+    )
+    tasks = q.limit(limit).all() if limit else q.all()
     
     # Build response with relations
     tasks_with_relations = []

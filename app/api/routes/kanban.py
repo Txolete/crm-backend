@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import and_
 from typing import Optional
-from datetime import date
+from datetime import date, datetime, timezone
 from app.database import get_db
 from app.models.user import User
 from app.models.account import Account
@@ -13,7 +13,7 @@ from app.models.config import (
     CfgStage, CfgStageProbability, CfgLeadSource, 
     CfgRegion, CfgCustomerType
 )
-from app.models.opportunity import Opportunity, Activity
+from app.models.opportunity import Opportunity, Activity, OpportunityOutcome
 from app.schemas.kanban import (
     KanbanResponse, KanbanColumn, KanbanStage, KanbanOpportunityItem,
     KanbanNextTask, KanbanBadges, KanbanOwner,
@@ -516,11 +516,14 @@ def close_opportunity(
         after_data=after_data
     )
     
+    # Sprint 5B — Auto-save snapshot en opportunity_outcomes (base de aprendizaje IA)
+    _outcome_id = _save_opportunity_outcome(opportunity, request, current_user.id, db)
+
     # Single commit
     db.commit()
     db.refresh(opportunity)
     db.refresh(activity)
-    
+
     logger.info(f"Opportunity {opportunity.id} closed as {request.close_outcome} by {current_user.email}")
     
     return CloseOpportunityResponse(
@@ -528,5 +531,111 @@ def close_opportunity(
         message=f"Opportunity closed as {request.close_outcome.upper()}",
         opportunity_id=opportunity.id,
         close_outcome=request.close_outcome,
-        activity_id=activity.id
+        activity_id=activity.id,
+        outcome_id=_outcome_id
     )
+
+
+# ============================================================================
+# HELPER — Sprint 5B: snapshot de oportunidad al cierre
+# ============================================================================
+
+def _save_opportunity_outcome(opportunity, request, user_id: str, db: Session) -> Optional[str]:
+    """
+    Guarda un snapshot de la oportunidad en opportunity_outcomes.
+    Se llama justo antes del commit del cierre.
+    No lanza excepciones — un fallo aquí no debe bloquear el cierre.
+    Devuelve el ID del outcome creado, o None si falla.
+    """
+    try:
+        from app.models.config import CfgStage, CfgOpportunityType, CfgClientMentalState
+
+        # Días en pipeline
+        days_in_pipeline = None
+        if opportunity.created_at and request.close_date:
+            close_dt = request.close_date
+            if hasattr(close_dt, 'date'):
+                close_dt = close_dt.date()
+            created_dt = opportunity.created_at
+            if hasattr(created_dt, 'date'):
+                created_dt = created_dt.date()
+            try:
+                days_in_pipeline = (close_dt - created_dt).days
+            except Exception:
+                pass
+
+        # Nombre del stage al cierre
+        stage_at_close = request.close_outcome  # fallback
+        target_stage = db.query(CfgStage).filter(CfgStage.key == request.close_outcome).first()
+        if target_stage:
+            stage_at_close = target_stage.name
+
+        # Tipo de oportunidad (nombre)
+        opp_type_name = None
+        if opportunity.opportunity_type_id:
+            ot = db.query(CfgOpportunityType).filter(
+                CfgOpportunityType.id == opportunity.opportunity_type_id
+            ).first()
+            opp_type_name = ot.name if ot else None
+
+        # Estado mental del cliente (nombre)
+        mental_state_name = None
+        if opportunity.client_mental_state_id:
+            ms = db.query(CfgClientMentalState).filter(
+                CfgClientMentalState.id == opportunity.client_mental_state_id
+            ).first()
+            mental_state_name = ms.name if ms else None
+
+        # Contadores de actividades y tareas
+        from app.models.opportunity import Activity as ActModel, Task as TaskModel
+        activity_count = db.query(ActModel).filter(
+            ActModel.opportunity_id == opportunity.id
+        ).count()
+        task_count = db.query(TaskModel).filter(
+            TaskModel.opportunity_id == opportunity.id
+        ).count()
+
+        # Probabilidad final
+        from app.models.config import CfgStageProbability
+        final_prob = opportunity.probability_override
+        if final_prob is None:
+            stage_prob = db.query(CfgStageProbability).filter(
+                CfgStageProbability.stage_id == opportunity.stage_id
+            ).first()
+            final_prob = stage_prob.probability if stage_prob else None
+
+        # Nombre de la cuenta
+        account_name = None
+        if opportunity.account_id:
+            from app.models.account import Account as AccountModel
+            acc = db.query(AccountModel).filter(AccountModel.id == opportunity.account_id).first()
+            account_name = acc.name if acc else None
+
+        outcome = OpportunityOutcome(
+            id=generate_id(),
+            opportunity_id=opportunity.id,
+            outcome=request.close_outcome,
+            close_date=request.close_date,
+            final_value_eur=opportunity.won_value_eur if request.close_outcome == 'won' else opportunity.expected_value_eur,
+            lost_reason_id=request.lost_reason_id if request.close_outcome == 'lost' else None,
+            lost_reason_detail=request.lost_reason_detail if request.close_outcome == 'lost' else None,
+            account_name=account_name,
+            opportunity_name=opportunity.name,
+            opportunity_type=opp_type_name,
+            stage_at_close=stage_at_close,
+            days_in_pipeline=days_in_pipeline,
+            activity_count=activity_count,
+            task_count=task_count,
+            final_probability=final_prob,
+            client_mental_state=mental_state_name,
+            strategic_objective=opportunity.strategic_objective,
+            executive_summary_at_close=opportunity.executive_summary,
+            owner_user_id=user_id,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(outcome)
+        logger.info(f"[Sprint5B] OpportunityOutcome saved for {opportunity.id} ({request.close_outcome})")
+        return outcome.id
+    except Exception as e:
+        logger.warning(f"[Sprint5B] Could not save opportunity_outcomes for {opportunity.id}: {e}")
+        return None

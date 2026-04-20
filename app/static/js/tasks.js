@@ -129,9 +129,15 @@ async function loadMyTasks() {
         if (overdueFilterEl && overdueFilterEl.checked) {
             params.append('overdue', 'true');
         }
-        
+
+        // 5E — Filtro por tipo de tarea
+        const typeFilterEl = document.getElementById('filter-task-type');
+        if (typeFilterEl && typeFilterEl.value) {
+            params.append('task_template_id', typeFilterEl.value);
+        }
+
         // Hacer request
-        const response = await fetch(`/tasks?${params.toString()}`);
+        const response = await fetch(`/tasks?${params.toString()}`, { credentials: 'include' });
         
         if (!response.ok) {
             throw new Error('Error al cargar tareas');
@@ -754,12 +760,25 @@ document.addEventListener('DOMContentLoaded', function() {
             loadMyTasks();
         });
     }
-    
+
     // Cargar archivo cuando se activa el sub-tab de archivo
     const archiveSubTab = document.getElementById('archive-tasks-subtab');
     if (archiveSubTab) {
         archiveSubTab.addEventListener('shown.bs.tab', function() {
             loadArchivedTasks();
+        });
+    }
+
+    // 5E — Filtro por tipo de tarea dispara recarga lista y calendario
+    const typeFilter = document.getElementById('filter-task-type');
+    if (typeFilter) {
+        typeFilter.addEventListener('change', function() {
+            loadMyTasks();
+            // Si el sub-tab Calendario está activo, recargarlo también
+            const calTab = document.getElementById('calendar-tasks-subtab');
+            if (calTab && calTab.classList.contains('active') && typeof initTaskCalendar === 'function') {
+                initTaskCalendar();
+            }
         });
     }
 });

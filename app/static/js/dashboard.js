@@ -513,6 +513,7 @@ function bindEvents() {
         tasksTab.addEventListener('shown.bs.tab', async function () {
             if (!tasksFilterInitialized) {
                 await initTasksUserFilter();
+                await loadTaskTypeFilter();
                 tasksFilterInitialized = true;
             }
             loadMyTasks();
@@ -1618,6 +1619,9 @@ window.showOpportunityDetail = async function(opportunityId) {
         document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
         document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
 
+        // Sprint 5D: botón retrospectiva para oportunidades cerradas
+        _updateRetroButton();
+
     } catch (error) {
         console.error('[DETAIL] Error loading opportunity:', error);
         document.getElementById('oppDetailLoading').innerHTML = `
@@ -2093,9 +2097,24 @@ window.switchToEditMode = async function() {
             const option = document.createElement('option');
             option.value = stage.id;
             option.textContent = stage.name;
+            option.dataset.outcome = stage.outcome || 'open';
             option.selected = stage.id === currentOpportunityData.stage_id;
             stageSelect.appendChild(option);
         });
+
+        // Interceptar selección de stage won/lost → abrir flujo de cierre con confirmación
+        stageSelect.onchange = function() {
+            const selected = this.options[this.selectedIndex];
+            const outcome = selected?.dataset?.outcome || 'open';
+            if (outcome === 'won' || outcome === 'lost') {
+                // Revertir el select al stage actual (el cierre se gestiona via modal)
+                this.value = currentOpportunityData.stage_id;
+                // Cancelar edición y abrir modal de confirmación de cierre
+                cancelEdit();
+                if (outcome === 'won') openWonConfirm();
+                else openLostConfirm();
+            }
+        };
         
         // Populate owner select
         const ownerSelect = document.getElementById('edit-owner');
@@ -2169,6 +2188,7 @@ window.cancelEdit = function() {
         (currentOpportunityData.close_outcome === 'open' || !currentOpportunityData.close_outcome);
     document.getElementById('btn-mark-won').style.display = isOpen ? 'inline-block' : 'none';
     document.getElementById('btn-mark-lost').style.display = isOpen ? 'inline-block' : 'none';
+    _updateRetroButton();
 }
 
 /**
@@ -2235,21 +2255,41 @@ window.saveOpportunityChanges = async function() {
             throw new Error(error.detail || 'Error al actualizar oportunidad');
         }
         
-        console.log('[EDIT] Opportunity updated successfully');
-        
+        const updatedOpp = await response.json();
+        console.log('[EDIT] Opportunity updated successfully', updatedOpp.close_outcome);
+
+        // Detectar si el stage elegido cerró la oportunidad (backend auto-cierra stages won/lost)
+        const prevOutcome = currentOpportunityData?.close_outcome || 'open';
+        const autoClosedOutcome = (updatedOpp.close_outcome === 'won' || updatedOpp.close_outcome === 'lost')
+            && prevOutcome === 'open' ? updatedOpp.close_outcome : null;
+
         // Reload opportunity data
         await loadOpportunityDetail(currentOpportunityId);
         await loadOpportunityActivities(currentOpportunityId);
-        
+
         // Switch back to view mode
         cancelEdit();
-        
+
         // Reload kanban to reflect changes
         if (typeof loadKanbanData === 'function') {
             await loadKanbanData();
         }
         await loadDashboard();
-        
+
+        // Si se cerró via selector de stage, activar el pipeline de retro
+        if (autoClosedOutcome) {
+            try {
+                const outRes = await fetch(`/opportunities/${currentOpportunityId}/ai/ensure-outcome`, {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (outRes.ok) {
+                    const outData = await outRes.json();
+                    _showRetroModal({ outcome_id: outData.outcome_id });
+                }
+            } catch(e) { console.warn('[EDIT] ensure-outcome error:', e); }
+        }
+
         // Show success message at the END (after everything is reloaded)
         showToast('✅ Oportunidad actualizada exitosamente', 'success');
         
@@ -2590,10 +2630,13 @@ function createKanbanColumn(column, stagesMap = {}) {
     const col = document.createElement('div');
     col.className = 'kanban-column';
     col.dataset.stageId = column.stage_id || 'unknown';
-    
+
     // Get stage info from stagesMap
     const stage = stagesMap[column.stage_id];
-    
+
+    // Guardar outcome en dataset para que handleDrop pueda detectar won/lost
+    if (stage) col.dataset.stageOutcome = stage.outcome || 'open';
+
     // Add 'closed' class for won/lost columns
     if (stage && (stage.outcome === 'won' || stage.outcome === 'lost')) {
         col.classList.add('closed');
@@ -2627,6 +2670,7 @@ function createKanbanColumn(column, stagesMap = {}) {
     const body = document.createElement('div');
     body.className = 'kanban-column-body';
     body.dataset.stageId = column.stage_id;
+    if (stage) body.dataset.stageOutcome = stage.outcome || 'open';
     
     // Make column body a drop target
     body.addEventListener('dragover', handleDragOver);
@@ -2779,59 +2823,70 @@ async function handleDrop(e) {
     
     const opportunityId = draggedCard.dataset.opportunityId;
     const newStageId = this.dataset.stageId;
+    const newStageOutcome = this.dataset.stageOutcome || 'open';
     const currentColumn = draggedCard.closest('.kanban-column-body');
     const currentStageId = currentColumn.dataset.stageId;
-    
+
     // Check if dropped in same column
     if (newStageId === currentStageId) {
         console.log('[DRAG] Dropped in same column, no action needed');
         return false;
     }
-    
-    console.log('[DRAG] Drop opportunity', opportunityId, 'to stage', newStageId);
-    
-    // Show loading indicator on card
+
+    console.log('[DRAG] Drop opportunity', opportunityId, 'to stage', newStageId, 'outcome:', newStageOutcome);
+
+    // Si se arrastra a columna won/lost → abrir el flujo de cierre con confirmación
+    // (igual que el botón "Ganada"/"Perdida" — incluye fecha, valor y retro)
+    if (newStageOutcome === 'won' || newStageOutcome === 'lost') {
+        try {
+            // Cargar datos de la oportunidad para el modal de confirmación
+            const res = await fetch(`/opportunities/${opportunityId}`, { credentials: 'include' });
+            if (res.ok) {
+                const oppData = await res.json();
+                currentOpportunityData = oppData;
+                currentOpportunityId = opportunityId;
+                if (newStageOutcome === 'won') {
+                    openWonConfirm();
+                } else {
+                    openLostConfirm();
+                }
+            }
+        } catch(e) {
+            console.error('[DRAG] Error loading opp for close confirm:', e);
+            showToast('Error al cargar la oportunidad', 'danger');
+        }
+        return false;
+    }
+
+    // Movimiento a stage abierto — PUT directo
     draggedCard.style.opacity = '0.5';
     draggedCard.style.pointerEvents = 'none';
-    
+
     try {
-        // Update opportunity stage via API
         const response = await fetch(`/opportunities/${opportunityId}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({
-                stage_id: newStageId
-            })
+            body: JSON.stringify({ stage_id: newStageId })
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Error al mover oportunidad');
         }
-        
+
         const result = await response.json();
         console.log('[DRAG] Move successful:', result);
-        
-        // Show success toast
+
         const accountName = draggedCard.dataset.accountName || 'Oportunidad';
         showToast(`${accountName} movida correctamente`, 'success');
-        
-        // Reload kanban to reflect changes
+
         await loadKanbanData();
-        
-        // Reload dashboard KPIs (FIX: nombre correcto de la función)
-        if (typeof loadDashboard === 'function') {
-            await loadDashboard();
-        }
-        
+        if (typeof loadDashboard === 'function') await loadDashboard();
+
     } catch (error) {
         console.error('[DRAG] Error moving opportunity:', error);
         showToast('Error al mover oportunidad: ' + error.message, 'danger');
-        
-        // Restore card state
         draggedCard.style.opacity = '1';
         draggedCard.style.pointerEvents = 'auto';
     }
@@ -3221,8 +3276,10 @@ window.confirmCloseWon = async function() {
             throw new Error(err.detail || `Error ${response.status}`);
         }
 
+        const closeData = await response.json();
         bootstrap.Modal.getInstance(document.getElementById('wonConfirmModal'))?.hide();
         showToast('Oportunidad marcada como Ganada', 'success');
+        _showRetroModal(closeData);
         await loadKanbanData();
         if (typeof loadDashboard === 'function') await loadDashboard();
 
@@ -3264,20 +3321,83 @@ async function loadAISection(opp) {
         document.getElementById('ai-history-section').style.display = 'none';
     }
 
-    // Reset chat y propuestas
+    // Reset chat, propuestas y paneles de agentes
     document.getElementById('ai-chat-response').style.display = 'none';
     document.getElementById('ai-chat-input').value = '';
     document.getElementById('ai-history-collapse').style.display = 'none';
     document.getElementById('ai-proposals-section').style.display = 'none';
+    document.getElementById('ai-agents-section').style.display = 'none';
     _aiTaskProposal = null;
     _aiProbabilitySuggestion = null;
 
-    // Cargar selectores desde API
+    // Reset paneles de los tres agentes
+    ['client', 'sales', 'memory'].forEach(agent => {
+        const panel = document.getElementById(`ai-agent-${agent}-panel`);
+        const text = document.getElementById(`ai-agent-${agent}-text`);
+        const icon = document.getElementById(`ai-agent-${agent}-icon`);
+        if (panel) panel.style.display = 'none';
+        if (text) text.textContent = '';
+        if (icon) { icon.classList.remove('bi-chevron-up'); icon.classList.add('bi-chevron-down'); }
+    });
+
+    // Cargar selectores + último análisis de agentes desde API en paralelo
     await Promise.all([
         _loadAISelect('/config/client-mental-states', 'ai-mental-state', opp.client_mental_state_id),
-        _loadAISelect('/config/opportunity-types', 'ai-opp-type', opp.opportunity_type_id)
+        _loadAISelect('/config/opportunity-types', 'ai-opp-type', opp.opportunity_type_id),
+        _loadLastAgentsAnalysis(opp.id)
     ]);
 }
+
+/**
+ * Carga el último análisis multi-agente guardado y rellena los paneles.
+ */
+async function _loadLastAgentsAnalysis(oppId) {
+    try {
+        const res = await fetch(`/opportunities/${oppId}/ai/agents-analysis`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || (!data.client && !data.sales && !data.memory)) return;
+
+        document.getElementById('ai-agents-section').style.display = 'block';
+        ['client', 'sales', 'memory'].forEach(agent => {
+            const text = document.getElementById(`ai-agent-${agent}-text`);
+            if (text && data[agent]) text.textContent = data[agent];
+        });
+    } catch(e) { /* silencioso */ }
+}
+
+/**
+ * Sprint 5A — Persiste los tres análisis en ai_chat_history como entrada especial.
+ * Formato: {"role":"agents","content":{client,sales,memory},"created_at":"..."}
+ */
+async function _saveAgentsAnalysis(oppId, analyses) {
+    try {
+        const res = await fetch(`/opportunities/${oppId}/ai/agents-analysis`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(analyses)
+        });
+        if (!res.ok) console.warn('[AI] agents-analysis save error:', res.status);
+    } catch(e) {
+        console.warn('[AI] agents-analysis save error:', e);
+    }
+}
+
+/**
+ * Sprint 5A — Toggle de panel de un agente (abrir/cerrar).
+ */
+window.toggleAgentPanel = function(agent) {
+    const panel = document.getElementById(`ai-agent-${agent}-panel`);
+    const icon  = document.getElementById(`ai-agent-${agent}-icon`);
+    if (!panel) return;
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    if (icon) {
+        icon.classList.toggle('bi-chevron-down', isOpen);
+        icon.classList.toggle('bi-chevron-up', !isOpen);
+    }
+};
 
 async function _loadAISelect(url, selectId, selectedValue) {
     const select = document.getElementById(selectId);
@@ -3298,8 +3418,9 @@ async function _loadAISelect(url, selectId, selectedValue) {
 }
 
 /**
- * Llama a POST /opportunities/{id}/ai/analyze.
- * Guarda síntesis + próxima acción propuesta por la IA.
+ * Sprint 5A — Llama a POST /opportunities/{id}/ai/analyze-multi.
+ * Ejecuta los tres agentes en paralelo y rellena los tres paneles.
+ * También mantiene el flujo clásico de síntesis ejecutiva.
  */
 window.analyzeWithAI = async function() {
     const opp = currentOpportunityData;
@@ -3309,11 +3430,24 @@ window.analyzeWithAI = async function() {
     const spinner = document.getElementById('ai-analyzing-spinner');
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analizando...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Consultando agentes...';
     spinner.style.display = 'block';
 
+    // Mostrar paneles con spinners internos y abrirlos
+    document.getElementById('ai-agents-section').style.display = 'block';
+    ['client', 'sales', 'memory'].forEach(agent => {
+        const panel = document.getElementById(`ai-agent-${agent}-panel`);
+        const spin  = document.getElementById(`ai-agent-${agent}-spinner`);
+        const text  = document.getElementById(`ai-agent-${agent}-text`);
+        const icon  = document.getElementById(`ai-agent-${agent}-icon`);
+        if (panel) panel.style.display = 'block';
+        if (spin)  spin.style.display = 'block';
+        if (text)  text.textContent = '';
+        if (icon)  { icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up'); }
+    });
+
     try {
-        const res = await fetch(`/opportunities/${opp.id}/ai/analyze`, {
+        const res = await fetch(`/opportunities/${opp.id}/ai/analyze-multi`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' }
@@ -3326,26 +3460,55 @@ window.analyzeWithAI = async function() {
 
         const data = await res.json();
 
-        // Síntesis y próxima acción
-        document.getElementById('ai-executive-summary').value = data.executive_summary;
-        if (data.next_strategic_action) {
-            document.getElementById('ai-next-action').value = data.next_strategic_action;
+        // Rellenar los tres paneles
+        ['client', 'sales', 'memory'].forEach(agent => {
+            const spin = document.getElementById(`ai-agent-${agent}-spinner`);
+            const text = document.getElementById(`ai-agent-${agent}-text`);
+            if (spin) spin.style.display = 'none';
+            if (text) text.textContent = data[agent]?.analysis || '—';
+        });
+
+        // El análisis del agente "Comercial" rellena la síntesis ejecutiva
+        if (data.sales?.analysis) {
+            document.getElementById('ai-executive-summary').value = data.sales.analysis;
+            currentOpportunityData.executive_summary = data.sales.analysis;
         }
 
-        currentOpportunityData.executive_summary = data.executive_summary;
-        currentOpportunityData.next_strategic_action = data.next_strategic_action;
-        currentOpportunityData.chatgpt_thread_id = data.thread_id;
+        // Propuesta de tarea y probabilidad (extraídas del agente Comercial en el backend)
+        if (data.task_proposal || data.probability_suggestion) {
+            _renderAIProposals(data.task_proposal || {}, data.probability_suggestion || {});
+        }
 
-        // Mostrar propuestas IA (tarea + probabilidad)
-        _renderAIProposals(data.task_proposal, data.probability_suggestion);
+        currentOpportunityData.chatgpt_thread_id = JSON.stringify({
+            client: data.client?.thread_id || '',
+            sales:  data.sales?.thread_id  || '',
+            memory: data.memory?.thread_id || ''
+        });
 
         document.getElementById('ai-thread-badge').style.display = 'inline-block';
         document.getElementById('ai-history-section').style.display = 'block';
 
-        showToast('✨ Análisis completado — síntesis, próxima acción y propuestas actualizadas', 'success');
+        // Persistir los tres análisis en BD (ai_chat_history como entrada especial)
+        await _saveAgentsAnalysis(opp.id, {
+            client: data.client?.analysis || '',
+            sales:  data.sales?.analysis  || '',
+            memory: data.memory?.analysis || ''
+        });
+
+        // También guardar síntesis ejecutiva
+        await saveAIFields();
+
+        showToast('Análisis completado — tres perspectivas disponibles', 'success');
 
     } catch(e) {
-        console.error('[AI] analyze error:', e);
+        console.error('[AI] analyze-multi error:', e);
+        // Ocultar spinners y mostrar error en paneles
+        ['client', 'sales', 'memory'].forEach(agent => {
+            const spin = document.getElementById(`ai-agent-${agent}-spinner`);
+            const text = document.getElementById(`ai-agent-${agent}-text`);
+            if (spin) spin.style.display = 'none';
+            if (text) text.textContent = `Error: ${e.message}`;
+        });
         showToast(`Error al analizar: ${e.message}`, 'danger');
     } finally {
         btn.disabled = false;
@@ -3678,14 +3841,206 @@ window.confirmCloseLost = async function() {
             throw new Error(err.detail || `Error ${response.status}`);
         }
 
+        const closeData = await response.json();
         bootstrap.Modal.getInstance(document.getElementById('lostConfirmModal'))?.hide();
         showToast('Oportunidad marcada como Perdida', 'danger');
+        _showRetroModal(closeData);
         await loadKanbanData();
         if (typeof loadDashboard === 'function') await loadDashboard();
 
     } catch (error) {
         console.error('[CLOSE-LOST] Error:', error);
         showToast(`Error: ${error.message}`, 'danger');
+    }
+};
+
+// ============================================================================
+// Sprint 5D — Retrospectiva al cierre
+// ============================================================================
+
+/**
+ * Muestra u oculta el botón "Retrospectiva IA" según el estado de la oportunidad.
+ * Visible solo si: cerrada (won/lost) y sin retro previa (lo chequeamos contra BD).
+ */
+async function _updateRetroButton() {
+    const btn = document.getElementById('btn-add-retro');
+    if (!btn) return;
+    const opp = currentOpportunityData;
+    if (!opp || opp.close_outcome === 'open' || !opp.close_outcome) {
+        btn.style.display = 'none';
+        return;
+    }
+    // Oportunidad cerrada — comprobar si ya tiene outcome con retro
+    try {
+        const res = await fetch(`/opportunities/${opp.id}/ai/ensure-outcome`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (!res.ok) { btn.style.display = 'none'; return; }
+        const data = await res.json();
+        // Guardar outcome_id para el modal
+        document.getElementById('retro-outcome-id').value = data.outcome_id || '';
+        document.getElementById('aiRetroModal').dataset.oppId = opp.id;
+        if (data.has_retro) {
+            // Ya tiene retrospectiva guardada — mostrar badge informativo, no botón de acción
+            btn.textContent = '✅ Retrospectiva guardada';
+            btn.disabled = true;
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-outline-secondary');
+            btn.style.display = 'inline-block';
+        } else {
+            btn.textContent = '📝 Retrospectiva IA';
+            btn.disabled = false;
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-outline-primary');
+            btn.style.display = 'inline-block';
+        }
+    } catch(e) {
+        btn.style.display = 'none';
+    }
+}
+
+/**
+ * Abre el modal de retrospectiva desde la ficha de una oportunidad ya cerrada.
+ */
+window.openRetroForClosedOpp = function() {
+    // Resetear campos
+    ['retro-what-worked', 'retro-what-failed', 'retro-notes'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const aiUseful = document.getElementById('retro-ai-useful');
+    if (aiUseful) aiUseful.value = '';
+
+    // Cerrar el detail modal primero para evitar nesting
+    const detailModal = bootstrap.Modal.getInstance(document.getElementById('oppDetailModal'));
+    if (detailModal) detailModal.hide();
+
+    setTimeout(() => {
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        new bootstrap.Modal(document.getElementById('aiRetroModal')).show();
+    }, 350);
+};
+
+/**
+ * Abre el modal de retrospectiva IA tras cerrar una oportunidad.
+ * closeData puede incluir outcome_id si el backend lo devuelve;
+ * si no, buscamos el último outcome de la oportunidad.
+ */
+function _showRetroModal(closeData) {
+    const opp = currentOpportunityData;
+    const oppId = opp?.id || '';
+    const outcomeId = closeData?.outcome_id || '';
+
+    // Preparar datos en el modal (aunque no se abra aún)
+    ['retro-what-worked', 'retro-what-failed', 'retro-notes'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const aiUseful = document.getElementById('retro-ai-useful');
+    if (aiUseful) aiUseful.value = '';
+    document.getElementById('retro-outcome-id').value = outcomeId;
+    document.getElementById('aiRetroModal').dataset.oppId = oppId;
+
+    // En lugar de encadenar modales (que atasca Bootstrap),
+    // mostramos un toast con botón para que el usuario abra el retro cuando quiera
+    if (!outcomeId) return; // sin outcome_id no tiene sentido el feedback
+
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+    const toastId = `retro-toast-${Date.now()}`;
+    container.insertAdjacentHTML('beforeend', `
+        <div id="${toastId}" class="toast align-items-center border-0" role="alert" data-bs-delay="12000">
+            <div class="d-flex">
+                <div class="toast-body" style="background:linear-gradient(135deg,#4f46e5,#7c3aed); color:white; border-radius:6px;">
+                    <i class="bi bi-stars me-1"></i>
+                    Oportunidad cerrada.
+                    <button class="btn btn-sm btn-light ms-2" style="font-size:0.78rem;"
+                            onclick="openRetroModal('${toastId}')">
+                        Añadir retrospectiva IA
+                    </button>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>`);
+    const toastEl = document.getElementById(toastId);
+    new bootstrap.Toast(toastEl).show();
+}
+
+/**
+ * Abre el modal de retrospectiva desde el toast (todos los otros modales ya están cerrados).
+ */
+window.openRetroModal = function(toastId) {
+    // Cerrar el toast
+    const toastEl = document.getElementById(toastId);
+    if (toastEl) bootstrap.Toast.getInstance(toastEl)?.hide();
+
+    // Cerrar cualquier modal abierto (oppDetailModal, wonConfirmModal, etc.)
+    document.querySelectorAll('.modal.show').forEach(el => {
+        bootstrap.Modal.getInstance(el)?.hide();
+    });
+
+    // Esperar a que todos los modales terminen de cerrarse y limpiar backdrops
+    setTimeout(() => {
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+
+        const retroEl = document.getElementById('aiRetroModal');
+        const existing = bootstrap.Modal.getInstance(retroEl);
+        if (existing) existing.dispose();
+        new bootstrap.Modal(retroEl).show();
+    }, 350);
+};
+
+/**
+ * Guarda el feedback de retrospectiva via POST /opportunities/{id}/ai/feedback.
+ */
+window.saveRetroFeedback = async function() {
+    const modal = document.getElementById('aiRetroModal');
+    const oppId = modal.dataset.oppId;
+    const outcomeId = document.getElementById('retro-outcome-id').value;
+
+    if (!oppId || !outcomeId) {
+        bootstrap.Modal.getInstance(modal)?.hide();
+        return;
+    }
+
+    const payload = {
+        outcome_id: outcomeId,
+        what_worked: document.getElementById('retro-what-worked').value.trim() || null,
+        what_failed:  document.getElementById('retro-what-failed').value.trim() || null,
+        ai_useful:    document.getElementById('retro-ai-useful').value || null,
+        notes:        document.getElementById('retro-notes').value.trim() || null
+    };
+
+    try {
+        const res = await fetch(`/opportunities/${oppId}/ai/feedback`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        showToast('✅ Retrospectiva guardada — el sistema aprenderá de esta oportunidad', 'success');
+        // Ocultar el botón de retro en la ficha (ya no tiene sentido volver a añadirla)
+        const retroBtn = document.getElementById('btn-add-retro');
+        if (retroBtn) retroBtn.style.display = 'none';
+    } catch(e) {
+        console.warn('[Retro] Error guardando feedback:', e);
+        showToast('Error al guardar la retrospectiva — inténtalo de nuevo', 'danger');
+    } finally {
+        bootstrap.Modal.getInstance(modal)?.hide();
     }
 };
 
@@ -3697,3 +4052,205 @@ window.addEventListener('load', function() {
     console.log('[DASHBOARD] Current hash on window.load:', window.location.hash);
     activateKanbanIfNeeded('window-load');
 });
+
+// ============================================================================
+// 5C — Calendario de tareas (FullCalendar)
+// ============================================================================
+
+let _taskCalendarInstance = null;
+
+/**
+ * Inicializa o refresca el calendario de tareas.
+ * Se llama al activar el sub-tab "Calendario".
+ */
+window.initTaskCalendar = async function() {
+    const el = document.getElementById('task-calendar');
+    if (!el) return;
+
+    // Cargar tareas abiertas del usuario actual
+    let tasks = [];
+    try {
+        const params = new URLSearchParams();
+        params.append('status', 'open');
+        params.append('status', 'in_progress');
+        params.append('limit', '500');
+
+        // Filtro de usuario: selector admin o usuario actual
+        const userFilterEl = document.getElementById('filter-task-user');
+        if (userFilterEl && userFilterEl.value) {
+            params.append('assigned_to', userFilterEl.value);
+        } else {
+            // Obtener usuario actual y filtrar por él (igual que loadMyTasks)
+            try {
+                const me = await getCurrentUser();
+                if (me && me.id && me.role !== 'admin') params.append('assigned_to', me.id);
+            } catch(e2) { /* si falla, mostrar todas */ }
+        }
+
+        // Filtro de tipo de tarea
+        const typeId = document.getElementById('filter-task-type')?.value || '';
+        if (typeId) params.append('task_template_id', typeId);
+
+        const res = await fetch(`/tasks?${params.toString()}`, { credentials: 'include' });
+        if (res.ok) {
+            const data = await res.json();
+            // /tasks devuelve {tasks:[...], total:N} — normalizamos
+            tasks = Array.isArray(data) ? data : (data.tasks || []);
+            console.log(`[Calendar] ${tasks.length} tareas cargadas, ${tasks.filter(t=>t.due_date).length} con fecha`);
+        } else {
+            console.warn('[Calendar] /tasks respondió', res.status);
+        }
+    } catch(e) { console.warn('[Calendar] Error loading tasks:', e); }
+
+    // Mostrar en el panel cuántas tareas sin fecha se quedan fuera
+    const sinFecha = tasks.filter(t => !t.due_date);
+    if (sinFecha.length > 0) {
+        el.dataset.sinFecha = sinFecha.length;
+        console.log(`[Calendar] ${sinFecha.length} tareas sin fecha (no se muestran en el calendario)`);
+    }
+
+    // Convertir tareas a eventos FullCalendar
+    const events = tasks
+        .filter(t => t.due_date)
+        .map(t => ({
+            id: t.id,
+            title: t.title,
+            start: typeof t.due_date === 'string' ? t.due_date.split('T')[0] : t.due_date,
+            allDay: true,
+            color: t.priority === 'high' ? '#ef4444' : t.priority === 'medium' ? '#f97316' : '#6b7280',
+            extendedProps: t
+        }));
+
+    // Destruir instancia previa si existe
+    if (_taskCalendarInstance) {
+        _taskCalendarInstance.destroy();
+        _taskCalendarInstance = null;
+    }
+
+    _taskCalendarInstance = new FullCalendar.Calendar(el, {
+        initialView: 'dayGridMonth',
+        locale: 'es',
+        height: 'auto',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,listWeek'
+        },
+        buttonText: { today: 'Hoy', month: 'Mes', week: 'Semana', list: 'Lista' },
+        events: events,
+        eventClick: function(info) {
+            // Abrir modal de la tarea al hacer click en el evento
+            const taskId = info.event.id;  // id del evento = task.id (string)
+            if (typeof editTask === 'function') {
+                editTask(taskId);
+            } else if (typeof viewTaskDetails === 'function') {
+                viewTaskDetails(taskId);
+            }
+        },
+        eventDidMount: function(info) {
+            // Tooltip con descripción si existe
+            if (info.event.extendedProps.description) {
+                info.el.title = info.event.extendedProps.description;
+            }
+        }
+    });
+    _taskCalendarInstance.render();
+};
+
+// ============================================================================
+// 5D — Export .ics (Outlook / Google Calendar)
+// ============================================================================
+
+/**
+ * Genera y descarga un fichero .ics con la tarea actualmente abierta en el modal.
+ * Funciona 100% en cliente — sin llamada al servidor.
+ */
+window.exportTaskICS = function() {
+    // Leer datos del modal de tarea
+    const title    = document.getElementById('task-title')?.value?.trim()       || 'Tarea CRM';
+    const desc     = document.getElementById('task-description')?.value?.trim() || '';
+    const dueDateV = document.getElementById('task-due-date')?.value            || '';
+
+    if (!dueDateV) {
+        showToast('La tarea no tiene fecha de vencimiento', 'warning');
+        return;
+    }
+
+    // Formatear fecha para .ics: YYYYMMDD
+    const dateStr = dueDateV.replace(/-/g, '');
+    const now     = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+    // Información adicional de la tarea (cuenta/oportunidad si está visible)
+    const opp  = document.getElementById('task-opportunity-name')?.textContent?.trim() || '';
+    const acct = document.getElementById('task-account-name')?.textContent?.trim()     || '';
+    let fullDesc = desc;
+    if (opp)  fullDesc += (fullDesc ? ' — ' : '') + opp;
+    if (acct) fullDesc += (fullDesc ? ' — ' : '') + acct;
+
+    // Evento con hora (9:00-10:00) para que no aparezca como "todo el día"
+    // y la fecha de fin coincida con la de inicio
+    const ics = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//CRM ASICXXI//ES',
+        'BEGIN:VEVENT',
+        `UID:${now}-crm@asicxxi`,
+        `DTSTAMP:${now}`,
+        `DTSTART;TZID=Europe/Madrid:${dateStr}T090000`,
+        `DTEND;TZID=Europe/Madrid:${dateStr}T100000`,
+        `SUMMARY:${title}`,
+        fullDesc ? `DESCRIPTION:${fullDesc.replace(/\n/g, '\\n')}` : '',
+        'END:VEVENT',
+        'END:VCALENDAR'
+    ].filter(Boolean).join('\r\n');
+
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${title.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40)}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Fichero .ics descargado — ábrelo para añadirlo a tu calendario', 'success');
+};
+
+// ============================================================================
+// 5E — Filtro por tipo de tarea
+// ============================================================================
+
+/**
+ * Carga los tipos de tarea (cfg_task_templates) en el select de filtro.
+ * Se llama al inicializar la pestaña de tareas.
+ */
+let _taskTypeFilterLoaded = false;
+
+async function loadTaskTypeFilter() {
+    const select = document.getElementById('filter-task-type');
+    if (!select || _taskTypeFilterLoaded) return;
+    try {
+        const res = await fetch('/config/task-templates', { credentials: 'include' });
+        if (!res.ok) {
+            console.warn('[TaskFilter] /config/task-templates returned', res.status);
+            return;
+        }
+        const data = await res.json();
+        // La respuesta puede ser array directo o {task_templates:[...]}
+        const items = Array.isArray(data) ? data : (data.task_templates || []);
+        if (!items.length) {
+            console.warn('[TaskFilter] No task templates returned');
+            return;
+        }
+        items.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.name;
+            select.appendChild(opt);
+        });
+        _taskTypeFilterLoaded = true;
+        console.log(`[TaskFilter] Loaded ${items.length} task types`);
+    } catch(e) {
+        console.warn('[TaskFilter] Error loading task types:', e);
+    }
+}

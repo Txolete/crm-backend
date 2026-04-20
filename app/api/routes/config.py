@@ -1,15 +1,18 @@
 """
 Configuration API routes - Simple GET endpoints for frontend
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from datetime import datetime, timezone
 from app.database import get_db
 from app.models import (
     CfgStage, CfgStageProbability, CfgRegion,
     CfgCustomerType, CfgLeadSource, CfgContactRole, CfgTaskTemplate,
-    CfgOpportunityType, CfgLostReason, CfgClientMentalState
+    CfgOpportunityType, CfgLostReason, CfgClientMentalState, CfgAiPrompt,
 )
+from app.models.user import User
+from app.utils.auth import get_current_user_from_cookie, require_role
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/config", tags=["Configuration"])
@@ -198,3 +201,57 @@ async def get_lost_reasons(db: Session = Depends(get_db)):
 async def get_client_mental_states(db: Session = Depends(get_db)):
     """Get all active client mental states"""
     return db.query(CfgClientMentalState).filter(CfgClientMentalState.is_active == 1).order_by(CfgClientMentalState.sort_order).all()
+
+
+# ============================================================================
+# AI PROMPTS — solo admin
+# ============================================================================
+
+class AiPromptSchema(BaseModel):
+    agent: str
+    name: str
+    system_prompt: str
+    updated_at: Optional[datetime] = None
+    updated_by_user_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AiPromptUpdate(BaseModel):
+    system_prompt: str
+
+
+_VALID_AGENTS = ('client', 'sales', 'memory')
+
+
+@router.get("/ai-prompts", response_model=List[AiPromptSchema])
+async def get_ai_prompts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Get all AI agent system prompts (admin only)"""
+    return db.query(CfgAiPrompt).all()
+
+
+@router.put("/ai-prompts/{agent}", response_model=AiPromptSchema)
+async def update_ai_prompt(
+    agent: str,
+    body: AiPromptUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Update system prompt for a specific agent (admin only)"""
+    if agent not in _VALID_AGENTS:
+        raise HTTPException(status_code=400, detail=f"Agent must be one of {_VALID_AGENTS}")
+
+    row = db.query(CfgAiPrompt).filter(CfgAiPrompt.agent == agent).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent}' not found in cfg_ai_prompts")
+
+    row.system_prompt = body.system_prompt
+    row.updated_at = datetime.now(timezone.utc)
+    row.updated_by_user_id = current_user.id
+    db.commit()
+    db.refresh(row)
+    return row

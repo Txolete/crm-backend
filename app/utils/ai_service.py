@@ -1,10 +1,20 @@
 """
-AI Service Layer — Sprint 4E
+AI Service Layer — Sprint 4E / Sprint 5A
 Interfaz abstracta intercambiable entre providers de IA.
 
 Providers disponibles:
-  - OpenAIProvider (por defecto) — usa Threads API de OpenAI
+  - OpenAIProvider (por defecto) — usa Responses API (reemplaza Assistants, deprecado ago-2025)
   - Futuro: AnthropicProvider, LocalLLMProvider
+
+Sprint 5A — Tres agentes especializados:
+  - AGENT_CLIENT: perspectiva del comprador
+  - AGENT_SALES: táctica y siguiente movimiento del vendedor
+  - AGENT_MEMORY: patrones del histórico de oportunidades cerradas
+
+Responses API vs Assistants API:
+  - En lugar de thread_id (Assistants) se usa previous_response_id (Responses)
+  - El campo chatgpt_thread_id en BD almacena ahora response_ids como JSON
+  - Compatible hacia atrás: si el ID no es "resp_..." se ignora y empieza conversación nueva
 
 Para cambiar de provider: solo cambiar AI_PROVIDER en .env.
 El resto del código (endpoints, frontend, BD) no cambia nada.
@@ -20,11 +30,91 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# SYSTEM PROMPTS — Tres agentes Sprint 5A
+# ============================================================================
+
+SYSTEM_PROMPT_CLIENT = """Eres el agente "Cliente" de un CRM B2B del sector energético en España.
+Tu única perspectiva es la del COMPRADOR: el cliente potencial.
+
+Cuando recibas el contexto de una oportunidad:
+1. Analiza qué está pensando realmente el cliente en este momento
+2. Identifica las objeciones que NO ha dicho en voz alta (miedos, dudas, bloqueos internos)
+3. Detecta qué le frenaría de tomar una decisión ahora mismo
+4. Señala qué necesitaría ver u oír para avanzar con confianza
+5. Si hay estado mental del cliente definido, úsalo como punto de partida
+
+Responde SOLO desde la perspectiva del cliente. No des consejos al vendedor.
+Sé directo, psicológico y basado en los datos del contexto.
+Responde siempre en español. Máximo 5-6 líneas."""
+
+SYSTEM_PROMPT_SALES = """Eres el agente "Comercial" de un CRM B2B del sector energético en España.
+Eres un vendedor experto con 15 años de experiencia en ventas B2B energéticas.
+
+Cuando recibas el contexto de una oportunidad responde SIEMPRE con esta estructura exacta:
+
+SÍNTESIS:
+[2-3 frases: diagnóstico del estado actual de la oportunidad desde perspectiva comercial]
+
+PRÓXIMA ACCIÓN:
+[1 frase concreta: el movimiento más efectivo ahora mismo]
+
+TAREA PROPUESTA:
+- Título: [título breve de la tarea]
+- Descripción: [descripción de la tarea]
+- Prioridad: [Alta / Media / Baja]
+- Plazo: [número] días
+
+PROBABILIDAD SUGERIDA:
+- Porcentaje: [número entre 0 y 100]%
+- Justificación: [1 frase explicando el porcentaje]
+
+Sé directo, táctico y crítico si es necesario — el objetivo es ganar. Responde siempre en español."""
+
+SYSTEM_PROMPT_MEMORY = """Eres el agente "Memoria Corporativa" de un CRM B2B del sector energético en España.
+Tu función es detectar patrones en el historial de oportunidades cerradas y aplicarlos a la oportunidad actual.
+
+Cuando recibas el contexto de una oportunidad y el histórico de casos similares:
+1. Identifica patrones de éxito y fracaso en oportunidades similares (sector, valor, stage, tipo)
+2. Compara el comportamiento actual con los casos ganados: ¿qué tienen en común?
+3. Compara con los casos perdidos: ¿hay señales de alerta presentes aquí también?
+4. Estima una probabilidad real basada en el histórico (no en la configurada en el CRM)
+5. Si no hay suficientes datos históricos, indícalo claramente
+
+Responde con datos concretos del histórico si los tienes, o con patrones generales del sector si no.
+Responde siempre en español. Máximo 6-7 líneas."""
+
+
+# ============================================================================
 # INTERFAZ ABSTRACTA
 # ============================================================================
 
 class AIProvider(ABC):
     """Contrato que todo provider de IA debe cumplir."""
+
+    @abstractmethod
+    def analyze_multi_agent(
+        self,
+        context: str,
+        historical_context: Optional[str] = None,
+        thread_ids: Optional[dict] = None,
+        prompts: Optional[dict] = None,
+    ) -> dict:
+        """
+        Sprint 5A — Ejecuta los tres agentes especializados.
+
+        Args:
+            context: Markdown completo de la oportunidad
+            historical_context: Resumen de oportunidades similares cerradas (para agente Memoria)
+            thread_ids: {"client": str, "sales": str, "memory": str} — thread IDs previos
+
+        Returns:
+            {
+                "client":  {"analysis": str, "thread_id": str},
+                "sales":   {"analysis": str, "thread_id": str},
+                "memory":  {"analysis": str, "thread_id": str},
+            }
+        """
+        ...
 
     @abstractmethod
     def analyze_opportunity(self, context: str, thread_id: Optional[str] = None) -> tuple:
@@ -70,8 +160,15 @@ class AIProvider(ABC):
 
 class OpenAIProvider(AIProvider):
     """
-    Provider usando la API de OpenAI.
-    Usa Threads para mantener historial persistente por oportunidad.
+    Provider usando la API de OpenAI — Responses API (desde openai>=1.66.0).
+
+    La Responses API reemplaza:
+      - Chat Completions para llamadas simples
+      - Assistants/Threads para conversaciones persistentes
+
+    Memoria entre análisis: se guarda el response_id de cada agente en BD
+    (campo chatgpt_thread_id como JSON) y se pasa como previous_response_id
+    en la siguiente llamada para que el modelo recuerde el contexto anterior.
     """
 
     SYSTEM_PROMPT = """Eres un asistente comercial experto en ventas B2B del sector energético.
@@ -87,29 +184,134 @@ Cuando recibas el contexto de una oportunidad:
 
 Responde siempre en español. Sé directo y accionable."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini", assistant_id: str = ""):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gpt-4o-mini",
+        assistant_id: str = "",          # legacy, ignorado — se usa Responses API
+        agent_client_id: str = "",       # legacy, ya no se necesita con Responses API
+        agent_sales_id: str = "",
+        agent_memory_id: str = "",
+    ):
         try:
             from openai import OpenAI
             self._client = OpenAI(api_key=api_key)
             self._model = model
-            self._assistant_id = assistant_id or None
         except ImportError:
-            raise RuntimeError("openai package not installed. Run: pip install openai>=1.30.0")
+            raise RuntimeError("openai package not installed. Run: pip install openai>=1.66.0")
 
-    def analyze_opportunity(self, context: str, thread_id: Optional[str] = None) -> tuple[str, str]:
-        """Analiza una oportunidad y devuelve síntesis + thread_id."""
-        try:
-            if self._assistant_id:
-                return self._analyze_with_assistant(context, thread_id)
-            else:
-                return self._analyze_with_chat(context, thread_id)
-        except Exception as e:
-            logger.error(f"[AI] analyze_opportunity error: {e}")
-            raise
+    # -----------------------------------------------------------------------
+    # Helpers internos — Responses API
+    # -----------------------------------------------------------------------
 
-    def _analyze_with_chat(self, context: str, thread_id: Optional[str]) -> tuple[str, str, str]:
-        """Usa Chat Completions API. Devuelve síntesis, próxima acción, tarea propuesta y probabilidad."""
-        prompt = f"""Analiza la siguiente oportunidad comercial y responde con este formato EXACTO (respeta todos los marcadores):
+    def _responses_call(
+        self,
+        system_prompt: str,
+        user_message: str,
+        previous_response_id: Optional[str] = None,
+        max_tokens: int = 700,
+        temperature: float = 0.4,
+    ) -> tuple[str, str]:
+        """
+        Llamada a la Responses API de OpenAI (openai>=1.66.0).
+        Si la versión instalada no la soporta, cae a Chat Completions.
+
+        Devuelve (texto_respuesta, response_id).
+        El response_id se guarda en BD y se pasa como previous_response_id
+        en la siguiente llamada para mantener contexto entre análisis.
+        """
+        # Responses API — disponible desde openai 1.66.0
+        if hasattr(self._client, "responses"):
+            kwargs = {
+                "model": self._model,
+                "instructions": system_prompt,
+                "input": user_message,
+                "max_output_tokens": max_tokens,
+                "temperature": temperature,
+            }
+            # Encadenar con respuesta anterior si el ID es válido (formato "resp_...")
+            if previous_response_id and previous_response_id.startswith("resp_"):
+                kwargs["previous_response_id"] = previous_response_id
+
+            response = self._client.responses.create(**kwargs)
+            text = response.output_text.strip()
+            return text, response.id
+
+        # Fallback: Chat Completions (openai <1.66.0)
+        logger.warning("[AI] Responses API no disponible — usando Chat Completions (actualiza openai>=1.66.0)")
+        import hashlib
+        response = self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_message},
+            ],
+            temperature=temperature,
+            max_completion_tokens=max_tokens,
+        )
+        text = response.choices[0].message.content.strip()
+        synthetic_id = f"chat_{hashlib.md5(user_message[:80].encode()).hexdigest()[:16]}"
+        return text, synthetic_id
+
+    # -----------------------------------------------------------------------
+    # analyze_multi_agent — tres agentes especializados (Sprint 5A)
+    # -----------------------------------------------------------------------
+
+    def analyze_multi_agent(
+        self,
+        context: str,
+        historical_context: Optional[str] = None,
+        thread_ids: Optional[dict] = None,   # ahora contiene response_ids, nombre legacy
+        prompts: Optional[dict] = None,
+    ) -> dict:
+        """
+        Ejecuta los tres agentes especializados usando la Responses API.
+        thread_ids es el JSON guardado en chatgpt_thread_id — ahora almacena
+        response_ids (formato resp_...) en lugar de thread_ids de Assistants.
+        Si se pasan prompts (dict con keys 'client', 'sales', 'memory'), se usan
+        en lugar de los system prompts hardcoded.
+        """
+        response_ids = thread_ids or {}
+        effective_prompts = prompts or {}
+
+        agents = [
+            ("client", effective_prompts.get("client") or SYSTEM_PROMPT_CLIENT),
+            ("sales",  effective_prompts.get("sales")  or SYSTEM_PROMPT_SALES),
+            ("memory", effective_prompts.get("memory") or SYSTEM_PROMPT_MEMORY),
+        ]
+
+        results = {}
+        for agent_key, system_prompt in agents:
+            prev_id = response_ids.get(agent_key)
+            ctx = context
+            if agent_key == "memory" and historical_context:
+                ctx = context + "\n\n## Histórico de oportunidades similares cerradas\n" + historical_context
+
+            try:
+                analysis, new_resp_id = self._responses_call(
+                    system_prompt=system_prompt,
+                    user_message=f"Analiza esta oportunidad:\n\n{ctx}",
+                    previous_response_id=prev_id,
+                    max_tokens=700,
+                    temperature=0.4,
+                )
+                results[agent_key] = {"analysis": analysis, "thread_id": new_resp_id}
+            except Exception as e:
+                logger.error(f"[AI] Agent '{agent_key}' error: {e}")
+                results[agent_key] = {"analysis": f"[Error en agente {agent_key}: {e}]", "thread_id": ""}
+
+        return results
+
+    # -----------------------------------------------------------------------
+    # analyze_opportunity — análisis único (agente comercial principal)
+    # -----------------------------------------------------------------------
+
+    def analyze_opportunity(self, context: str, thread_id: Optional[str] = None) -> tuple:
+        """
+        Analiza una oportunidad con el agente comercial principal.
+        Devuelve (síntesis, next_action, task_proposal, probability_suggestion, response_id).
+        """
+        prompt = f"""Analiza la siguiente oportunidad comercial y responde con este formato EXACTO:
 
 SÍNTESIS:
 [4-5 líneas: situación actual, momentum de la relación, riesgos principales]
@@ -118,8 +320,8 @@ PRÓXIMA ACCIÓN:
 [1 acción estratégica concreta y accionable. Máximo 2 líneas.]
 
 TAREA PROPUESTA:
-Título: [título corto y accionable para la tarea, máximo 80 caracteres]
-Descripción: [qué hay que hacer exactamente y qué se busca conseguir. 1-3 frases.]
+Título: [título corto y accionable, máximo 80 caracteres]
+Descripción: [qué hay que hacer y qué se busca conseguir. 1-3 frases.]
 Prioridad: [alta|media|baja]
 Días hasta vencimiento: [número entero, ej: 7]
 
@@ -131,121 +333,57 @@ Justificación: [1 línea explicando por qué ese porcentaje]
 {context}
 ---"""
 
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": self.SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_completion_tokens=900
-        )
-        raw = response.choices[0].message.content.strip()
+        try:
+            raw, resp_id = self._responses_call(
+                system_prompt=self.SYSTEM_PROMPT,
+                user_message=prompt,
+                previous_response_id=thread_id,
+                max_tokens=900,
+                temperature=0.3,
+            )
+            synthesis, next_action, task_proposal, probability_suggestion = _parse_analysis_response(raw)
+            return synthesis, next_action, task_proposal, probability_suggestion, resp_id
+        except Exception as e:
+            logger.error(f"[AI] analyze_opportunity error: {e}")
+            raise
 
-        synthesis, next_action, task_proposal, probability_suggestion = _parse_analysis_response(raw)
-
-        import hashlib
-        synthetic_thread_id = thread_id or f"chat_{hashlib.md5(context[:100].encode()).hexdigest()[:16]}"
-        return synthesis, next_action, task_proposal, probability_suggestion, synthetic_thread_id
-
-    def _analyze_with_assistant(self, context: str, thread_id: Optional[str]) -> tuple[str, str, str]:
-        """Usa Assistants API con threads persistentes."""
-        if thread_id and thread_id.startswith("thread_"):
-            thread = self._client.beta.threads.retrieve(thread_id)
-        else:
-            thread = self._client.beta.threads.create()
-
-        prompt = f"""Analiza esta oportunidad y responde con este formato EXACTO:
-
-SÍNTESIS:
-[4-5 líneas de síntesis ejecutiva]
-
-PRÓXIMA ACCIÓN:
-[1 acción concreta y accionable. Máximo 2 líneas.]
-
---- CONTEXTO ---
-{context}"""
-
-        self._client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=prompt
-        )
-
-        run = self._client.beta.threads.runs.create_and_poll(
-            thread_id=thread.id,
-            assistant_id=self._assistant_id,
-            timeout=30
-        )
-
-        if run.status != "completed":
-            raise RuntimeError(f"Assistant run failed with status: {run.status}")
-
-        messages = self._client.beta.threads.messages.list(thread_id=thread.id, limit=1)
-        raw = messages.data[0].content[0].text.value.strip()
-        synthesis, next_action, task_proposal, probability_suggestion = _parse_analysis_response(raw)
-        return synthesis, next_action, task_proposal, probability_suggestion, thread.id
+    # -----------------------------------------------------------------------
+    # chat — mensaje libre sobre una oportunidad
+    # -----------------------------------------------------------------------
 
     def chat(self, message: str, thread_id: str, context: Optional[str] = None) -> str:
-        """Envía mensaje libre al thread, inyectando siempre el contexto de la oportunidad."""
-        try:
-            if self._assistant_id and thread_id.startswith("thread_"):
-                return self._chat_with_assistant(message, thread_id)
-            else:
-                # Chat Completions: inyectamos el contexto en el system message
-                # para que el modelo siempre sepa de qué oportunidad se habla
-                system = self.SYSTEM_PROMPT
-                if context:
-                    system += f"\n\n---\nCONTEXTO ACTUAL DE LA OPORTUNIDAD (datos en tiempo real):\n\n{context}\n---"
+        """
+        Envía un mensaje libre al agente, con el contexto de la oportunidad
+        inyectado en las instrucciones del sistema.
+        """
+        system = self.SYSTEM_PROMPT
+        if context:
+            system += f"\n\n---\nCONTEXTO ACTUAL DE LA OPORTUNIDAD (datos en tiempo real):\n\n{context}\n---"
 
-                response = self._client.chat.completions.create(
-                    model=self._model,
-                    messages=[
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": message}
-                    ],
-                    temperature=0.4,
-                    max_completion_tokens=500
-                )
-                return response.choices[0].message.content.strip()
+        try:
+            text, _ = self._responses_call(
+                system_prompt=system,
+                user_message=message,
+                previous_response_id=thread_id,
+                max_tokens=500,
+                temperature=0.4,
+            )
+            return text
         except Exception as e:
             logger.error(f"[AI] chat error: {e}")
             raise
 
-    def _chat_with_assistant(self, message: str, thread_id: str) -> str:
-        self._client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=message
-        )
-        run = self._client.beta.threads.runs.create_and_poll(
-            thread_id=thread_id,
-            assistant_id=self._assistant_id,
-            timeout=30
-        )
-        if run.status != "completed":
-            raise RuntimeError(f"Assistant run failed: {run.status}")
-        messages = self._client.beta.threads.messages.list(thread_id=thread_id, limit=1)
-        return messages.data[0].content[0].text.value.strip()
+    # -----------------------------------------------------------------------
+    # get_thread_messages — historial de conversación (simplificado)
+    # -----------------------------------------------------------------------
 
     def get_thread_messages(self, thread_id: str, limit: int = 10) -> list[dict]:
-        """Recupera mensajes del thread (solo con Assistants API)."""
-        if not thread_id.startswith("thread_"):
-            return []
-        try:
-            messages = self._client.beta.threads.messages.list(thread_id=thread_id, limit=limit)
-            result = []
-            for msg in reversed(messages.data):
-                content = msg.content[0].text.value if msg.content else ""
-                result.append({
-                    "role": msg.role,
-                    "content": content,
-                    "created_at": msg.created_at
-                })
-            return result
-        except Exception as e:
-            logger.warning(f"[AI] get_thread_messages error: {e}")
-            return []
+        """
+        Con la Responses API no hay endpoint de listado de mensajes por thread.
+        El historial se gestiona en la BD (ai_chat_history en la oportunidad).
+        Devuelve lista vacía para mantener compatibilidad con el endpoint GET /history.
+        """
+        return []
 
 
 # ============================================================================
@@ -533,7 +671,10 @@ def get_ai_provider() -> AIProvider:
         return OpenAIProvider(
             api_key=settings.openai_api_key,
             model=settings.openai_model,
-            assistant_id=settings.openai_assistant_id
+            assistant_id=settings.openai_assistant_id,
+            agent_client_id=settings.openai_agent_client_id,
+            agent_sales_id=settings.openai_agent_sales_id,
+            agent_memory_id=settings.openai_agent_memory_id,
         )
     # Futuro: elif provider == "anthropic": return AnthropicProvider(...)
     # Futuro: elif provider == "local": return LocalLLMProvider(...)

@@ -99,3 +99,4 @@ class CloseOpportunityResponse(BaseModel):
     opportunity_id: str
     close_outcome: str
     activity_id: str
+    outcome_id: Optional[str] = None   # Sprint 5D: ID del registro en opportunity_outcomes

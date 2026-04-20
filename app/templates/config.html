@@ -210,6 +210,14 @@
                                 <i class="bi bi-brain"></i> Estado Mental Cliente
                             </a>
                         </li>
+                        <li class="nav-item mt-2" id="nav-ai-prompts-separator" style="display:none;">
+                            <small class="text-muted px-2" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em;">Sprint 5 — Agentes IA</small>
+                        </li>
+                        <li class="nav-item" id="nav-ai-prompts-item" style="display:none;">
+                            <a class="nav-link" href="#" id="nav-ai-prompts" onclick="showAiPromptsSection(); return false;">
+                                <i class="bi bi-robot"></i> Prompts de Agentes IA
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -223,7 +231,7 @@
                             <i class="bi bi-plus-lg"></i> Crear
                         </button>
                     </div>
-                    
+
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead id="table-header">
@@ -234,9 +242,29 @@
                             </tbody>
                         </table>
                     </div>
-                    
+
                     <div id="loading" style="display:none;" class="text-center py-4">
                         <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+
+                    <!-- Sección especial: Prompts de Agentes IA (solo admin) -->
+                    <div id="ai-prompts-section" style="display:none;">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5><i class="bi bi-robot me-2"></i>Prompts de Agentes IA</h5>
+                            <span class="badge bg-warning text-dark">Solo administrador</span>
+                        </div>
+                        <p class="text-muted small mb-3">
+                            Estos son los system prompts que recibe cada agente antes de analizar una oportunidad.
+                            Modificarlos cambia el comportamiento del análisis IA en tiempo real.
+                        </p>
+                        <div id="ai-prompts-container">
+                            <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Cargando...</div>
+                        </div>
+                        <div class="mt-3 text-end">
+                            <button class="btn btn-success" onclick="saveAllAiPrompts()">
+                                <i class="bi bi-floppy me-1"></i>Guardar todos los prompts
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -296,22 +324,110 @@
                     return;
                 }
                 const user = await response.json();
-                
+
                 // Update user info in dropdown
                 document.getElementById('user-name').textContent = user.name;
-                
-                // Show Users nav link only for admin
+
+                // Show Users nav link and AI prompts nav item only for admin
                 if (user.role === 'admin') {
                     const navUsers = document.getElementById('nav-users');
                     if (navUsers) {
                         navUsers.style.display = 'block';
                     }
+                    const navAiSep = document.getElementById('nav-ai-prompts-separator');
+                    if (navAiSep) navAiSep.style.display = '';
+                    const navAiItem = document.getElementById('nav-ai-prompts-item');
+                    if (navAiItem) navAiItem.style.display = '';
                 }
             } catch (error) {
                 console.error('Auth check failed:', error);
                 window.location.href = '/login';
             }
         })();
+    </script>
+
+    <!-- AI Prompts UI -->
+    <script>
+        function showAiPromptsSection() {
+            // Hide generic table section header and table, show AI prompts section
+            const headerDiv = document.querySelector('.config-card .d-flex');
+            const tableDiv = document.querySelector('.table-responsive');
+            const loadingDiv = document.getElementById('loading');
+            if (headerDiv) headerDiv.style.display = 'none';
+            if (tableDiv) tableDiv.style.display = 'none';
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            document.getElementById('ai-prompts-section').style.display = 'block';
+
+            // Mark nav item active
+            document.querySelectorAll('#config-tabs .nav-link').forEach(l => l.classList.remove('active'));
+            document.getElementById('nav-ai-prompts').classList.add('active');
+
+            loadAiPrompts();
+        }
+
+        // Patch the existing tab binding to restore table sections when other tabs are clicked
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('#config-tabs .nav-link[data-entity]').forEach(link => {
+                link.addEventListener('click', () => {
+                    // Restore generic table view
+                    const headerDiv = document.querySelector('.config-card .d-flex');
+                    const tableDiv = document.querySelector('.table-responsive');
+                    if (headerDiv) headerDiv.style.display = '';
+                    if (tableDiv) tableDiv.style.display = '';
+                    document.getElementById('ai-prompts-section').style.display = 'none';
+                });
+            });
+        });
+
+        async function loadAiPrompts() {
+            try {
+                const res = await fetch('/config/ai-prompts', { credentials: 'include' });
+                if (!res.ok) throw new Error('Error loading prompts');
+                const prompts = await res.json();
+
+                const agentColors = { client: 'warning', sales: 'primary', memory: 'success' };
+                const agentIcons = { client: 'bi-person-raised-hand', sales: 'bi-briefcase', memory: 'bi-database' };
+
+                document.getElementById('ai-prompts-container').innerHTML = prompts.map(p => `
+                    <div class="card mb-3 border-${agentColors[p.agent] || 'secondary'}">
+                        <div class="card-header bg-${agentColors[p.agent] || 'secondary'} bg-opacity-10 d-flex justify-content-between align-items-center">
+                            <strong><i class="bi ${agentIcons[p.agent] || 'bi-robot'} me-2"></i>${p.name}</strong>
+                            ${p.updated_at ? `<small class="text-muted">Modificado: ${new Date(p.updated_at).toLocaleDateString('es-ES')}</small>` : ''}
+                        </div>
+                        <div class="card-body">
+                            <textarea class="form-control font-monospace" id="prompt-${p.agent}"
+                                rows="10" style="font-size:0.82rem; resize:vertical;">${p.system_prompt}</textarea>
+                        </div>
+                    </div>
+                `).join('');
+            } catch(e) {
+                document.getElementById('ai-prompts-container').innerHTML =
+                    '<div class="alert alert-danger">Error al cargar los prompts</div>';
+            }
+        }
+
+        async function saveAllAiPrompts() {
+            const agents = ['client', 'sales', 'memory'];
+            let errors = 0;
+            for (const agent of agents) {
+                const textarea = document.getElementById(`prompt-${agent}`);
+                if (!textarea) continue;
+                try {
+                    const res = await fetch(`/config/ai-prompts/${agent}`, {
+                        method: 'PUT',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ system_prompt: textarea.value })
+                    });
+                    if (!res.ok) errors++;
+                } catch(e) { errors++; }
+            }
+            if (errors === 0) {
+                showToast('Prompts guardados correctamente', 'success');
+            } else {
+                showToast(`${errors} prompt(s) no se pudieron guardar`, 'danger');
+            }
+        }
     </script>
 </body>
 </html>

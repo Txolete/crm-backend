@@ -72,6 +72,12 @@ def automation_overdue_tasks():
         skipped = 0
         
         for task in overdue_tasks:
+            # Tasks linked only to an account (no opportunity) cannot create
+            # an Activity (opportunity_id NOT NULL) — skip them silently
+            if not task.opportunity_id:
+                skipped += 1
+                continue
+
             # Check dedupe: look for existing system activity with this task_id
             task_marker = f"task_id={task.id}"
             existing = db.query(Activity).filter(
@@ -80,11 +86,11 @@ def automation_overdue_tasks():
                 Activity.summary.like(f"%{task_marker}%"),
                 Activity.occurred_at >= dedup_cutoff
             ).first()
-            
+
             if existing:
                 skipped += 1
                 continue
-            
+
             # Create system activity
             activity = Activity(
                 id=generate_id(),
