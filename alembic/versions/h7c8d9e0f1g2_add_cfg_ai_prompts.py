@@ -16,14 +16,16 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        'cfg_ai_prompts',
-        sa.Column('agent', sa.String(50), primary_key=True),
-        sa.Column('name', sa.String(100), nullable=False),
-        sa.Column('system_prompt', sa.Text, nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('updated_by_user_id', sa.String(100), nullable=True),
-    )
+    # Use IF NOT EXISTS — table may already exist if create_all() ran first
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS cfg_ai_prompts (
+            agent VARCHAR(50) PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            system_prompt TEXT NOT NULL,
+            updated_at TIMESTAMPTZ,
+            updated_by_user_id VARCHAR(100)
+        )
+    """)
 
     op.execute("""
         INSERT INTO cfg_ai_prompts (agent, name, system_prompt) VALUES
@@ -40,6 +42,7 @@ Cuando recibas el contexto de una oportunidad:
 Responde SOLO desde la perspectiva del cliente. No des consejos al vendedor.
 Sé directo, psicológico y basado en los datos del contexto.
 Responde siempre en español. Máximo 5-6 líneas.')
+        ON CONFLICT (agent) DO NOTHING
     """)
 
     op.execute("""
@@ -66,6 +69,7 @@ PROBABILIDAD SUGERIDA:
 - Justificación: [1 frase explicando el porcentaje]
 
 Sé directo, táctico y crítico si es necesario — el objetivo es ganar. Responde siempre en español.')
+        ON CONFLICT (agent) DO NOTHING
     """)
 
     op.execute("""
@@ -82,6 +86,7 @@ Cuando recibas el contexto de una oportunidad y el histórico de casos similares
 
 Responde con datos concretos del histórico si los tienes, o con patrones generales del sector si no.
 Responde siempre en español. Máximo 6-7 líneas.')
+        ON CONFLICT (agent) DO NOTHING
     """)
 
 
