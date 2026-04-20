@@ -73,17 +73,6 @@ async def startup_event():
         startup_logger.critical(f"Startup failed: {e}")
         raise
     
-    # Run Alembic migrations before anything else
-    startup_logger.info("Running database migrations (alembic upgrade head)...")
-    try:
-        from alembic.config import Config
-        from alembic import command
-        alembic_cfg = Config("alembic.ini")
-        command.upgrade(alembic_cfg, "head")
-        startup_logger.info("✅ Database migrations applied successfully")
-    except Exception as e:
-        startup_logger.warning(f"⚠️  Alembic migration warning (continuing): {e}")
-
     # Initialize database
     startup_logger.info("Initializing database...")
     init_db()
