@@ -79,6 +79,7 @@ async def startup_event():
     startup_logger.info("Database initialized successfully")
 
     # Seed cfg_ai_prompts if table is empty (migration may have skipped INSERTs)
+    from app.database import SessionLocal
     from app.models.config import CfgAiPrompt
     db_prompts = SessionLocal()
     try:
