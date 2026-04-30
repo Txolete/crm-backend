@@ -48,16 +48,20 @@ async def users_page(
 @router.get("/users", response_model=UserListResponse)
 def list_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))  # admin y sales pueden listar
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     List all users
-    
-    **Admin and Sales** can list users (needed for owner assignment)
-    
+
+    **Admin and Sales** see all users (needed for owner assignment).
+    **Commercial** only sees themselves (for owner dropdown in forms).
+
     Returns all users with their information (except password_hash)
     """
-    users = db.query(User).all()
+    if current_user.role == "commercial":
+        users = db.query(User).filter(User.id == current_user.id).all()
+    else:
+        users = db.query(User).all()
     
     return UserListResponse(
         users=[
