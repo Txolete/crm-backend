@@ -285,6 +285,7 @@ def create_task(
         priority=task_data.priority,
         status='open',
         assigned_to_user_id=task_data.assigned_to_user_id,
+        created_by_user_id=current_user.id,
         reminder_date=task_data.reminder_date,
         created_at=timestamp,
         updated_at=timestamp
