@@ -58,15 +58,19 @@ async def dashboard(request: Request):
             "app_meta": {
                 "name": settings.app_name,
                 "version": settings.app_version,
-                "release": "v1.0",
-                "release_date": "2026-01-16",
+                "release": "v2.0",
+                "release_date": "2026-04-30",
                 "features": [
                     "Dashboard con KPIs (pipeline total/ponderado, pacing)",
                     "Kanban de oportunidades con drag & drop",
                     "Gesti\u00f3n de clientes y contactos",
+                    "Gesti\u00f3n completa de tareas (crear, editar, completar, cancelar)",
                     "Importaci\u00f3n desde Excel",
-                    "Dashboard de tareas",
-                    "Cat\u00e1logos (stages, regiones, tipos, fuentes) auto-cargados"
+                    "Rol Commercial: acceso filtrado a sus propios datos",
+                    "Campos estrat\u00e9gicos en oportunidades (tipo, estado mental, resumen ejecutivo)",
+                    "Cat\u00e1logo de motivos de p\u00e9rdida y tipos de tarea",
+                    "Responsable/asignado preseleccionado al crear recursos",
+                    "Cat\u00e1logos completos (stages, regiones, tipos, fuentes, plantillas de tarea)"
                 ]
             }
         }

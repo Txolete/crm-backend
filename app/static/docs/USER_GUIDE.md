@@ -1,6 +1,18 @@
-# 📖 Guía de Usuario - CRM v1.0.0
+# 📖 Guía de Usuario - CRM v2.0
 
 Guía completa para usar el sistema CRM de seguimiento comercial.
+
+---
+
+## 🆕 Novedades de la v2.0
+
+| Área | Qué hay nuevo |
+|------|--------------|
+| **Roles** | Nuevo rol **Commercial** con acceso filtrado a sus propios datos |
+| **Tareas** | Gestión completa de tareas desde el kanban y desde clientes |
+| **Oportunidades** | Campos estratégicos, motivo de pérdida, integración IA |
+| **Formularios** | El responsable/asignado se preselecciona con el usuario actual al crear |
+| **Permisos** | Commercial puede crear y editar sus propios recursos sin necesitar a sales |
 
 ---
 
@@ -10,29 +22,70 @@ Guía completa para usar el sistema CRM de seguimiento comercial.
 
 ```
 1. Abrir navegador (Chrome, Edge o Firefox)
-2. Ir a: http://localhost:8000
+2. Ir a la URL proporcionada por el administrador
 3. Iniciar sesión:
-   - Usuario: admin (o tu usuario asignado)
-   - Contraseña: (proporcionada por el administrador)
+   - Usuario: tu email
+   - Contraseña: proporcionada por el administrador
 ```
 
-**Primera vez:** Cambiar contraseña en tu perfil.
+**Primera vez:** Contacta al administrador para que te cree el usuario con el rol adecuado.
 
 ---
 
 ### **2. Navegación Principal**
 
 ```
-┌────────────────────────────────────┐
-│ CRM  [Dashboard]  [Clientes]  [?] │  ← Barra superior
-└────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│ CRM  [Dashboard]  [Clientes]  [Tareas] [?] │  ← Barra superior
+└──────────────────────────────────────────┘
 ```
 
 **Secciones:**
-- **Dashboard**: Vista general, KPIs, Kanban
+- **Dashboard**: Vista general, KPIs, Kanban de oportunidades
 - **Clientes**: Gestión completa de clientes y contactos
+- **Tareas**: Listado y gestión de todas tus tareas
 - **?**: Ayuda (esta guía)
-- **Usuario**: Perfil y cerrar sesión
+- **Usuario** (esquina derecha): Perfil y cerrar sesión
+
+---
+
+## 👤 Roles y Permisos
+
+El sistema tiene cuatro roles. Cada uno ve y puede hacer cosas distintas.
+
+### **Tabla de permisos**
+
+| Acción | Admin | Sales | Commercial | Viewer |
+|--------|-------|-------|------------|--------|
+| Ver todos los clientes | ✅ | ✅ | ❌ (solo los suyos) | ✅ |
+| Crear clientes | ✅ | ✅ | ✅ | ❌ |
+| Editar clientes | ✅ | ✅ | ✅ (solo los suyos) | ❌ |
+| Archivar clientes | ✅ | ✅ | ❌ | ❌ |
+| Ver todas las oportunidades | ✅ | ✅ | ❌ (solo las suyas) | ✅ |
+| Crear oportunidades | ✅ | ✅ | ✅ | ❌ |
+| Editar oportunidades | ✅ | ✅ | ✅ (solo las suyas) | ❌ |
+| Cerrar como Ganada/Perdida | ✅ | ✅ | ❌ | ❌ |
+| Mover tarjetas en kanban | ✅ | ✅ | ✅ (solo las suyas) | ❌ |
+| Crear tareas | ✅ | ✅ | ✅ | ❌ |
+| Editar tareas | ✅ | ✅ | ✅ (solo las suyas) | ❌ |
+| Completar tareas | ✅ | ✅ | ✅ | ✅ |
+| Gestionar usuarios | ✅ | ❌ | ❌ | ❌ |
+| Gestionar catálogos | ✅ | ❌ | ❌ | ❌ |
+
+### **Detalle de cada rol**
+
+**Admin** — Acceso total al sistema, gestión de usuarios y configuración.
+
+**Sales** — Acceso completo al CRM (clientes, oportunidades, tareas) sin gestión de usuarios ni catálogos.
+
+**Commercial** — Acceso restringido a sus propios datos:
+- Solo ve sus propios clientes, oportunidades y tareas en el kanban
+- Puede crear recursos nuevos (el responsable se asigna automáticamente a él)
+- Puede editar y eliminar sus propios recursos
+- **No puede** cerrar oportunidades como Ganada/Perdida (lo hace sales/admin)
+- **No puede** ver ni editar datos de otros usuarios
+
+**Viewer** — Solo lectura. Puede ver y completar tareas asignadas a él, nada más.
 
 ---
 
@@ -57,11 +110,13 @@ Guía completa para usar el sistema CRM de seguimiento comercial.
 - **% Objetivo**: Cuánto llevas del objetivo anual
 - **Pacing**: Si vas por buen camino (verde) o retrasado (rojo)
 
+> **Commercial**: los KPIs solo reflejan sus propias oportunidades.
+
 ---
 
 ### **Vista Kanban**
 
-El Kanban muestra todas las oportunidades organizadas por etapa.
+El Kanban muestra las oportunidades organizadas por etapa.
 
 **Etapas del Pipeline:**
 ```
@@ -73,20 +128,24 @@ El Kanban muestra todas las oportunidades organizadas por etapa.
 
 1. **Ver oportunidades:**
    - Cada tarjeta = 1 oportunidad
-   - Muestra: Cliente, Valor, Próxima tarea
+   - Muestra: Cliente, Valor, Probabilidad, Próxima tarea, Responsable
 
-2. **Mover oportunidades:**
+2. **Mover oportunidades (drag & drop):**
    - Arrastrar tarjeta a otra columna
-   - Sistema actualiza automáticamente
-   - Crea registro en historial
+   - Sistema actualiza probabilidad y pipeline automáticamente
+   - Crea registro en el historial de actividad
+   - ⚠️ No se puede arrastrar directamente a Won/Lost (usar el botón de cierre)
 
 3. **Filtrar:**
    - Por región, tipo de cliente, responsable
-   - Buscar por nombre
-   - Ocultar cerradas (Won/Lost)
+   - Buscar por nombre de cuenta
+   - Ocultar/mostrar columnas cerradas (Won/Lost)
 
 4. **Abrir detalle:**
-   - Click en tarjeta → Ver/Editar completo
+   - Click en tarjeta → Drawer lateral con detalle completo
+
+5. **Crear nueva oportunidad:**
+   - Botón "Nueva Oportunidad" (parte superior derecha)
 
 **Ejemplo de tarjeta:**
 ```
@@ -94,9 +153,21 @@ El Kanban muestra todas las oportunidades organizadas por etapa.
 │ ACME Corp              │  ← Nombre del cliente
 │ €50,000  [50%]         │  ← Valor y probabilidad
 │ 📋 Enviar propuesta    │  ← Próxima tarea
-│ 📅 20 Ene              │  ← Fecha límite
+│ 📅 20 Ene              │  ← Fecha límite de la tarea
+│ 👤 Juan García         │  ← Responsable
 │ 🏷️ Madrid  Industria   │  ← Badges
 └────────────────────────┘
+```
+
+**Cerrar una oportunidad:**
+```
+Roles admin / sales:
+1. Abrir detalle de la oportunidad
+2. Botón "Cerrar" → Seleccionar Ganada o Perdida
+3. Rellenar motivo (si perdida) y valor final (si ganada)
+4. Confirmar
+
+El commercial solo puede mover etapas abiertas; el cierre lo gestiona sales/admin.
 ```
 
 ---
@@ -110,10 +181,9 @@ Navegación: CRM → Clientes
 ```
 
 **Vista principal:**
-- Tabla con todos los clientes
+- Tabla con todos los clientes (commercial: solo los suyos)
 - Búsqueda por nombre
-- Filtros: Tipo, Región, Fuente, Responsable
-- Botones: Ver detalle, Editar, Archivar
+- Filtros: Tipo, Región, Fuente, Responsable, Estado
 
 **Filtros:**
 ```
@@ -124,30 +194,28 @@ Navegación: CRM → Clientes
 
 ### **Crear Nuevo Cliente**
 
-**Pasos:**
-
 ```
-1. Click "Nuevo Cliente" (botón verde superior derecha)
+1. Click "Nuevo Cliente" (botón superior derecha)
 
 2. Rellenar formulario:
-   
+
    BÁSICO:
    - Nombre *                    (Obligatorio)
-   
+
    CONTACTO:
    - Sitio Web                   (Ejemplo: www.ejemplo.com)
    - Teléfono                    (Ejemplo: +34 912345678)
    - Email                       (Ejemplo: info@ejemplo.com)
    - CIF/NIF                     (Ejemplo: B12345678)
    - Dirección                   (Texto libre)
-   
+
    CLASIFICACIÓN:
    - Tipo de Cliente             (Dropdown: Distribuidor, Instalador...)
    - Región                      (Dropdown: Madrid, Barcelona...)
    - Fuente de Lead              (Dropdown: Web, Referido...)
    - Detalle de Fuente           (Texto libre: nombre del referido, etc.)
-   - Responsable                 (Dropdown: usuarios del sistema)
-   
+   - Responsable                 (Se preselecciona con el usuario actual)
+
    NOTAS:
    - Notas adicionales           (Texto libre)
 
@@ -156,10 +224,9 @@ Navegación: CRM → Clientes
 ✅ Toast verde: "Cliente creado correctamente"
 ```
 
-**Consejos:**
-- Solo el Nombre es obligatorio
-- Website acepta formato simple: `www.ejemplo.com`
-- Sistema añade https:// automáticamente
+**Notas por rol:**
+- **Commercial**: El campo "Responsable" se fija automáticamente a su usuario y no se puede cambiar desde el backend (aunque lo cambies en el formulario, el sistema lo sobreescribe).
+- **Admin / Sales**: Pueden asignar cualquier responsable.
 
 ---
 
@@ -177,6 +244,7 @@ Click en cualquier cliente de la lista → Modal de detalle.
 │  📋 INFORMACIÓN BÁSICA               │
 │  Tipo: Distribuidor                 │
 │  Región: Madrid                     │
+│  Responsable: Juan García           │
 │  ...                                │
 │                                     │
 │  📞 INFORMACIÓN DE CONTACTO          │
@@ -185,64 +253,38 @@ Click en cualquier cliente de la lista → Modal de detalle.
 │  ...                                │
 │                                     │
 │  👥 CONTACTOS              [+ Añadir]│
-│  ┌─────────────────────────────┐   │
-│  │ Juan García                 │   │
-│  │ 👤 Gerente                  │   │
-│  │ ✉️ juan@acme.com [Principal]│   │
-│  │ ☎️ +34 666777888            │   │
-│  │                   [✏️] [🗑️] │   │
-│  └─────────────────────────────┘   │
+│  Juan García  |  Gerente            │
+│  juan@acme.com [Principal]          │
 │                                     │
 │  💼 OPORTUNIDADES        [Ver Kanban]│
 │  (Lista de oportunidades activas)   │
 │                                     │
+│  📋 TAREAS               [+ Nueva]  │
+│  (Lista de tareas del cliente)      │
+│                                     │
 └─────────────────────────────────────┘
 ```
 
-**Acciones disponibles:**
-- **Editar cliente**: Botón ✏️ superior
-- **Archivar**: Botón 🗑️ superior
-- **Añadir contacto**: Botón verde
-- **Editar contacto**: Botón ✏️ de cada contacto
-- **Eliminar contacto**: Botón 🗑️ de cada contacto
-- **Ver en Kanban**: Navega y resalta oportunidades
-
 ---
 
-### **Editar Cliente**
+### **Editar y Archivar Cliente**
 
+**Editar:**
 ```
 1. Abrir detalle del cliente
-2. Click botón "Editar" (✏️ superior derecha)
-3. Modal con formulario pre-rellenado
-4. Modificar campos necesarios
-5. Click "Guardar Cambios"
+2. Click botón ✏️ (superior derecha)
+3. Modificar campos → "Guardar Cambios"
 
-✅ Cambios guardados, detalle se recarga
+Commercial: solo puede editar clientes de los que es responsable.
 ```
 
-**Notas:**
-- Todos los campos editables
-- Dropdowns mantienen selección actual
-- Website se normaliza automáticamente
-
----
-
-### **Archivar Cliente**
-
+**Archivar:**
 ```
-1. Abrir detalle del cliente
-2. Click botón "Archivar" (🗑️ superior derecha)
-3. Confirmar en el diálogo
-4. Cliente se mueve a "Archivados"
+1. Abrir detalle
+2. Click 🗑️ → Confirmar
 
-⚠️ No se elimina físicamente, se puede recuperar
-```
-
-**Para ver archivados:**
-```
-En lista de clientes:
-[Estado: Activos ▼] → Cambiar a "Archivados"
+⚠️ No se elimina físicamente. Para ver archivados:
+[Estado: Activos ▼] → "Archivados"
 ```
 
 ---
@@ -257,182 +299,206 @@ Los contactos son personas dentro de los clientes.
 1. Abrir detalle del cliente
 2. Sección "Contactos" → Click "Añadir"
 3. Rellenar formulario:
-   
+
    BÁSICO:
-   - Nombre                      (Ejemplo: Juan)
-   - Apellidos                   (Ejemplo: García López)
-   - Rol                         (Dropdown: Gerente, Director...)
-   
-   EMAILS:                       [+ Añadir más]
-   - [email@ejemplo.com]  [⭐]  [🗑️]
-   
-   TELÉFONOS:                    [+ Añadir más]
-   - [+34 666777888]      [⭐]  [🗑️]
+   - Nombre / Apellidos
+   - Rol  (Gerente, Director, Técnico...)
 
-4. Marcar principal (⭐) en email/teléfono preferido
+   EMAILS:           [+ Añadir más]
+   - email@ejemplo.com  [⭐ Principal]  [🗑️]
+
+   TELÉFONOS:        [+ Añadir más]
+   - +34 666777888   [⭐ Principal]  [🗑️]
+
+4. Marcar ⭐ en el email/teléfono preferido
 5. Click "Crear"
-
-✅ Contacto añadido, aparece en lista
 ```
 
 **Características:**
-- **Múltiples emails**: Click "+ Añadir" para más
-- **Múltiples teléfonos**: Click "+ Añadir" para más
-- **Principal**: Solo uno puede ser principal por tipo
-- **Eliminar canal**: Click 🗑️ para quitar email/teléfono
+- Múltiples emails y teléfonos por contacto
+- Solo uno puede ser principal por tipo
+- Se pueden añadir o quitar canales libremente
 
 ---
 
-### **Editar Contacto**
+## 💼 Gestión de Oportunidades
+
+### **Crear Oportunidad**
 
 ```
-1. En detalle del cliente
-2. Lista de contactos → Click ✏️ del contacto
-3. Modal con datos actuales
-4. Modificar:
-   - Cambiar nombre/apellidos/rol
-   - Añadir/eliminar emails/teléfonos
-   - Cambiar cuál es principal
-5. Click "Guardar Cambios"
+Desde Kanban → Botón "Nueva Oportunidad"
 
-✅ Contacto actualizado
+Campos:
+- Cuenta *               (Dropdown: clientes existentes)
+- Nombre de Oportunidad  (Texto libre)
+- Stage *                (Etapa inicial)
+- Valor Esperado (EUR) * (Número)
+- Forecast Close Month   (Mes estimado de cierre)
+
+✅ Oportunidad creada, aparece en el kanban
 ```
 
-**Ejemplo de edición:**
-```
-Estado inicial:
-- juan@acme.com [Principal]
-
-Añadir segundo email:
-- juan@acme.com
-- juan@personal.com
-
-Cambiar principal:
-- juan@acme.com
-- juan@personal.com [Principal]  ← Click ⭐
-```
+**Commercial:** El responsable se asigna automáticamente a su usuario.
 
 ---
 
-### **Eliminar Contacto**
+### **Editar Oportunidad**
 
+Desde el drawer lateral (click en tarjeta del kanban):
+
+**Campos editables:**
 ```
-1. En lista de contactos
-2. Click 🗑️ del contacto
-3. Confirmar: "¿Eliminar a Juan García?"
-4. Click "Aceptar"
+BÁSICO:
+- Nombre, Valor esperado, Stage
+- Fecha forecast de cierre
+- Responsable (solo admin/sales)
 
-✅ Contacto eliminado (archivado, no borrado físicamente)
-```
+ESTRATÉGICO (v2.0):
+- Tipo de oportunidad        (Dropdown de catálogo)
+- Estado mental del cliente  (Dropdown: interesado, dudoso...)
+- Objetivo estratégico       (Texto libre)
+- Próxima acción estratégica (Texto libre)
+- Resumen ejecutivo          (Texto libre)
 
----
-
-## 📥 Importar Datos desde Excel
-
-Para cargar múltiples clientes y oportunidades de una vez.
-
-### **Preparar el Archivo**
-
-**Usar plantilla:** `IMPORT_NORMALIZADO_CRM.xlsx`
-
-**Estructura:**
-```
-Sheet: DATA
-Columnas:
-- account_name        (Nombre del cliente)
-- region              (Región: Madrid, Barcelona...)
-- customer_type       (Tipo: Distribuidor, Instalador...)
-- lead_source         (Fuente: Web, Referido...)
-- opportunity_name    (Nombre de la oportunidad)
-- expected_value      (Valor esperado en euros)
-- stage               (Etapa: new, contacted...)
-- contact_name        (Nombre del contacto principal)
-- contact_email       (Email del contacto)
-- contact_phone       (Teléfono del contacto)
-- next_step           (Próxima acción/tarea)
-- notes               (Notas adicionales)
-```
-
-**Ejemplo de fila:**
-```
-ACME Corp | Madrid | Distribuidor | Web | Proyecto Solar | 50000 | qualified | Juan García | juan@acme.com | +34666777888 | Enviar propuesta | Cliente interesado
+INTEGRACIÓN IA (v2.0):
+- URL sesión ChatGPT         (Enlace a conversación de IA)
+- Notas sesión externa       (Apuntes de reunión/llamada)
 ```
 
 ---
 
-### **Importar**
+### **Cerrar Oportunidad (Ganada / Perdida)**
+
+*Solo admin y sales.*
 
 ```
-1. Dashboard → Botón "Importar" (o navegar a /import)
-2. Click "Seleccionar archivo"
-3. Elegir IMPORT_NORMALIZADO_CRM.xlsx
-4. Sistema valida automáticamente
-5. Ver reporte:
-   - ✅ Filas válidas
-   - ⚠️ Warnings (valores no en catálogo)
-   - ❌ Errores (datos faltantes)
-6. Click "Confirmar Importación"
-7. Sistema crea:
-   - Cuentas (clientes)
-   - Oportunidades
-   - Contactos principales
-   - Tareas de próximo paso
+GANADA:
+1. Drawer → Botón "Cerrar como Ganada"
+2. Confirmar valor final ganado
+3. Sistema registra cierre, suma a KPI "Cerrado Anual"
 
-✅ Importación completada
+PERDIDA:
+1. Drawer → Botón "Cerrar como Perdida"
+2. Seleccionar motivo de pérdida (catálogo)
+3. Añadir detalle opcional
+4. Sistema registra cierre
 ```
 
-**Reporte ejemplo:**
-```
-📊 Resumen:
-- 25 filas procesadas
-- 20 cuentas creadas
-- 25 oportunidades creadas
-- 18 contactos añadidos
-- 25 tareas generadas
+**Auto-cierre por stage:** Si se arrastra una tarjeta a la columna Won o Lost (si está habilitada), el sistema cierra automáticamente la oportunidad.
 
-⚠️ Warnings:
-- Fila 5: Región "Valencia" no en catálogo
-- Fila 12: Tipo "OEM" no en catálogo
-→ Se guardaron en campos de texto libre
+---
+
+## 📋 Gestión de Tareas
+
+Las tareas representan acciones concretas vinculadas a un cliente o una oportunidad.
+
+### **Crear Tarea**
+
+```
+Desde Dashboard → Tab "Tareas" → "Nueva Tarea"
+O desde el detalle de cliente/oportunidad → "Añadir Tarea"
+
+Campos:
+- Título *               (Obligatorio)
+- Descripción            (Texto libre)
+- Tipo de tarea          (Dropdown: Llamada, Reunión, Email...)
+- Oportunidad            (Vincular a oportunidad)
+- Cliente                (Vincular a cliente)
+- Prioridad              (Alta / Media / Baja)
+- Fecha límite           (Fecha)
+- Asignado a             (Se preselecciona con el usuario actual)
+- Recordatorio           (Fecha opcional)
+
+✅ Tarea creada, aparece en el listado
+```
+
+> Al menos uno de "Oportunidad" o "Cliente" debe estar informado.
+
+---
+
+### **Estados de Tarea**
+
+```
+open → in_progress → completed
+  ↓
+cancelled  (eliminar = cancelar, no borrado físico)
+```
+
+| Estado | Descripción |
+|--------|-------------|
+| **open** | Pendiente de iniciar |
+| **in_progress** | En curso |
+| **completed** | Terminada |
+| **cancelled** | Cancelada (baja lógica) |
+
+---
+
+### **Editar y Completar Tareas**
+
+**Editar:**
+```
+Lista de tareas → Click en tarea → Editar
+Commercial: solo puede editar tareas que él creó o que le están asignadas.
+```
+
+**Completar:**
+```
+Cualquier usuario puede completar sus tareas asignadas:
+Lista de tareas → Botón ✅ → Tarea marcada como completada
+```
+
+**Eliminar (cancelar):**
+```
+Lista de tareas → Botón 🗑️ → Estado pasa a "cancelled"
+Commercial: solo puede cancelar sus propias tareas.
+```
+
+---
+
+### **Filtros de Tareas**
+
+```
+[Asignado a: Yo ▼]
+[Estado: Pendientes ▼]
+[Prioridad: Alta ▼]
+[Oportunidad: ... ▼]
+[Tipo: Llamada ▼]
+☐ Solo vencidas
 ```
 
 ---
 
 ## 🎯 Flujo de Trabajo Típico
 
-### **Escenario: Nuevo Lead**
+### **Escenario: Nuevo Lead (rol Commercial)**
 
 ```
 1. CREAR CLIENTE
-   Dashboard → Clientes → Nuevo Cliente
-   - Nombre: "Nueva Empresa SL"
-   - Región: Madrid
-   - Tipo: Distribuidor
-   - Fuente: Referido
-   - Responsable: [Tu nombre]
+   Clientes → Nuevo Cliente
+   - Nombre, Región, Tipo, Fuente
+   - Responsable: se rellena solo con tu usuario
 
 2. AÑADIR CONTACTO
    Detalle cliente → Añadir contacto
-   - Nombre: María
-   - Apellidos: Fernández
-   - Rol: Gerente
-   - Email: maria@nuevaempresa.com [Principal]
-   - Teléfono: +34 666123456
+   - Nombre, Rol, Email principal, Teléfono
 
 3. CREAR OPORTUNIDAD
-   (Desde Dashboard → Kanban o gestión de oportunidades)
-   - Cliente: Nueva Empresa SL
-   - Nombre: "Proyecto 2026"
-   - Valor: €30,000
-   - Etapa: New
+   Dashboard → Kanban → Nueva Oportunidad
+   - Cliente, Valor, Stage inicial
+   - Responsable: se asigna automáticamente
 
-4. AÑADIR TAREA
-   - Título: "Llamar para calificar"
-   - Fecha: Mañana
+4. CREAR TAREA DE SEGUIMIENTO
+   Drawer de oportunidad → Nueva tarea
+   - "Llamar para calificar"  |  Prioridad: Alta  |  Fecha: mañana
+   - Asignado a: [tu usuario - preseleccionado]
 
-5. SEGUIMIENTO
-   - Kanban → Mover tarjeta según avance
-   - New → Contacted → Qualified → ...
+5. MOVER EN KANBAN
+   Arrastrar tarjeta según avanza la negociación
+   New → Contacted → Qualified → ...
+
+6. SOLICITAR CIERRE A SALES/ADMIN
+   Cuando llegue a Negotiation, avisar a sales/admin
+   para que cierren como Ganada/Perdida
 ```
 
 ---
@@ -443,29 +509,30 @@ ACME Corp | Madrid | Distribuidor | Web | Proyecto Solar | 50000 | qualified | J
 1. Dashboard → Kanban
 2. Buscar oportunidad (filtros o búsqueda)
 3. Arrastrar tarjeta a nueva etapa
-   Ejemplo: "Contacted" → "Qualified"
 4. Sistema actualiza:
-   - Probabilidad (10% → 30%)
+   - Probabilidad automáticamente
    - Pipeline ponderado
-   - Historial de actividad
+   - Historial de actividad (registro automático)
 ```
 
 ---
 
-### **Escenario: Cerrar Venta (Won)**
+### **Escenario: Cerrar Venta (Won) — Sales/Admin**
 
 ```
 1. Kanban → Oportunidad en "Negotiation"
-2. Arrastrar a columna "Won"
-3. Modal solicita:
+2. Click en tarjeta → Drawer
+3. Botón "Cerrar como Ganada"
+4. Rellenar:
    - Fecha de cierre
-   - Valor final ganado
-4. Confirmar
-5. Sistema:
+   - Valor final ganado (por defecto: valor esperado)
+5. Confirmar
+6. Sistema:
    - Marca como Ganada
    - Suma a "Cerrado Anual"
-   - Crea actividad
+   - Crea actividad en historial
    - Actualiza KPIs
+   - Guarda snapshot para análisis IA
 ```
 
 ---
@@ -477,41 +544,24 @@ ACME Corp | Madrid | Distribuidor | Web | Proyecto Solar | 50000 | qualified | J
 ```
 En lista de clientes:
 [🔍 Buscar...]  → Escribir nombre
-Busca en: Nombre, Email, Teléfono, CIF
 ```
 
 **Filtros combinables:**
 ```
-[Estado: Activos]
-[Tipo: Distribuidor]
-[Región: Madrid]
-[Fuente: Web]
-[Responsable: Juan]
-
+[Estado: Activos] [Tipo: Distribuidor] [Región: Madrid] [Responsable: Juan]
 → Muestra solo clientes que cumplan TODOS los filtros
 ```
-
----
 
 ### **Buscar en Kanban**
 
 ```
-Barra de búsqueda superior:
-[🔍 Buscar oportunidad...]
+[🔍 Buscar cuenta...]   Barra superior
 
-Filtros laterales:
+Filtros:
 ☐ Ocultar cerradas (Won/Lost)
-[Región: Todas ▼]
-[Tipo: Todos ▼]
 [Owner: Todos ▼]
-☐ Tareas atrasadas
-```
 
-**Navegación directa:**
-```
-Desde detalle de cliente:
-Botón "Ver en Kanban" →
-Kanban se abre con oportunidades del cliente resaltadas en verde
+Commercial: el kanban ya filtra solo sus oportunidades, sin opción de ver las de otros.
 ```
 
 ---
@@ -522,62 +572,51 @@ Kanban se abre con oportunidades del cliente resaltadas en verde
 
 ### **Gestionar Catálogos**
 
-Desde menú Config/Admin:
+Desde el menú Config:
 
-**Tipos de Cliente:**
-```
-Añadir nuevo: Distribuidor, Instalador, OEM, etc.
-Activar/Desactivar existentes
-```
-
-**Regiones:**
-```
-17 CCAA de España pre-cargadas
-Activar/Desactivar según necesidad
-```
-
-**Fuentes de Lead:**
-```
-Web, Referido, Evento, Frío, etc.
-Personalizar según tus canales
-```
+| Catálogo | Para qué se usa |
+|----------|----------------|
+| **Tipos de Cliente** | Distribuidor, Instalador, OEM... |
+| **Regiones** | 17 CCAA de España (pre-cargadas) |
+| **Fuentes de Lead** | Web, Referido, Evento, Frío... |
+| **Stages** | Etapas del pipeline (nombre, probabilidad, orden) |
+| **Tipos de Oportunidad** | Categorías de negocio |
+| **Motivos de Pérdida** | Por qué se pierde una oportunidad |
+| **Estado Mental del Cliente** | Interesado, Dudoso, En pausa... |
+| **Tipos de Tarea** | Llamada, Reunión, Demo, Email... |
+| **Plantillas de Tarea** | Tareas predefinidas con título y prioridad |
 
 ---
 
 ### **Gestionar Usuarios**
 
 ```
-1. Admin → Usuarios
-2. Ver lista de usuarios
-3. Acciones:
-   - Crear usuario nuevo
-   - Asignar rol (admin/sales/viewer)
-   - Activar/Desactivar
-   - Reset password
-```
+Admin → Usuarios → Lista de usuarios
 
-**Roles:**
-- **admin**: Acceso total
-- **sales**: CRM completo (sin gestión usuarios)
-- **viewer**: Solo lectura
+Acciones:
+- Crear usuario nuevo (nombre, email, rol, contraseña)
+- Cambiar rol
+- Activar / Desactivar
+- Reset de contraseña
+
+Roles disponibles: admin | sales | commercial | viewer
+```
 
 ---
 
 ## 💡 Consejos y Mejores Prácticas
 
-### **Organización**
+### **Para el Commercial**
 
 ✅ **DO:**
-- Asignar responsable a cada cliente
-- Mantener contactos actualizados con roles
-- Marcar email/teléfono principal
-- Usar filtros para encontrar rápido
-- Revisar Kanban diariamente
+- Crear la tarea de seguimiento justo al crear la oportunidad
+- Asegurarte de que "Asignado a" eres tú al crear tareas (viene preseleccionado)
+- Mover tus tarjetas en el kanban conforme avanza la negociación
+- Avisar a sales/admin cuando una oportunidad llegue a Negotiation
 
 ❌ **DON'T:**
-- Dejar clientes sin responsable
-- Crear duplicados (buscar antes)
-- Archivar sin revisar oportunidades abiertas
+- Crear tareas sin asignarlas — no podrás editarlas después
+- Intentar ver clientes de otros (obtendrás error 403)
 
 ---
 
@@ -585,7 +624,7 @@ Personalizar según tus canales
 
 **Balance recomendado:**
 ```
-New:          10-20%  → Entrada constante
+New:          10-20%  → Entrada constante de leads
 Contacted:    15-20%  → Calificación activa
 Qualified:    20-25%  → Oportunidades reales
 Proposal:     20-25%  → En negociación
@@ -594,7 +633,7 @@ Negotiation:  15-20%  → Próximas a cerrar
 
 **Si ves:**
 - Mucho en New → Falta calificación
-- Mucho en Qualified → Falta acción
+- Mucho en Qualified → Falta acción comercial
 - Poco en Proposal → Pipeline débil
 
 ---
@@ -608,21 +647,41 @@ Negotiation:  15-20%  → Próximas a cerrar
 - Proposal → Seguir cada 3-4 días
 - Negotiation → Seguir diariamente
 
-**Usar tareas:**
+**Usar tareas correctamente:**
 - Siempre con fecha límite
-- Descripción clara de la acción
-- Asignar responsable
+- Título claro ("Llamar a Juan para confirmar propuesta")
+- Asignar a quien realmente va a hacerla
 
 ---
 
 ## 🆘 Preguntas Frecuentes
 
-### **¿Cómo cambio mi contraseña?**
+### **¿Por qué no veo los clientes/oportunidades de mis compañeros?**
 ```
-1. Click en tu nombre (esquina superior derecha)
-2. Perfil
-3. Cambiar contraseña
-4. Guardar
+Si tu rol es "commercial", el sistema solo te muestra
+tus propios datos. Es el comportamiento esperado.
+Para ver todos los datos, necesitas rol sales o admin.
+```
+
+---
+
+### **Creé una tarea y ahora no puedo editarla, ¿por qué?**
+```
+Asegúrate de que la tarea está asignada a ti o de que
+fuiste tú quien la creó. Si la creó otro usuario o está
+asignada a otro, necesitas rol sales/admin para editarla.
+
+Al crear tareas, el campo "Asignado a" viene preseleccionado
+con tu usuario — no lo desmarques si quieres poder editarla.
+```
+
+---
+
+### **¿Cómo cierro una oportunidad como Ganada?**
+```
+El rol commercial NO puede cerrar oportunidades.
+Debes avisar a un usuario sales o admin para que
+realice el cierre con el valor y fecha correctos.
 ```
 
 ---
@@ -648,27 +707,18 @@ Sistema hace "upsert" por nombre:
 
 ### **¿Cómo exporto datos?**
 ```
-Actualmente no hay export automático.
-Alternativa: Copiar desde lista o usar herramienta externa sobre crm.db
+Actualmente no hay export automático desde la UI.
+Alternativa: Contactar al administrador de sistema.
 ```
 
 ---
 
-### **¿Puedo eliminar permanentemente un cliente?**
+### **¿Puedo eliminar permanentemente un cliente o tarea?**
 ```
-No desde la UI (es baja lógica).
-Motivo: Auditoría y compliance.
-Si necesario: Contactar administrador de sistema.
-```
-
----
-
-### **¿Los datos están respaldados?**
-```
-Configuración actual: SQLite local
-Backup manual: Copiar crm.db regularmente
-
-Futuro con PostgreSQL: Backups automáticos programados
+No desde la UI (es baja lógica para auditoría).
+Clientes → se archivan
+Tareas   → se cancelan
+Si necesitas borrado físico, contacta al administrador.
 ```
 
 ---
@@ -678,21 +728,10 @@ Futuro con PostgreSQL: Backups automáticos programados
 **¿Necesitas ayuda?**
 
 1. Consultar esta guía
-2. Revisar CHANGELOG.md (historial de cambios)
-3. Contactar a tu administrador de sistema
-4. Reportar bug: Proporcionar pasos para reproducir
+2. Contactar a tu administrador de sistema
+3. Reportar bug: indicar pasos para reproducir + rol de usuario
 
 ---
 
-## 🎓 Recursos Adicionales
-
-- **README.md**: Documentación técnica e instalación
-- **CHANGELOG.md**: Historial de versiones
-- **SPEC**: Especificación funcional completa
-
----
-
-**Versión de la Guía:** v1.0.0  
-**Última actualización:** 16 Enero 2026
-
-¿Sugerencias para mejorar esta guía? Contacta al administrador.
+**Versión de la Guía:** v2.0.0
+**Última actualización:** 30 Abril 2026
