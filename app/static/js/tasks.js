@@ -374,6 +374,15 @@ async function showCreateTaskModal(preselect = {}) {
         const el = document.getElementById('task-due-date');
         if (el) el.value = preselect.due_date;
     }
+
+    // Default assignee to current user (unless already preselected)
+    if (!preselect.assigned_to_user_id) {
+        const currentUser = await getCurrentUser();
+        const assignedEl = document.getElementById('task-assigned-to');
+        if (assignedEl && currentUser && !assignedEl.value) {
+            assignedEl.value = currentUser.id;
+        }
+    }
 }
 
 /**

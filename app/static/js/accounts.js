@@ -16,6 +16,7 @@ let regions = [];
 let leadSources = [];
 let stages = [];
 let users = [];
+let currentUserId = null;
 
 // ============================================================================
 // INITIALIZATION
@@ -30,6 +31,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         const searchEl = document.getElementById('filter-search');
         if (searchEl) searchEl.value = preSearch;
     }
+
+    // Fetch current user for form defaults
+    try {
+        const meResp = await fetch('/auth/me', { credentials: 'include' });
+        if (meResp.ok) {
+            const me = await meResp.json();
+            currentUserId = me.id;
+        }
+    } catch (e) { /* ignore */ }
 
     // Load config data (wait for it to complete)
     await loadConfigData();
@@ -592,7 +602,12 @@ async function showCreateModal() {
     // Populate dropdowns
     console.log('[ACCOUNTS] Calling populateFormDropdowns...');
     populateFormDropdowns();
-    
+
+    // Default owner to current user
+    if (currentUserId) {
+        document.getElementById('form-owner').value = currentUserId;
+    }
+
     // Verify dropdowns were populated
     const customerTypeOptions = document.getElementById('form-customer-type').options.length;
     const regionOptions = document.getElementById('form-region').options.length;
