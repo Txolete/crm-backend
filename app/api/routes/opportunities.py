@@ -77,15 +77,15 @@ def list_opportunities(
 def create_opportunity(
     opportunity_data: OpportunityCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Create a new opportunity
-    
-    **Permissions:** admin, sales
+
+    **Permissions:** admin, sales, commercial
     """
     timestamp = get_utc_now()
-    
+
     new_opportunity = Opportunity(
         id=generate_id(),
         account_id=opportunity_data.account_id,
@@ -105,7 +105,10 @@ def create_opportunity(
         created_at=timestamp,
         updated_at=timestamp
     )
-    
+
+    if current_user.role == "commercial":
+        new_opportunity.owner_user_id = current_user.id
+
     db.add(new_opportunity)
     
     # Audit log
@@ -273,23 +276,27 @@ def update_opportunity(
     opportunity_id: str,
     opportunity_data: OpportunityUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Update opportunity
-    
-    **Permissions:** admin, sales
-    
+
+    **Permissions:** admin, sales, commercial (own opportunities only)
+
     **Note:** To change stage, use this endpoint. Moving stage creates an activity.
     """
     opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    
+
     if not opportunity:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Opportunity not found"
         )
-    
+
+    if current_user.role == "commercial" and opportunity.owner_user_id != current_user.id:
+        raise HTTPException(status_code=403,
+            detail="Solo puedes editar tus propias oportunidades")
+
     # Store before state
     before_data = {
         "stage_id": opportunity.stage_id,

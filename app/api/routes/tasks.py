@@ -235,12 +235,12 @@ def get_task(
 def create_task(
     task_data: TaskCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Create a new task
-    
-    **Permissions:** Admin and Sales only
+
+    **Permissions:** Admin, Sales and Commercial
     
     **Validation:**
     - At least one of opportunity_id or account_id must be provided
@@ -353,21 +353,27 @@ def update_task(
     task_id: str,
     task_data: TaskUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Update a task
-    
-    **Permissions:** Admin and Sales only
+
+    **Permissions:** Admin, Sales and Commercial (own tasks only)
     """
     task = db.query(Task).filter(Task.id == task_id).first()
-    
+
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found"
         )
-    
+
+    if current_user.role == "commercial":
+        if (task.assigned_to_user_id != current_user.id and
+                task.created_by_user_id != current_user.id):
+            raise HTTPException(status_code=403,
+                detail="Solo puedes editar tus propias tareas")
+
     # Store before state
     before_data = {
         "title": task.title,
@@ -442,23 +448,29 @@ def update_task(
 def delete_task(
     task_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Delete (cancel) a task
-    
-    **Permissions:** Admin and Sales only
-    
+
+    **Permissions:** Admin, Sales and Commercial (own tasks only)
+
     **Note:** This is a logical delete - task status is set to 'cancelled'
     """
     task = db.query(Task).filter(Task.id == task_id).first()
-    
+
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found"
         )
-    
+
+    if current_user.role == "commercial":
+        if (task.assigned_to_user_id != current_user.id and
+                task.created_by_user_id != current_user.id):
+            raise HTTPException(status_code=403,
+                detail="Solo puedes editar tus propias tareas")
+
     # Logical delete: set status to cancelled
     task.status = 'cancelled'
     task.updated_at = get_utc_now()

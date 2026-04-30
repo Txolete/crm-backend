@@ -134,15 +134,15 @@ def list_accounts(
 def create_account(
     account_data: AccountCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Create a new account
-    
-    **Permissions:** admin, sales
+
+    **Permissions:** admin, sales, commercial
     """
     timestamp = get_utc_now()
-    
+
     new_account = Account(
         id=generate_id(),
         name=account_data.name,
@@ -169,7 +169,10 @@ def create_account(
         created_at=timestamp,
         updated_at=timestamp
     )
-    
+
+    if current_user.role == "commercial":
+        new_account.owner_user_id = current_user.id
+
     db.add(new_account)
     
     # Audit log
@@ -280,21 +283,25 @@ def update_account(
     account_id: str,
     account_data: AccountUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Update account
-    
-    **Permissions:** admin, sales
+
+    **Permissions:** admin, sales, commercial (own accounts only)
     """
     account = db.query(Account).filter(Account.id == account_id).first()
-    
+
     if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Account not found"
         )
-    
+
+    if current_user.role == "commercial" and account.owner_user_id != current_user.id:
+        raise HTTPException(status_code=403,
+            detail="Solo puedes editar tus propios clientes")
+
     # Store before state
     before_data = {
         "name": account.name,

@@ -274,13 +274,13 @@ def move_stage(
     opportunity_id: str,
     request: MoveStageRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Move opportunity to a new stage (drag & drop)
-    
-    **Permissions:** admin, sales
-    
+
+    **Permissions:** admin, sales, commercial (own opportunities only)
+
     Rules:
     - Cannot move to won/lost via drag (use close endpoint)
     - Creates activity with type "status_change"
@@ -288,13 +288,17 @@ def move_stage(
     """
     # Get opportunity
     opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    
+
     if not opportunity:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Opportunity not found"
         )
-    
+
+    if current_user.role == "commercial" and opportunity.owner_user_id != current_user.id:
+        raise HTTPException(status_code=403,
+            detail="Solo puedes mover tus propias oportunidades")
+
     # Get old stage
     old_stage = db.query(CfgStage).filter(CfgStage.id == opportunity.stage_id).first()
     if not old_stage:
