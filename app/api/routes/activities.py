@@ -78,15 +78,15 @@ async def list_activities_by_opportunity(
 async def create_activity(
     activity_data: ActivityCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Create a new activity (manual entry)
-    
-    **Permissions:** admin, sales
+
+    **Permissions:** admin, sales, commercial (solo en sus propias oportunidades)
     """
     timestamp = get_utc_now()
-    
+
     # Verify opportunity exists
     opportunity = db.query(Opportunity).filter(
         Opportunity.id == activity_data.opportunity_id
@@ -96,6 +96,10 @@ async def create_activity(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Oportunidad no encontrada"
         )
+
+    if current_user.role == "commercial" and opportunity.owner_user_id != current_user.id:
+        raise HTTPException(status_code=403,
+            detail="Solo puedes añadir notas a tus propias oportunidades")
     
     # Create activity
     new_activity = Activity(
@@ -132,12 +136,12 @@ async def update_activity(
     activity_id: str,
     activity_data: ActivityUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Update an existing activity
-    
-    **Permissions:** admin, sales (only own activities)
+
+    **Permissions:** admin, sales, commercial (solo actividades propias)
     """
     activity = db.query(Activity).filter(Activity.id == activity_id).first()
     
@@ -188,12 +192,12 @@ async def update_activity(
 async def delete_activity(
     activity_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Delete an activity
-    
-    **Permissions:** admin, sales (only own activities)
+
+    **Permissions:** admin, sales, commercial (solo actividades propias)
     """
     activity = db.query(Activity).filter(Activity.id == activity_id).first()
     

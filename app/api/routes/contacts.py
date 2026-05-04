@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from app.database import get_db
 from app.models.user import User
-from app.models.account import Contact, ContactChannel
+from app.models.account import Account, Contact, ContactChannel
 from app.schemas.contact import (
     ContactCreate, ContactUpdate, ContactResponse, ContactListResponse,
     ContactChannelCreate, ContactChannelUpdate, ContactChannelResponse
@@ -72,13 +72,19 @@ def list_contacts_by_account(
 def create_contact(
     contact_data: ContactCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Create a new contact with optional channels
-    
-    **Permissions:** admin, sales
+
+    **Permissions:** admin, sales, commercial (solo en cuentas propias)
     """
+    if current_user.role == "commercial":
+        account = db.query(Account).filter(Account.id == contact_data.account_id).first()
+        if not account or account.owner_user_id != current_user.id:
+            raise HTTPException(status_code=403,
+                detail="Solo puedes añadir contactos a tus propios clientes")
+
     timestamp = get_utc_now()
     
     new_contact = Contact(
@@ -176,21 +182,27 @@ def update_contact(
     contact_id: str,
     contact_data: ContactUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Update contact and optionally replace all channels
-    
-    **Permissions:** admin, sales
+
+    **Permissions:** admin, sales, commercial (solo en cuentas propias)
     """
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
-    
+
     if not contact:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Contact not found"
         )
-    
+
+    if current_user.role == "commercial":
+        account = db.query(Account).filter(Account.id == contact.account_id).first()
+        if not account or account.owner_user_id != current_user.id:
+            raise HTTPException(status_code=403,
+                detail="Solo puedes editar contactos de tus propios clientes")
+
     # Store before state
     before_data = {
         "first_name": contact.first_name,
@@ -398,12 +410,12 @@ def create_contact_channel(
     contact_id: str,
     channel_data: ContactChannelCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Create a contact channel (email/phone)
-    
-    **Permissions:** admin, sales
+
+    **Permissions:** admin, sales, commercial (solo en cuentas propias)
     """
     # Verify contact exists
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
@@ -412,6 +424,12 @@ def create_contact_channel(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Contact not found"
         )
+
+    if current_user.role == "commercial":
+        account = db.query(Account).filter(Account.id == contact.account_id).first()
+        if not account or account.owner_user_id != current_user.id:
+            raise HTTPException(status_code=403,
+                detail="Solo puedes añadir canales a contactos de tus propios clientes")
     
     timestamp = get_utc_now()
     
@@ -454,20 +472,27 @@ def update_contact_channel(
     channel_id: str,
     channel_data: ContactChannelUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Update contact channel
-    
-    **Permissions:** admin, sales
+
+    **Permissions:** admin, sales, commercial (solo en cuentas propias)
     """
     channel = db.query(ContactChannel).filter(ContactChannel.id == channel_id).first()
-    
+
     if not channel:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Contact channel not found"
         )
+
+    if current_user.role == "commercial":
+        contact = db.query(Contact).filter(Contact.id == channel.contact_id).first()
+        account = db.query(Account).filter(Account.id == contact.account_id).first() if contact else None
+        if not account or account.owner_user_id != current_user.id:
+            raise HTTPException(status_code=403,
+                detail="Solo puedes editar canales de contactos de tus propios clientes")
     
     # Store before state
     before_data = {
@@ -511,22 +536,29 @@ def update_contact_channel(
 def delete_contact_channel(
     channel_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
     Delete contact channel (physical deletion - exception to logical deletion rule)
-    
-    **Permissions:** admin, sales
-    
+
+    **Permissions:** admin, sales, commercial (solo en cuentas propias)
+
     **Note:** ContactChannels do not have status field, so physical deletion is allowed
     """
     channel = db.query(ContactChannel).filter(ContactChannel.id == channel_id).first()
-    
+
     if not channel:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Contact channel not found"
         )
+
+    if current_user.role == "commercial":
+        contact = db.query(Contact).filter(Contact.id == channel.contact_id).first()
+        account = db.query(Account).filter(Account.id == contact.account_id).first() if contact else None
+        if not account or account.owner_user_id != current_user.id:
+            raise HTTPException(status_code=403,
+                detail="Solo puedes eliminar canales de contactos de tus propios clientes")
     
     # Audit log before deletion
     create_audit_log(
