@@ -592,20 +592,26 @@ def complete_task(
 def reopen_task(
     task_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "sales"))
+    current_user: User = Depends(require_role("admin", "sales", "commercial"))
 ):
     """
-    Reopen a completed task
-    
-    **Permissions:** Admin and Sales only
+    Reopen a completed or cancelled task
+
+    **Permissions:** admin, sales, commercial (solo tareas propias)
     """
     task = db.query(Task).filter(Task.id == task_id).first()
-    
+
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found"
         )
+
+    if current_user.role == "commercial":
+        if (task.assigned_to_user_id != current_user.id and
+                task.created_by_user_id != current_user.id):
+            raise HTTPException(status_code=403,
+                detail="Solo puedes reabrir tus propias tareas")
     
     # Update task
     task.status = 'open'
