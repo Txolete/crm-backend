@@ -17,6 +17,7 @@ from app.models.opportunity import Opportunity, Task, Activity
 from app.models.target import Target
 from app.models.audit import AuditLog, AppVersion
 from app.models.feedback import UserFeedback
+from app.models.material import MaterialDocument
 
 __all__ = [
     # Users
@@ -46,4 +47,5 @@ __all__ = [
     "AuditLog",
     "AppVersion",
     "UserFeedback",
+    "MaterialDocument",
 ]

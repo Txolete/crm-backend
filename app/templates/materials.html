@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Material comercial — CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .main-container { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+        .page-header { background: white; padding: 1.5rem; border-radius: 8px;
+                       box-shadow: 0 1px 3px rgba(0,0,0,.1); margin-bottom: 1.5rem;
+                       display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .mat-card { background: white; border-radius: 8px; padding: 1rem 1.25rem;
+                    margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08);
+                    border-left: 4px solid #2563eb; }
+        .mat-card.retired { border-left-color: #9ca3af; opacity: 0.65; }
+        .mat-icon { font-size: 1.8rem; color: #2563eb; }
+        .mat-meta { font-size: .82rem; color: #6b7280; }
+        .mat-usage { background: #fef3c7; padding: 6px 10px; border-radius: 6px;
+                     font-size: .85rem; color: #78350f; display: inline-block; }
+        .filter-bar { background: white; padding: .75rem 1rem; border-radius: 8px;
+                      margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .empty-state { text-align: center; padding: 3rem; color: #6b7280; }
+        .badge-version { background: #2563eb; color: white; font-size: .75rem; padding: .25rem .5rem; }
+        .badge-retired { background: #9ca3af; color: white; font-size: .75rem; }
+        .file-icon-pdf { color: #dc2626; }
+        .file-icon-doc { color: #2563eb; }
+        .file-icon-ppt { color: #ea580c; }
+        .file-icon-xls { color: #16a34a; }
+        .file-icon-img { color: #9333ea; }
+        .file-icon-zip { color: #6b7280; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/dashboard"><i class="bi bi-arrow-left"></i> Volver al CRM</a>
+            <span class="navbar-text text-white">📚 Material comercial</span>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="page-header">
+            <div>
+                <h3 class="mb-0">Material comercial</h3>
+                <small class="text-muted">Decks, propuestas tipo, guía comercial — siempre la última versión</small>
+            </div>
+            <div id="admin-actions" style="display:none;">
+                <button class="btn btn-primary" onclick="openUploadModal()">
+                    <i class="bi bi-cloud-upload"></i> Subir material
+                </button>
+            </div>
+        </div>
+
+        <div class="filter-bar" id="admin-filter" style="display:none;">
+            <label class="form-check-label me-2">
+                <input type="checkbox" class="form-check-input" id="show-retired" onchange="loadMaterials()">
+                Mostrar también materiales retirados
+            </label>
+            <span class="ms-3 text-muted small" id="mat-count"></span>
+        </div>
+
+        <div id="mat-list"><p class="text-muted text-center">Cargando…</p></div>
+    </div>
+
+    <!-- Modal Upload / New Version -->
+    <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="uploadModalTitle">Subir material</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="upload-slug" value="">
+                    <div class="alert alert-warning small" id="upload-replace-warn" style="display:none;">
+                        <i class="bi bi-exclamation-triangle"></i> Vas a subir <strong>una nueva versión</strong>.
+                        La versión anterior pasará automáticamente a <em>retirada</em> y dejará de mostrarse a los comerciales.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del material</label>
+                        <input type="text" class="form-control" id="upload-name" placeholder="Ej: Guía del comercial" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Versión</label>
+                        <input type="text" class="form-control" id="upload-version" placeholder="Ej: v2.1 o 2026-06" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cuándo se usa (una línea)</label>
+                        <input type="text" class="form-control" id="upload-usage" maxlength="200"
+                               placeholder="Ej: En primera reunión con cliente nuevo">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Archivo</label>
+                        <input type="file" class="form-control" id="upload-file" required>
+                        <small class="text-muted">Máx 25 MB. PDF, DOCX, PPTX, XLSX, ZIP, imágenes.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="upload-submit" onclick="submitUpload()">
+                        <i class="bi bi-cloud-upload"></i> Subir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let _isAdmin = false;
+        let _currentUser = null;
+
+        function escapeHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({
+                '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+            }[c]));
+        }
+        function formatDate(iso) {
+            if (!iso) return '';
+            try { return new Date(iso).toLocaleDateString('es-ES', { year:'numeric', month:'short', day:'numeric' }); }
+            catch { return iso; }
+        }
+        function formatSize(bytes) {
+            if (!bytes) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+            return (bytes/(1024*1024)).toFixed(1) + ' MB';
+        }
+        function fileIconClass(mime, filename) {
+            const m = (mime || '').toLowerCase();
+            const f = (filename || '').toLowerCase();
+            if (m.includes('pdf') || f.endsWith('.pdf')) return ['bi-file-earmark-pdf', 'file-icon-pdf'];
+            if (m.includes('presentation') || f.match(/\.(ppt|pptx|key)$/)) return ['bi-file-earmark-slides', 'file-icon-ppt'];
+            if (m.includes('spreadsheet') || f.match(/\.(xls|xlsx|csv)$/)) return ['bi-file-earmark-spreadsheet', 'file-icon-xls'];
+            if (m.includes('word') || f.match(/\.(doc|docx)$/)) return ['bi-file-earmark-word', 'file-icon-doc'];
+            if (m.startsWith('image/') || f.match(/\.(png|jpg|jpeg|gif|webp|svg)$/)) return ['bi-file-earmark-image', 'file-icon-img'];
+            if (m.includes('zip') || f.match(/\.(zip|rar|7z)$/)) return ['bi-file-earmark-zip', 'file-icon-zip'];
+            return ['bi-file-earmark', ''];
+        }
+
+        async function loadMaterials() {
+            const list = document.getElementById('mat-list');
+            list.innerHTML = '<p class="text-muted text-center">Cargando…</p>';
+            try {
+                let url = '/materials';
+                if (_isAdmin && document.getElementById('show-retired')?.checked) {
+                    url = '/materials/admin';
+                }
+                const res = await fetch(url, { credentials: 'include' });
+                if (!res.ok) throw new Error(`Error ${res.status}`);
+                const data = await res.json();
+                renderList(data.materials || []);
+                document.getElementById('mat-count').textContent = `${data.total || 0} documentos`;
+            } catch (e) {
+                list.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function renderList(items) {
+            const list = document.getElementById('mat-list');
+            if (!items.length) {
+                list.innerHTML = `<div class="empty-state">
+                    <i class="bi bi-folder2-open" style="font-size:3rem;"></i>
+                    <p class="mt-2">Todavía no hay material publicado.</p>
+                    ${_isAdmin ? '<button class="btn btn-primary" onclick="openUploadModal()"><i class="bi bi-cloud-upload"></i> Subir el primero</button>' : ''}
+                </div>`;
+                return;
+            }
+            list.innerHTML = items.map(m => {
+                const [icon, iconColor] = fileIconClass(m.mime_type, m.file_name);
+                const isRetired = m.status === 'retired';
+                return `
+                <div class="mat-card ${isRetired ? 'retired' : ''}">
+                    <div class="d-flex align-items-start gap-3">
+                        <i class="bi ${icon} ${iconColor}" style="font-size:2.2rem;"></i>
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                <strong style="font-size:1.05rem;">${escapeHtml(m.name)}</strong>
+                                <span class="badge badge-version">${escapeHtml(m.version)}</span>
+                                ${isRetired ? '<span class="badge badge-retired">RETIRADO</span>' : ''}
+                            </div>
+                            ${m.usage_note ? `<div class="mat-usage mb-2">📌 ${escapeHtml(m.usage_note)}</div>` : ''}
+                            <div class="mat-meta">
+                                <i class="bi bi-calendar3"></i> ${formatDate(m.uploaded_at)}
+                                · <i class="bi bi-file-earmark"></i> ${escapeHtml(m.file_name)} (${formatSize(m.file_size)})
+                                ${m.uploaded_by_name ? `· <i class="bi bi-person"></i> ${escapeHtml(m.uploaded_by_name)}` : ''}
+                            </div>
+                        </div>
+                        <div class="d-flex flex-column gap-2">
+                            <a href="/materials/${m.id}/download" class="btn btn-sm btn-primary">
+                                <i class="bi bi-download"></i> Descargar
+                            </a>
+                            ${_isAdmin ? `
+                                <button class="btn btn-sm btn-outline-primary" onclick="openNewVersionModal('${m.name_slug}', ${JSON.stringify(escapeHtml(m.name)).replace(/"/g,'&quot;')})">
+                                    <i class="bi bi-arrow-up-circle"></i> Nueva versión
+                                </button>
+                                ${isRetired
+                                    ? `<button class="btn btn-sm btn-outline-success" onclick="restoreMat('${m.id}')"><i class="bi bi-arrow-counterclockwise"></i> Reactivar</button>
+                                       <button class="btn btn-sm btn-outline-danger" onclick="deleteMat('${m.id}')"><i class="bi bi-trash"></i></button>`
+                                    : `<button class="btn btn-sm btn-outline-warning" onclick="retireMat('${m.id}')"><i class="bi bi-archive"></i> Retirar</button>`}
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function openUploadModal() {
+            document.getElementById('uploadModalTitle').textContent = 'Subir material';
+            document.getElementById('upload-replace-warn').style.display = 'none';
+            document.getElementById('upload-slug').value = '';
+            document.getElementById('upload-name').value = '';
+            document.getElementById('upload-name').disabled = false;
+            document.getElementById('upload-version').value = '';
+            document.getElementById('upload-usage').value = '';
+            document.getElementById('upload-file').value = '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('uploadModal')).show();
+        }
+        function openNewVersionModal(slug, name) {
+            document.getElementById('uploadModalTitle').textContent = 'Subir nueva versión';
+            document.getElementById('upload-replace-warn').style.display = 'block';
+            document.getElementById('upload-slug').value = slug;
+            document.getElementById('upload-name').value = name;
+            document.getElementById('upload-name').disabled = true;
+            document.getElementById('upload-version').value = '';
+            document.getElementById('upload-usage').value = '';
+            document.getElementById('upload-file').value = '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('uploadModal')).show();
+        }
+
+        async function submitUpload() {
+            const name = document.getElementById('upload-name').value.trim();
+            const version = document.getElementById('upload-version').value.trim();
+            const usage = document.getElementById('upload-usage').value.trim();
+            const slug = document.getElementById('upload-slug').value;
+            const file = document.getElementById('upload-file').files[0];
+            if (!name || !version || !file) {
+                alert('Nombre, versión y archivo son obligatorios.');
+                return;
+            }
+            const fd = new FormData();
+            fd.append('name', name);
+            fd.append('version', version);
+            if (usage) fd.append('usage_note', usage);
+            if (slug) fd.append('name_slug', slug);
+            fd.append('file', file);
+
+            const btn = document.getElementById('upload-submit');
+            btn.disabled = true; btn.textContent = 'Subiendo…';
+            try {
+                const res = await fetch('/materials', { method:'POST', credentials:'include', body: fd });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || `Error ${res.status}`);
+                }
+                bootstrap.Modal.getInstance(document.getElementById('uploadModal'))?.hide();
+                loadMaterials();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Subir';
+            }
+        }
+
+        async function retireMat(id) {
+            if (!confirm('¿Retirar este material? Dejará de mostrarse a los comerciales.')) return;
+            await fetch(`/materials/${id}/retire`, { method:'POST', credentials:'include' });
+            loadMaterials();
+        }
+        async function restoreMat(id) {
+            await fetch(`/materials/${id}/restore`, { method:'POST', credentials:'include' });
+            loadMaterials();
+        }
+        async function deleteMat(id) {
+            if (!confirm('Borrar permanentemente este material. ¿Seguro?')) return;
+            await fetch(`/materials/${id}`, { method:'DELETE', credentials:'include' });
+            loadMaterials();
+        }
+
+        (async () => {
+            try {
+                const r = await fetch('/auth/me', { credentials: 'include' });
+                if (!r.ok) { window.location.href = '/login'; return; }
+                _currentUser = await r.json();
+                _isAdmin = _currentUser.role === 'admin';
+                if (_isAdmin) {
+                    document.getElementById('admin-actions').style.display = 'block';
+                    document.getElementById('admin-filter').style.display = 'block';
+                }
+                loadMaterials();
+            } catch { window.location.href = '/login'; }
+        })();
+    </script>
+    <script src="/static/js/feedback_widget.js"></script>
+</body>
+</html>

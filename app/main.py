@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.database import init_db
-from app.api.routes import auth, admin, accounts, contacts, opportunities, tasks, activities, kanban, dashboard, import_excel, config, config_ui, admin_automations, ai, feedback
+from app.api.routes import auth, admin, accounts, contacts, opportunities, tasks, activities, kanban, dashboard, import_excel, config, config_ui, admin_automations, ai, feedback, materials
 from datetime import datetime
 import logging
 import os
@@ -55,6 +55,7 @@ app.include_router(config_ui.router)
 app.include_router(admin_automations.router)
 app.include_router(ai.router)
 app.include_router(feedback.router)
+app.include_router(materials.router)
 
 
 @app.on_event("startup")
