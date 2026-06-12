@@ -511,19 +511,19 @@ function onTaskTemplateChange() {
     const templateSelect = document.getElementById('task-template');
     const selectedOption = templateSelect.options[templateSelect.selectedIndex];
     const dueDays = selectedOption.getAttribute('data-due-days');
-    
-    // Auto-calcular fecha de vencimiento si la plantilla tiene días por defecto
-    if (dueDays && dueDays !== '') {
+    const dueDateInput = document.getElementById('task-due-date');
+
+    // La fecha introducida manualmente tiene prevalencia: solo auto-rellenar si está vacía.
+    if (dueDays && dueDays !== '' && !dueDateInput.value) {
         const today = new Date();
         today.setDate(today.getDate() + parseInt(dueDays));
-        
+
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
-        
-        document.getElementById('task-due-date').value = `${year}-${month}-${day}`;
-        
-        // Mostrar feedback al usuario
+
+        dueDateInput.value = `${year}-${month}-${day}`;
+
         if (parseInt(dueDays) > 0) {
             showAlert(`Fecha establecida a ${dueDays} días desde hoy`, 'info');
         }
@@ -616,13 +616,29 @@ async function saveTask() {
             }
         }
 
-        // Cerrar modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
-        modal.hide();
+        // Cerrar modal (defensivo: si la instancia no existe, forzar limpieza igualmente)
+        const modalEl = document.getElementById('taskModal');
+        const modal = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+        if (modal) {
+            modal.hide();
+        }
+        // Forzar limpieza de backdrop por si el modal se abrió desde el calendario
+        // u otro contexto donde hide() no limpia el backdrop correctamente
+        if (typeof forceModalCleanup === 'function') {
+            setTimeout(forceModalCleanup, 300);
+        }
 
         // Recargar lista de tareas (cubre FIX 4: desvincular oportunidad refresca el panel)
         if (typeof loadMyTasks === 'function' && document.getElementById('filter-task-status')) {
             await loadMyTasks();
+        }
+
+        // Refrescar calendario si está activo
+        if (typeof window.initTaskCalendar === 'function' && document.getElementById('task-calendar')) {
+            const calEl = document.getElementById('task-calendar');
+            if (calEl.offsetParent !== null) {
+                window.initTaskCalendar();
+            }
         }
 
         // Refrescar Kanban: siempre recargar para capturar oportunidad original y nueva

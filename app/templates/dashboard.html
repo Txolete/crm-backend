@@ -728,6 +728,17 @@
         .timeline-content:hover {
             background: #e9ecef;
         }
+
+        /* Tooltip enriquecido del calendario de tareas */
+        .task-calendar-tooltip .tooltip-inner {
+            max-width: 360px;
+            text-align: left;
+            background-color: #1f2937;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            padding: 8px 10px;
+        }
+        #task-calendar .fc-event { cursor: pointer; }
     </style>
 </head>
 <body>
@@ -755,6 +766,11 @@
                     <li class="nav-item" id="nav-users" style="display: none;">
                         <a class="nav-link" href="/admin/users-page">
                             <i class="bi bi-people"></i> Usuarios
+                        </a>
+                    </li>
+                    <li class="nav-item" id="nav-feedback" style="display: none;">
+                        <a class="nav-link" href="/feedback/admin-page">
+                            <i class="bi bi-chat-dots"></i> Feedback
                         </a>
                     </li>
                 </ul>
@@ -2199,5 +2215,7 @@ Sé conciso. Máximo 200 palabras en total.</pre>
     <script src="/static/js/tasks.js"></script>
     <!-- Help + About + Guided Tour -->
     <script src="/static/js/onboarding.js"></script>
+    <!-- Feedback widget (in-app) -->
+    <script src="/static/js/feedback_widget.js"></script>
 </body>
 </html>

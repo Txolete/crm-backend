@@ -16,6 +16,7 @@ from app.models.account import Account, Contact, ContactChannel
 from app.models.opportunity import Opportunity, Task, Activity
 from app.models.target import Target
 from app.models.audit import AuditLog, AppVersion
+from app.models.feedback import UserFeedback
 
 __all__ = [
     # Users
@@ -44,4 +45,5 @@ __all__ = [
     "Target",
     "AuditLog",
     "AppVersion",
+    "UserFeedback",
 ]
