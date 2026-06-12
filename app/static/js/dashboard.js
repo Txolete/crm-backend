@@ -4148,9 +4148,38 @@ window.initTaskCalendar = async function() {
             }
         },
         eventDidMount: function(info) {
-            // Tooltip con descripción si existe
-            if (info.event.extendedProps.description) {
-                info.el.title = info.event.extendedProps.description;
+            // Tooltip enriquecido (Bootstrap) con detalles de la tarea sin tener que abrirla
+            const t = info.event.extendedProps || {};
+            const lines = [];
+            lines.push(`<strong>${(t.title || info.event.title || '').replace(/</g, '&lt;')}</strong>`);
+            if (t.due_date) {
+                const d = typeof t.due_date === 'string' ? t.due_date.split('T')[0] : t.due_date;
+                lines.push(`📅 ${d}`);
+            }
+            if (t.priority) {
+                const prioLabel = { high: '🔴 Alta', medium: '🟠 Media', low: '⚪ Baja' }[t.priority] || t.priority;
+                lines.push(`Prioridad: ${prioLabel}`);
+            }
+            if (t.assigned_to_name) lines.push(`👤 ${t.assigned_to_name}`);
+            if (t.opportunity_name) lines.push(`💼 ${t.opportunity_name}`);
+            if (t.account_name) lines.push(`🏢 ${t.account_name}`);
+            if (t.description) {
+                const desc = String(t.description).replace(/</g, '&lt;');
+                lines.push(`<em>${desc.length > 200 ? desc.slice(0, 200) + '…' : desc}</em>`);
+            }
+            const html = lines.join('<br>');
+
+            if (window.bootstrap && bootstrap.Tooltip) {
+                new bootstrap.Tooltip(info.el, {
+                    title: html,
+                    html: true,
+                    placement: 'top',
+                    trigger: 'hover',
+                    container: 'body',
+                    customClass: 'task-calendar-tooltip'
+                });
+            } else {
+                info.el.title = lines.join(' · ').replace(/<[^>]+>/g, '');
             }
         }
     });
