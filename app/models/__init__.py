@@ -18,6 +18,7 @@ from app.models.target import Target
 from app.models.audit import AuditLog, AppVersion
 from app.models.feedback import UserFeedback
 from app.models.material import MaterialDocument
+from app.models.email_template import EmailTemplate, EmailSent
 
 __all__ = [
     # Users
@@ -48,4 +49,6 @@ __all__ = [
     "AppVersion",
     "UserFeedback",
     "MaterialDocument",
+    "EmailTemplate",
+    "EmailSent",
 ]
