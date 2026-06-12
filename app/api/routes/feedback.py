@@ -2,6 +2,8 @@
 Endpoints for user feedback (in-app feedback widget)
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import Optional
@@ -18,6 +20,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
+templates = Jinja2Templates(directory="app/templates")
+
+
+@router.get("/admin-page", response_class=HTMLResponse)
+async def feedback_admin_page(
+    request: Request,
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin")
+    return templates.TemplateResponse("feedback_admin.html", {"request": request})
 
 
 @router.post("", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)

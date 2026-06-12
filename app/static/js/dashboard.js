@@ -59,12 +59,12 @@ function updateNavbarUser(user) {
         userRoleElement.textContent = roleLabels[user.role] || user.role;
     }
     
-    // Show Users nav link only for admin
+    // Show Users + Feedback nav links only for admin
     if (user.role === 'admin') {
         const navUsers = document.getElementById('nav-users');
-        if (navUsers) {
-            navUsers.style.display = 'block';
-        }
+        if (navUsers) navUsers.style.display = 'block';
+        const navFeedback = document.getElementById('nav-feedback');
+        if (navFeedback) navFeedback.style.display = 'block';
     }
 }
 
