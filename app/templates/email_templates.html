@@ -54,6 +54,9 @@
                 <button class="btn btn-outline-secondary" onclick="loadSent()" data-bs-toggle="modal" data-bs-target="#sentModal">
                     <i class="bi bi-archive"></i> Historial enviados
                 </button>
+                <button class="btn btn-outline-primary" id="btn-seed-tpl" style="display:none;" onclick="seedInitial()" title="Crea las 2 plantillas base (frío estándar + corporate) si no existen">
+                    <i class="bi bi-magic"></i> Cargar plantillas base
+                </button>
                 <button class="btn btn-primary" id="btn-new-tpl" style="display:none;" onclick="openEdit(null)">
                     <i class="bi bi-plus-circle"></i> Nueva plantilla
                 </button>
@@ -333,6 +336,26 @@
             loadTemplates();
         }
 
+        async function seedInitial() {
+            if (!confirm('Crear las 2 plantillas base (frío estándar + corporate) si no existen ya. ¿Continuar?')) return;
+            const btn = document.getElementById('btn-seed-tpl');
+            btn.disabled = true;
+            try {
+                const res = await fetch('/email-templates/seed-initial', { method:'POST', credentials:'include' });
+                if (!res.ok) {
+                    const err = await res.json().catch(()=>({}));
+                    throw new Error(err.detail || `Error ${res.status}`);
+                }
+                const d = await res.json();
+                showToast(`Creadas ${d.created.length}, ya existían ${d.skipped.length}`, 'success');
+                loadTemplates();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
         async function deleteTpl() {
             const id = document.getElementById('edit-id').value;
             if (!id) return;
@@ -527,7 +550,10 @@
                 if (!r.ok) { window.location.href = '/login'; return; }
                 _currentUser = await r.json();
                 _isAdmin = _currentUser.role === 'admin';
-                if (_isAdmin) document.getElementById('btn-new-tpl').style.display = 'inline-block';
+                if (_isAdmin) {
+                    document.getElementById('btn-new-tpl').style.display = 'inline-block';
+                    document.getElementById('btn-seed-tpl').style.display = 'inline-block';
+                }
                 loadTemplates();
                 loadLinkSelects();
             } catch { window.location.href = '/login'; }
