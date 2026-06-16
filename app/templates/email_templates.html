@@ -137,28 +137,8 @@
                                 <label class="form-label small">Email destinatario *</label>
                                 <input type="email" class="form-control" id="use-to-email">
                             </div>
-                            <div class="mb-2">
-                                <label class="form-label small">Nombre del contacto</label>
-                                <input type="text" class="form-control" id="use-var-nombre" onkeyup="renderPreview()">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small">Empresa</label>
-                                <input type="text" class="form-control" id="use-var-empresa" onkeyup="renderPreview()">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small">
-                                    Señal detectada *
-                                    <span class="badge bg-danger" id="use-senal-required" style="display:none;">obligatoria</span>
-                                </label>
-                                <textarea class="form-control" id="use-var-senal" rows="2"
-                                          placeholder="Ej: tramitando el alta en CNMC, crecimiento de CUPS, cambio en operativa…"
-                                          onkeyup="renderPreview()"></textarea>
-                                <small class="text-muted">Sin señal específica, NO se envía. Esta es la regla de la guía.</small>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small">Firma comercial</label>
-                                <input type="text" class="form-control" id="use-var-firma" onkeyup="renderPreview()">
-                            </div>
+                            <!-- Inputs de variables dinamicos (generados segun la plantilla) -->
+                            <div id="use-vars-container"></div>
                             <hr>
                             <h6 class="mb-2">Vincular a (opcional)</h6>
                             <div class="mb-2">
@@ -367,29 +347,76 @@
         }
 
         // ----- Use template -----
+
+        // Sugerencias y forma del campo para variables conocidas
+        const VAR_HINTS = {
+            nombre:              { label: 'Nombre del contacto', placeholder: 'Ej: Juan García', textarea: false },
+            empresa:             { label: 'Empresa',             placeholder: 'Ej: Acme Energy SL', textarea: false },
+            senal_detectada:     { label: 'Señal detectada',     placeholder: 'Ej: tramitando el alta en CNMC, crecimiento de CUPS, cambio en operativa…', textarea: true, help: 'Sin señal específica, no se envía. Regla de la guía.' },
+            firma_comercial:     { label: 'Firma comercial',     placeholder: 'Tu nombre + cargo', textarea: false, prefill: 'name' },
+            novedad_regulatoria: { label: 'Novedad regulatoria', placeholder: 'Ej: Verifactu, cambio de garantías OMIE, nueva circular CNMC…', textarea: true, help: 'Debe ser real y vigente esta semana (BOE / CNMC / OMIE / REE). Sin novedad real, este toque no se envía.' },
+            fecha_plazo:         { label: 'Fecha / plazo',       placeholder: 'Ej: 1 de octubre 2026', textarea: false },
+            referencia:          { label: 'Referencia (cliente comparable)', placeholder: 'Ej: Paratí, Enersa…', textarea: false, help: 'Una comercializadora cliente del tamaño/perfil del lead. Si no quieres exponer un nombre, usa "otras de vuestro tamaño".' },
+            propuesta_hueco:     { label: 'Propuesta de hueco', placeholder: 'Ej: el jueves a las 10, 15 min esta semana', textarea: false, help: 'Franja concreta, no "cuándo te viene bien".' },
+        };
+
+        function humanizeVar(v) {
+            return v.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+        }
+
+        function buildVarInputs(tpl) {
+            const required = (tpl.required_variables || '').split(',').map(s => normVar(s.trim())).filter(Boolean);
+            const allVars = extractVars((tpl.subject || '') + '\n' + (tpl.body || ''));
+            const container = document.getElementById('use-vars-container');
+            container.innerHTML = '';
+            if (!allVars.length) {
+                container.innerHTML = '<div class="text-muted small">Esta plantilla no usa variables.</div>';
+                return;
+            }
+            allVars.forEach(v => {
+                const hint = VAR_HINTS[v] || { label: humanizeVar(v), placeholder: '', textarea: false };
+                const isRequired = required.includes(v);
+                const inputId = 'use-var-' + v;
+                const isTextarea = hint.textarea;
+                let prefillValue = '';
+                if (hint.prefill === 'name' && _currentUser) prefillValue = _currentUser.name || '';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'mb-2';
+                wrapper.innerHTML = `
+                    <label class="form-label small" for="${inputId}">
+                        ${escapeHtml(hint.label)}${isRequired ? ' *' : ''}
+                        ${isRequired ? '<span class="badge bg-danger ms-1">obligatoria</span>' : ''}
+                    </label>
+                    ${isTextarea
+                        ? `<textarea class="form-control use-var-input" id="${inputId}" data-var="${v}" rows="2" placeholder="${escapeHtml(hint.placeholder)}">${escapeHtml(prefillValue)}</textarea>`
+                        : `<input type="text" class="form-control use-var-input" id="${inputId}" data-var="${v}" placeholder="${escapeHtml(hint.placeholder)}" value="${escapeHtml(prefillValue)}">`
+                    }
+                    ${hint.help ? `<small class="text-muted">${escapeHtml(hint.help)}</small>` : ''}
+                `;
+                container.appendChild(wrapper);
+            });
+            container.querySelectorAll('.use-var-input').forEach(el => {
+                el.addEventListener('input', renderPreview);
+            });
+        }
+
         function openUse(t) {
             _currentTpl = t;
             document.getElementById('use-tpl-id').value = t.id;
             document.getElementById('use-tpl-name').textContent = t.name;
             document.getElementById('use-to-email').value = '';
-            document.getElementById('use-var-nombre').value = '';
-            document.getElementById('use-var-empresa').value = '';
-            document.getElementById('use-var-senal').value = '';
-            document.getElementById('use-var-firma').value = _currentUser?.name || '';
-            const required = (t.required_variables || '').split(',').map(s=>s.trim()).filter(Boolean);
-            document.getElementById('use-senal-required').style.display = required.includes('senal_detectada') ? 'inline-block' : 'none';
+            buildVarInputs(t);
             document.getElementById('use-required-warn').style.display = 'none';
             renderPreview();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('useModal')).show();
         }
 
         function getVariables() {
-            return {
-                nombre: document.getElementById('use-var-nombre').value,
-                empresa: document.getElementById('use-var-empresa').value,
-                senal_detectada: document.getElementById('use-var-senal').value,
-                firma_comercial: document.getElementById('use-var-firma').value,
-            };
+            const vars = {};
+            document.querySelectorAll('#use-vars-container .use-var-input').forEach(el => {
+                vars[el.dataset.var] = el.value;
+            });
+            return vars;
         }
 
         function renderLocal(text, vars) {
