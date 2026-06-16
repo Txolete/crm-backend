@@ -43,6 +43,8 @@ class EmailSent(Base):
 
     to_email = Column(String, nullable=False)
     to_name = Column(String, nullable=True)
+    cc_emails = Column(String, nullable=True)   # separados por ';' o ','
+    bcc_emails = Column(String, nullable=True)  # separados por ';' o ','
     subject = Column(String, nullable=False)
     body = Column(Text, nullable=False)
     senal_detectada = Column(Text, nullable=True)

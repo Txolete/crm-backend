@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     automations_enabled: bool = True
     auto_run_time: str = "07:00"  # HH:MM format
     auto_no_activity_days: int = 14
-    auto_proposal_no_activity_days: int = 7
+    auto_proposal_no_activity_days: int = 30
     auto_overdue_dedup_days: int = 7
     auto_followup_dedup_days: int = 14
     

@@ -24,6 +24,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     role: Optional[str] = Field(None, pattern="^(admin|sales|commercial|viewer)$")
     is_active: Optional[bool] = None
+    email_signature: Optional[str] = None
 
 
 class UserResetPassword(BaseModel):
@@ -41,6 +42,7 @@ class UserResponse(BaseModel):
     last_login_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    email_signature: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -73,7 +73,8 @@ def list_users(
                 is_active=user.is_active == 1,  # Convert INTEGER to bool
                 last_login_at=user.last_login_at,
                 created_at=user.created_at,
-                updated_at=user.updated_at
+                updated_at=user.updated_at,
+                email_signature=user.email_signature,
             )
             for user in users
         ],
@@ -150,7 +151,8 @@ def create_user(
         is_active=True,
         last_login_at=new_user.last_login_at,
         created_at=new_user.created_at,
-        updated_at=new_user.updated_at
+        updated_at=new_user.updated_at,
+        email_signature=new_user.email_signature,
     )
 
 
@@ -212,7 +214,10 @@ def update_user(
     
     if user_data.is_active is not None:
         user.is_active = 1 if user_data.is_active else 0
-    
+
+    if user_data.email_signature is not None:
+        user.email_signature = user_data.email_signature.strip() or None
+
     user.updated_at = get_utc_now()
     
     # Store after state
@@ -253,7 +258,8 @@ def update_user(
         is_active=user.is_active == 1,
         last_login_at=user.last_login_at,
         created_at=user.created_at,
-        updated_at=user.updated_at
+        updated_at=user.updated_at,
+        email_signature=user.email_signature,
     )
 
 

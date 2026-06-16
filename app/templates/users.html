@@ -233,6 +233,15 @@
                             <div class="form-text">Mínimo 6 caracteres</div>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label">Firma de email</label>
+                            <textarea class="form-control" id="user-email-signature" rows="4"
+                                placeholder="Juan García&#10;Comercial · ASIC XXI&#10;juan@asicxxi.com · +34 600 000 000&#10;www.asicxxi.com"></textarea>
+                            <small class="text-muted">
+                                Se usa automáticamente al rellenar plantillas como variable <code>{{firma_comercial}}</code>.
+                                Mete nombre, cargo, email, teléfono y web.
+                            </small>
+                        </div>
+                        <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="user-active" checked>
                                 <label class="form-check-label" for="user-active">

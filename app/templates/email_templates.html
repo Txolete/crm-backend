@@ -134,11 +134,33 @@
                         <div class="col-md-6">
                             <h6 class="mb-2">Datos del destinatario</h6>
                             <div class="mb-2">
-                                <label class="form-label small">Email destinatario *</label>
-                                <input type="email" class="form-control" id="use-to-email">
+                                <label class="form-label small">Email destinatario(s) *</label>
+                                <input type="text" class="form-control" id="use-to-email"
+                                       placeholder="varios separados por ;  (ej: a@x.com; b@x.com)">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">CC (opcional)</label>
+                                <input type="text" class="form-control" id="use-cc-emails"
+                                       placeholder="separados por ;">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">CCO / BCC (opcional)</label>
+                                <input type="text" class="form-control" id="use-bcc-emails"
+                                       placeholder="separados por ;">
                             </div>
                             <!-- Inputs de variables dinamicos (generados segun la plantilla) -->
                             <div id="use-vars-container"></div>
+                            <!-- Datalist global con sugerencias para senal_detectada -->
+                            <datalist id="senal-suggestions">
+                                <option value="que estáis tramitando el alta en CNMC">
+                                <option value="que os habéis registrado este mes como nueva comercializadora">
+                                <option value="que habéis crecido en CUPS estos últimos meses">
+                                <option value="que vais a empezar a comercializar gas">
+                                <option value="que habéis cambiado recientemente de operativa de back office">
+                                <option value="que acabáis de cambiar de ERP">
+                                <option value="que estáis revisando proveedor de servicios de mercado">
+                                <option value="que habéis incorporado consumidores directos">
+                            </datalist>
                             <hr>
                             <h6 class="mb-2">Vincular a (opcional)</h6>
                             <div class="mb-2">
@@ -353,7 +375,7 @@
             nombre:              { label: 'Nombre del contacto', placeholder: 'Ej: Juan García', textarea: false },
             empresa:             { label: 'Empresa',             placeholder: 'Ej: Acme Energy SL', textarea: false },
             senal_detectada:     { label: 'Señal detectada',     placeholder: 'Ej: tramitando el alta en CNMC, crecimiento de CUPS, cambio en operativa…', textarea: true, help: 'Sin señal específica, no se envía. Regla de la guía.' },
-            firma_comercial:     { label: 'Firma comercial',     placeholder: 'Tu nombre + cargo', textarea: false, prefill: 'name' },
+            firma_comercial:     { label: 'Firma comercial',     placeholder: 'Nombre + cargo + email + tel + web', textarea: true, prefill: 'signature' },
             novedad_regulatoria: { label: 'Novedad regulatoria', placeholder: 'Ej: Verifactu, cambio de garantías OMIE, nueva circular CNMC…', textarea: true, help: 'Debe ser real y vigente esta semana (BOE / CNMC / OMIE / REE). Sin novedad real, este toque no se envía.' },
             fecha_plazo:         { label: 'Fecha / plazo',       placeholder: 'Ej: 1 de octubre 2026', textarea: false },
             referencia:          { label: 'Referencia (cliente comparable)', placeholder: 'Ej: Paratí, Enersa…', textarea: false, help: 'Una comercializadora cliente del tamaño/perfil del lead. Si no quieres exponer un nombre, usa "otras de vuestro tamaño".' },
@@ -379,17 +401,23 @@
                 const inputId = 'use-var-' + v;
                 const isTextarea = hint.textarea;
                 let prefillValue = '';
-                if (hint.prefill === 'name' && _currentUser) prefillValue = _currentUser.name || '';
+                if (hint.prefill === 'signature' && _currentUser) {
+                    prefillValue = _currentUser.email_signature || _currentUser.name || '';
+                } else if (hint.prefill === 'name' && _currentUser) {
+                    prefillValue = _currentUser.name || '';
+                }
                 const wrapper = document.createElement('div');
                 wrapper.className = 'mb-2';
+                // Datalist con sugerencias si la variable es senal_detectada
+                const listAttr = v === 'senal_detectada' ? 'list="senal-suggestions"' : '';
                 wrapper.innerHTML = `
                     <label class="form-label small" for="${inputId}">
                         ${escapeHtml(hint.label)}${isRequired ? ' *' : ''}
                         ${isRequired ? '<span class="badge bg-danger ms-1">obligatoria</span>' : ''}
                     </label>
                     ${isTextarea
-                        ? `<textarea class="form-control use-var-input" id="${inputId}" data-var="${v}" rows="2" placeholder="${escapeHtml(hint.placeholder)}">${escapeHtml(prefillValue)}</textarea>`
-                        : `<input type="text" class="form-control use-var-input" id="${inputId}" data-var="${v}" placeholder="${escapeHtml(hint.placeholder)}" value="${escapeHtml(prefillValue)}">`
+                        ? `<textarea class="form-control use-var-input" id="${inputId}" data-var="${v}" rows="2" placeholder="${escapeHtml(hint.placeholder)}" ${listAttr}>${escapeHtml(prefillValue)}</textarea>`
+                        : `<input type="text" class="form-control use-var-input" id="${inputId}" data-var="${v}" placeholder="${escapeHtml(hint.placeholder)}" value="${escapeHtml(prefillValue)}" ${listAttr}>`
                     }
                     ${hint.help ? `<small class="text-muted">${escapeHtml(hint.help)}</small>` : ''}
                 `;
@@ -405,6 +433,8 @@
             document.getElementById('use-tpl-id').value = t.id;
             document.getElementById('use-tpl-name').textContent = t.name;
             document.getElementById('use-to-email').value = '';
+            document.getElementById('use-cc-emails').value = '';
+            document.getElementById('use-bcc-emails').value = '';
             buildVarInputs(t);
             document.getElementById('use-required-warn').style.display = 'none';
             renderPreview();
@@ -462,12 +492,24 @@
             }, () => alert('No se pudo copiar'));
         }
 
+        function normalizeRecipients(s) {
+            // Acepta separadores ; , o salto de linea. Devuelve coma-separados (estandar mailto:).
+            return (s || '').split(/[;,\n]/).map(x => x.trim()).filter(Boolean).join(',');
+        }
+
         function openInMailClient() {
-            const to = document.getElementById('use-to-email').value.trim();
+            const to = normalizeRecipients(document.getElementById('use-to-email').value);
             if (!to) { alert('Indica el email destinatario'); return; }
+            const cc = normalizeRecipients(document.getElementById('use-cc-emails').value);
+            const bcc = normalizeRecipients(document.getElementById('use-bcc-emails').value);
             const { subject, body } = getRenderedTexts();
-            const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            window.location.href = mailto;
+            const params = [
+                `subject=${encodeURIComponent(subject)}`,
+                `body=${encodeURIComponent(body)}`,
+            ];
+            if (cc) params.push(`cc=${encodeURIComponent(cc)}`);
+            if (bcc) params.push(`bcc=${encodeURIComponent(bcc)}`);
+            window.location.href = `mailto:${encodeURIComponent(to)}?${params.join('&')}`;
         }
 
         async function markAsSent() {
@@ -482,6 +524,8 @@
                 template_id: _currentTpl.id,
                 to_email: to,
                 to_name: vars.nombre || null,
+                cc_emails: document.getElementById('use-cc-emails').value.trim() || null,
+                bcc_emails: document.getElementById('use-bcc-emails').value.trim() || null,
                 subject, body,
                 senal_detectada: vars.senal_detectada || null,
                 account_id: document.getElementById('use-account-id').value || null,

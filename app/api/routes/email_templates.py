@@ -308,7 +308,7 @@ _SEED_TEMPLATES = [
         "subject": "Vuestra operativa como comercializadora",
         "body": (
             "Hola {{nombre}},\n\n"
-            "He visto que {{senal_detectada}}. Enhorabuena — y prepárate, porque OMIE, REE, las distribuidoras "
+            "He visto {{senal_detectada}}. Enhorabuena — y prepárate, porque OMIE, REE, las distribuidoras "
             "y la CNMC no esperan, y cada cambio regulatorio rompe algo.\n\n"
             "A eso nos dedicamos: llevamos el back office de más de 60 comercializadoras desde 2017, con BOMP, "
             "nuestro ERP nacido para este mercado. Hay quien nos usa como equipo externo, quien solo usa el "
@@ -570,6 +570,8 @@ def record_sent(
         opportunity_id=payload.opportunity_id,
         to_email=payload.to_email.strip(),
         to_name=(payload.to_name or "").strip() or None,
+        cc_emails=(payload.cc_emails or "").strip() or None,
+        bcc_emails=(payload.bcc_emails or "").strip() or None,
         subject=payload.subject,
         body=payload.body,
         senal_detectada=(payload.senal_detectada or "").strip() or None,
@@ -634,7 +636,9 @@ def _to_sent_response(db: Session, e: EmailSent, sent_by_name: Optional[str] = N
     return EmailSentResponse(
         id=e.id, template_id=e.template_id, template_name_snapshot=e.template_name_snapshot,
         account_id=e.account_id, contact_id=e.contact_id, opportunity_id=e.opportunity_id,
-        to_email=e.to_email, to_name=e.to_name, subject=e.subject, body=e.body,
+        to_email=e.to_email, to_name=e.to_name,
+        cc_emails=e.cc_emails, bcc_emails=e.bcc_emails,
+        subject=e.subject, body=e.body,
         senal_detectada=e.senal_detectada,
         sent_at=e.sent_at, sent_by_user_id=e.sent_by_user_id, sent_by_name=sent_by_name,
         response_received=bool(e.response_received),

@@ -136,6 +136,7 @@ def get_current_user_info(
         name=current_user.name,
         email=current_user.email,
         role=current_user.role,
-        is_active=current_user.is_active == 1,  # Convert INTEGER to bool
-        last_login_at=current_user.last_login_at
+        is_active=current_user.is_active == 1,
+        last_login_at=current_user.last_login_at,
+        email_signature=current_user.email_signature,
     )
