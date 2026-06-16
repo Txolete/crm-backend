@@ -98,6 +98,63 @@ async def templates_page(
 
 _SEED_TEMPLATES = [
     {
+        "name": "Seguimiento — Toque 1: valor regulatorio (+3 días)",
+        "category": "follow-up-1",
+        "subject": "{{novedad_regulatoria}} — ojo al plazo",
+        "body": (
+            "{{nombre}},\n\n"
+            "{{novedad_regulatoria}}. Os toca.\n\n"
+            "Lo veo de cerca porque a nosotros nos toca adaptarlo para las comercializadoras que llevamos. "
+            "Por si os pilla liados.\n\n"
+            "{{firma_comercial}}"
+        ),
+        "required_variables": "nombre,novedad_regulatoria,firma_comercial",
+        "notes": (
+            "Toque 1 de la secuencia de 3. Ángulo: aportar valor sin pedir nada. NO hay CTA — el valor ES el mensaje. "
+            "novedad_regulatoria = una frase real y vigente esta semana (BOE / CNMC / OMIE / REE) con la obligación + plazo. "
+            "Si esa semana no hay novedad regulatoria real, NO se manda este toque (la guía dice: inventarse uno hace el efecto contrario)."
+        ),
+    },
+    {
+        "name": "Seguimiento — Toque 2: prueba social + deck (+5 días)",
+        "category": "follow-up-2",
+        "subject": "Otras como {{referencia}} ya lo delegan",
+        "body": (
+            "{{nombre}},\n\n"
+            "Te escribí hace unos días. Igual no era el momento.\n\n"
+            "Al grano: más de 60 comercializadoras nos pasan la operativa que quema horas y no da ingresos — "
+            "facturación, ATR, desvíos, garantías, reporting. Varias arrancaron donde estáis vosotros ahora.\n\n"
+            "Te dejo 6 diapositivas, 2 minutos de lectura. Si ves algo que encaja, ¿{{propuesta_hueco}}?\n\n"
+            "{{firma_comercial}}"
+        ),
+        "required_variables": "nombre,referencia,propuesta_hueco,firma_comercial",
+        "notes": (
+            "Toque 2 de la secuencia. Es el ÚNICO que adjunta el deck outbound (6 slides), descargable desde Material. "
+            "referencia = una comercializadora cliente del tamaño/perfil del lead (Paratí, Enersa…). Si no quieres exponer un nombre, "
+            'usa asunto alternativo "Cómo lo llevan otras de vuestro tamaño". '
+            'propuesta_hueco = franja concreta, no "cuándo te viene bien" (ej: "el jueves a las 10").'
+        ),
+    },
+    {
+        "name": "Seguimiento — Toque 3: cierre limpio (+7 días)",
+        "category": "follow-up-3",
+        "subject": "Lo dejo aquí",
+        "body": (
+            "{{nombre}},\n\n"
+            "Última por ahora, que tampoco quiero ocupar bandeja para nada.\n\n"
+            "Si la operativa hoy no aprieta, perfecto. Suele apretar cuando crece la cartera o llega un cambio "
+            "normativo cruzado. Ese día estamos.\n\n"
+            "Si quieres, te dejo en la lista de avisos regulatorios y nada más. ¿Te apunto?\n\n"
+            "{{firma_comercial}}"
+        ),
+        "required_variables": "nombre,firma_comercial",
+        "notes": (
+            "Toque 3 / break-up. Cierra y deja la puerta entornada. Va seco a propósito (la insistencia personalizada cansa). "
+            "La última pregunta reconvierte el 'no' en alta voluntaria a la newsletter: quien contesta 'sí, apúntame' pasa "
+            "a base templada en vez de perderse. Tras este toque sin respuesta, la oportunidad se aparca (no se marca como perdida)."
+        ),
+    },
+    {
         "name": "Email frío estándar (PYME / mid-market)",
         "category": "cold-standard",
         "subject": "Vuestra operativa como comercializadora",
