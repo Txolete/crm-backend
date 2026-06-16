@@ -30,7 +30,155 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/email-templates", tags=["Email Templates"])
 sent_router = APIRouter(prefix="/emails-sent", tags=["Emails Sent"])
+sequence_router = APIRouter(prefix="/opportunities", tags=["Email Sequence"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+# ---------------------------------------------------------------------------
+# Mapeo de toques -> categorias de plantilla
+# Aprovechamos los EmailSent ya guardados para reconstruir la secuencia,
+# sin meter campos nuevos en Opportunity.
+# ---------------------------------------------------------------------------
+
+TOUCH_DEFINITIONS = [
+    {"step": 0, "label": "Toque 0 — Email frío",            "categories": ["cold-standard", "cold-corporate"]},
+    {"step": 1, "label": "Toque 1 — Valor regulatorio (+3 días)", "categories": ["follow-up-1"]},
+    {"step": 2, "label": "Toque 2 — Prueba social + deck (+5 días)", "categories": ["follow-up-2"]},
+    {"step": 3, "label": "Toque 3 — Cierre limpio (+7 días)",     "categories": ["follow-up-3"]},
+]
+
+ALL_SEQUENCE_CATEGORIES = {c for d in TOUCH_DEFINITIONS for c in d["categories"]}
+
+
+def get_sequence_state(db: Session, opportunity_id: str) -> dict:
+    """
+    Devuelve el estado de la secuencia de seguimiento de una oportunidad.
+    Reconstruye los toques desde EmailSent agrupados por category de la plantilla.
+    """
+    sent = (
+        db.query(EmailSent)
+        .filter(EmailSent.opportunity_id == opportunity_id)
+        .order_by(EmailSent.sent_at.asc())
+        .all()
+    )
+
+    # Cargar plantillas implicadas para conocer su categoria
+    tpl_ids = list({e.template_id for e in sent if e.template_id})
+    tpls = {}
+    if tpl_ids:
+        for t in db.query(EmailTemplate).filter(EmailTemplate.id.in_(tpl_ids)).all():
+            tpls[t.id] = t
+
+    # Index: categoria -> primer EmailSent que la usa
+    sent_by_category = {}
+    for e in sent:
+        cat = tpls.get(e.template_id).category if (e.template_id and tpls.get(e.template_id)) else None
+        if cat and cat not in sent_by_category:
+            sent_by_category[cat] = e
+
+    # any_response: cualquier EmailSent de esta oportunidad con response_received
+    any_response = any(e.response_received == 1 for e in sent)
+
+    # Plantillas activas disponibles agrupadas por categoria
+    available = {}
+    for t in db.query(EmailTemplate).filter(
+        EmailTemplate.is_active == 1,
+        EmailTemplate.category.in_(list(ALL_SEQUENCE_CATEGORIES))
+    ).all():
+        available.setdefault(t.category, []).append({"id": t.id, "name": t.name})
+
+    touches = []
+    count_sent = 0
+    for d in TOUCH_DEFINITIONS:
+        match = None
+        for cat in d["categories"]:
+            if cat in sent_by_category:
+                match = sent_by_category[cat]
+                break
+        sent_at = None
+        responded = False
+        email_sent_id = None
+        subject = None
+        if match:
+            count_sent += 1
+            sent_at = match.sent_at.isoformat() if match.sent_at else None
+            responded = bool(match.response_received)
+            email_sent_id = match.id
+            subject = match.subject
+
+        avail = []
+        for cat in d["categories"]:
+            for t in available.get(cat, []):
+                avail.append({**t, "category": cat})
+
+        touches.append({
+            "step": d["step"],
+            "label": d["label"],
+            "categories": d["categories"],
+            "sent": match is not None,
+            "sent_at": sent_at,
+            "email_sent_id": email_sent_id,
+            "subject": subject,
+            "responded": responded,
+            "available_templates": avail,
+        })
+
+    return {
+        "opportunity_id": opportunity_id,
+        "touches": touches,
+        "any_response": any_response,
+        "count_sent": count_sent,
+        "total": len(TOUCH_DEFINITIONS),
+    }
+
+
+def get_sequence_progress_batch(db: Session, opportunity_ids: list) -> dict:
+    """
+    Variante optimizada para Kanban: devuelve solo (count_sent, any_response) por opp_id.
+    """
+    if not opportunity_ids:
+        return {}
+    tpls = {
+        t.id: t.category for t in db.query(EmailTemplate).filter(
+            EmailTemplate.category.in_(list(ALL_SEQUENCE_CATEGORIES))
+        ).all()
+    }
+    sent = db.query(EmailSent).filter(
+        EmailSent.opportunity_id.in_(opportunity_ids)
+    ).all()
+
+    result = {oid: {"count_sent": 0, "any_response": False, "categories_sent": set()} for oid in opportunity_ids}
+    for e in sent:
+        if not e.opportunity_id:
+            continue
+        r = result.get(e.opportunity_id)
+        if not r:
+            continue
+        if e.response_received == 1:
+            r["any_response"] = True
+        cat = tpls.get(e.template_id) if e.template_id else None
+        if cat:
+            r["categories_sent"].add(cat)
+
+    # count_sent = numero de toques (no de emails) — agrupar por toque definicion
+    for oid, r in result.items():
+        touches_sent = 0
+        for d in TOUCH_DEFINITIONS:
+            if any(c in r["categories_sent"] for c in d["categories"]):
+                touches_sent += 1
+        r["count_sent"] = touches_sent
+        del r["categories_sent"]  # no la exponemos
+    return result
+
+
+@sequence_router.get("/{opportunity_id}/email-sequence")
+def get_opportunity_sequence(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """Estado de la secuencia de 4 toques (0-3) para una oportunidad."""
+    return get_sequence_state(db, opportunity_id)
 
 
 # ---------------------------------------------------------------------------

@@ -16,10 +16,11 @@ from app.models.config import (
 from app.models.opportunity import Opportunity, Activity, OpportunityOutcome
 from app.schemas.kanban import (
     KanbanResponse, KanbanColumn, KanbanStage, KanbanOpportunityItem,
-    KanbanNextTask, KanbanBadges, KanbanOwner,
+    KanbanNextTask, KanbanBadges, KanbanOwner, KanbanSequence,
     MoveStageRequest, MoveStageResponse,
     CloseOpportunityRequest, CloseOpportunityResponse
 )
+from app.api.routes.email_templates import get_sequence_progress_batch
 from app.utils.auth import get_current_user_from_cookie, require_role
 from app.utils.opportunity import get_next_open_task, calculate_probability, calculate_weighted_value
 from app.utils.audit import create_audit_log, generate_id, get_iso_timestamp, get_utc_now, ENTITY_OPPORTUNITIES
@@ -152,6 +153,11 @@ def get_kanban(
         owners_map = {owner.id: owner for owner in owners}
     else:
         owners_map = {}
+
+    # OPTIMIZATION: Batch load email sequence progress (solo para columnas abiertas)
+    open_stage_ids = {s.id for s in stages if s.outcome == "open"}
+    open_opp_ids = [opp.id for opp in opportunities if opp.stage_id in open_stage_ids]
+    sequence_progress = get_sequence_progress_batch(db, open_opp_ids) if open_opp_ids else {}
     
     # Build columns by stage
     columns = []
@@ -214,6 +220,16 @@ def get_kanban(
                     name=owner_user.name
                 )
             
+            # Sequence (solo si la oportunidad esta en stage abierto)
+            seq = None
+            if opp.id in sequence_progress:
+                sp = sequence_progress[opp.id]
+                seq = KanbanSequence(
+                    count_sent=sp["count_sent"],
+                    total=4,
+                    any_response=sp["any_response"],
+                )
+
             # Create item
             item = KanbanOpportunityItem(
                 opportunity_id=opp.id,
@@ -227,7 +243,8 @@ def get_kanban(
                 close_outcome=opp.close_outcome,
                 next_task=next_task,
                 badges=badges,
-                owner=owner
+                owner=owner,
+                sequence=seq,
             )
             
             items.append(item)

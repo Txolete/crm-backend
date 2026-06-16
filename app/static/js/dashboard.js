@@ -1606,6 +1606,9 @@ window.showOpportunityDetail = async function(opportunityId) {
         // Load activities
         await loadOpportunityActivities(opportunityId);
 
+        // Load email sequence widget
+        loadOpportunitySequence(opportunityId);
+
         // Load AI section (Sprint 4E)
         if (currentOpportunityData) await loadAISection(currentOpportunityData);
         
@@ -2700,6 +2703,155 @@ function createKanbanColumn(column, stagesMap = {}) {
     return col;
 }
 
+// ============================================================================
+// EMAIL FOLLOW-UP SEQUENCE — widget en la ficha de oportunidad
+// ============================================================================
+
+async function loadOpportunitySequence(opportunityId) {
+    const card = document.getElementById('opp-sequence-card');
+    const content = document.getElementById('opp-sequence-content');
+    const summary = document.getElementById('opp-sequence-summary');
+    if (!card || !content) return;
+    card.style.display = 'block';
+    content.innerHTML = '<div class="text-muted small">Cargando…</div>';
+    try {
+        const res = await fetch(`/opportunities/${opportunityId}/email-sequence`, { credentials: 'include' });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data = await res.json();
+        renderOpportunitySequence(opportunityId, data);
+        const responded = data.any_response;
+        summary.textContent = responded
+            ? '✅ Respuesta recibida — secuencia parada'
+            : `${data.count_sent}/${data.total} toques enviados`;
+        summary.className = `badge ${responded ? 'bg-success' : 'bg-light text-dark'}`;
+    } catch (e) {
+        content.innerHTML = `<div class="alert alert-warning small mb-0">No se pudo cargar la secuencia: ${e.message}</div>`;
+    }
+}
+
+function renderOpportunitySequence(opportunityId, data) {
+    const content = document.getElementById('opp-sequence-content');
+    const responded = data.any_response;
+
+    const rows = data.touches.map(t => {
+        const isSent = t.sent;
+        const isResponded = t.responded;
+        const stoppedByPrior = responded && !isSent && !isResponded;
+        const dateStr = t.sent_at ? new Date(t.sent_at).toLocaleDateString('es-ES', {day:'2-digit', month:'short', year:'numeric'}) : '';
+
+        let icon, statusText, statusClass;
+        if (isResponded) {
+            icon = '↩️';
+            statusText = `Respuesta recibida (${dateStr})`;
+            statusClass = 'text-success fw-bold';
+        } else if (isSent) {
+            icon = '✅';
+            statusText = `Enviado ${dateStr}`;
+            statusClass = 'text-muted';
+        } else if (stoppedByPrior) {
+            icon = '⏸️';
+            statusText = 'En pausa (ya respondieron)';
+            statusClass = 'text-muted';
+        } else {
+            icon = '☐';
+            statusText = 'Pendiente';
+            statusClass = 'text-secondary';
+        }
+
+        // Boton "Mandar" solo si: no enviado, no parado por respuesta previa, y hay plantilla disponible
+        let actionBtn = '';
+        if (!isSent && !stoppedByPrior && t.available_templates && t.available_templates.length > 0) {
+            // Si hay varias plantillas en el toque (ej: toque 0 con cold-standard y cold-corporate), elegir
+            if (t.available_templates.length === 1) {
+                const tpl = t.available_templates[0];
+                actionBtn = `<button class="btn btn-sm btn-primary" onclick="useSequenceTemplate('${tpl.id}', '${opportunityId}')">
+                    <i class="bi bi-envelope-arrow-up"></i> Mandar
+                </button>`;
+            } else {
+                const opts = t.available_templates.map(tpl =>
+                    `<li><a class="dropdown-item" href="#" onclick="useSequenceTemplate('${tpl.id}', '${opportunityId}'); return false;">${escapeHtml(tpl.name)}</a></li>`
+                ).join('');
+                actionBtn = `<div class="dropdown d-inline">
+                    <button class="btn btn-sm btn-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-envelope-arrow-up"></i> Mandar</button>
+                    <ul class="dropdown-menu">${opts}</ul>
+                </div>`;
+            }
+        }
+
+        // Marcar respuesta si esta enviado y aun no respondido
+        let respBtn = '';
+        if (isSent && !isResponded && t.email_sent_id) {
+            respBtn = `<button class="btn btn-sm btn-outline-success ms-1" onclick="markSequenceResponse('${t.email_sent_id}', '${opportunityId}')" title="Marcar respuesta recibida">
+                <i class="bi bi-reply"></i> Respondió
+            </button>`;
+        }
+
+        return `
+        <div class="d-flex align-items-center py-2 border-bottom" style="gap:10px;">
+            <span style="font-size:1.4rem;width:30px;text-align:center;">${icon}</span>
+            <div class="flex-grow-1">
+                <div><strong>${escapeHtml(t.label)}</strong></div>
+                <div class="${statusClass} small">${statusText}${t.subject ? ' · ' + escapeHtml(t.subject) : ''}</div>
+            </div>
+            <div>${actionBtn}${respBtn}</div>
+        </div>`;
+    }).join('');
+
+    const footer = responded
+        ? '<div class="alert alert-success small mt-2 mb-0"><i class="bi bi-check-circle"></i> El lead respondió — los toques siguientes quedan en pausa.</div>'
+        : (data.count_sent === data.total
+            ? '<div class="alert alert-secondary small mt-2 mb-0"><i class="bi bi-archive"></i> Toque 3 enviado sin respuesta. Tras la guía: aparcar la oportunidad e incorporar a newsletter.</div>'
+            : '');
+
+    content.innerHTML = rows + footer;
+}
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Abre la pagina de plantillas con el modal de uso prerellenado.
+// Pasamos template_id y opportunity_id por hash, la pagina lo recoge.
+function useSequenceTemplate(templateId, opportunityId) {
+    const url = `/email-templates/page#use=${encodeURIComponent(templateId)}&opp=${encodeURIComponent(opportunityId)}`;
+    window.open(url, '_blank');
+}
+
+async function markSequenceResponse(emailSentId, opportunityId) {
+    const note = prompt('Nota sobre la respuesta (opcional):') || '';
+    try {
+        const res = await fetch(`/emails-sent/${emailSentId}/response`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ response_received: true, response_note: note }),
+        });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        loadOpportunitySequence(opportunityId);
+        if (typeof window.loadKanbanData === 'function') window.loadKanbanData();
+    } catch (e) {
+        alert('No se pudo marcar la respuesta: ' + e.message);
+    }
+}
+
+// Badge de secuencia en la card del Kanban
+function renderSequenceBadge(seq) {
+    if (seq.any_response) {
+        return `<span class="badge bg-success small" title="Respuesta recibida — secuencia parada"><i class="bi bi-reply"></i> Respondió</span>`;
+    }
+    if (!seq.count_sent) return '';
+    const dots = [];
+    for (let i = 0; i < seq.total; i++) {
+        dots.push(i < seq.count_sent ? '●' : '○');
+    }
+    const color = seq.count_sent >= seq.total ? 'bg-warning text-dark' : 'bg-primary';
+    return `<span class="badge ${color} small" title="${seq.count_sent}/${seq.total} toques de la secuencia enviados">✉ ${dots.join('')}</span>`;
+}
+
+// ============================================================================
+// KANBAN CARD
+// ============================================================================
+
 function createKanbanCard(opp) {
     const card = document.createElement('div');
     card.className = 'kanban-card';
@@ -2734,6 +2886,7 @@ function createKanbanCard(opp) {
             <div class="kanban-card-footer">
                 ${opp.badges.lead_source ? `<span class="badge bg-secondary small">${opp.badges.lead_source}</span>` : ''}
                 ${opp.badges.region ? `<span class="badge bg-secondary small">${opp.badges.region}</span>` : ''}
+                ${opp.sequence ? renderSequenceBadge(opp.sequence) : ''}
             </div>
         ` : ''}
     `;

@@ -544,6 +544,37 @@
             } catch(e) { /* silent */ }
         }
 
+        // Auto-abrir modal de uso si llega via hash (#use=TPL_ID&opp=OPP_ID)
+        function parseHash() {
+            const h = location.hash.replace(/^#/, '');
+            const out = {};
+            h.split('&').forEach(p => {
+                const [k,v] = p.split('=');
+                if (k) out[decodeURIComponent(k)] = v ? decodeURIComponent(v) : '';
+            });
+            return out;
+        }
+
+        async function maybeAutoOpen() {
+            const params = parseHash();
+            if (!params.use) return;
+            // Esperar a que las plantillas y selects esten cargados
+            try {
+                const res = await fetch('/email-templates/' + encodeURIComponent(params.use), { credentials: 'include' });
+                if (!res.ok) return;
+                const tpl = await res.json();
+                openUse(tpl);
+                if (params.opp) {
+                    const sel = document.getElementById('use-opportunity-id');
+                    if (sel) sel.value = params.opp;
+                }
+                if (params.account) {
+                    const sel = document.getElementById('use-account-id');
+                    if (sel) sel.value = params.account;
+                }
+            } catch (e) { console.warn('autoOpen', e); }
+        }
+
         (async () => {
             try {
                 const r = await fetch('/auth/me', { credentials: 'include' });
@@ -554,8 +585,9 @@
                     document.getElementById('btn-new-tpl').style.display = 'inline-block';
                     document.getElementById('btn-seed-tpl').style.display = 'inline-block';
                 }
-                loadTemplates();
-                loadLinkSelects();
+                await loadTemplates();
+                await loadLinkSelects();
+                maybeAutoOpen();
             } catch { window.location.href = '/login'; }
         })();
     </script>

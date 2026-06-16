@@ -58,6 +58,7 @@ app.include_router(feedback.router)
 app.include_router(materials.router)
 app.include_router(email_templates.router)
 app.include_router(email_templates.sent_router)
+app.include_router(email_templates.sequence_router)
 
 
 @app.on_event("startup")
