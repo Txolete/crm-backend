@@ -8,6 +8,7 @@ Create Date: 2026-06-17
 from alembic import op
 import sqlalchemy as sa
 import uuid
+from datetime import datetime, timezone
 
 revision = 'm2h3i4j5k6l7'
 down_revision = 'l1g2h3i4j5k6'
@@ -40,10 +41,13 @@ def upgrade():
         sa.column('name', sa.String),
         sa.column('sort_order', sa.Integer),
         sa.column('is_active', sa.Integer),
+        sa.column('created_at', sa.DateTime(timezone=True)),
+        sa.column('updated_at', sa.DateTime(timezone=True)),
     )
 
     # encontrar el sort_order maximo actual
     max_order = bind.execute(sa.text("SELECT COALESCE(MAX(sort_order), 0) FROM cfg_contact_roles")).scalar() or 0
+    now = datetime.now(timezone.utc)
     rows = []
     for i, name in enumerate(NEW_CONTACT_ROLES, start=1):
         if name in existing:
@@ -53,6 +57,8 @@ def upgrade():
             'name': name,
             'sort_order': max_order + i,
             'is_active': 1,
+            'created_at': now,
+            'updated_at': now,
         })
     if rows:
         op.bulk_insert(cfg_table, rows)
