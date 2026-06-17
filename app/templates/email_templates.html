@@ -225,6 +225,7 @@
         let _isAdmin = false;
         let _currentUser = null;
         let _currentTpl = null;
+        let _templatesById = {};   // cache para evitar problemas de escape en onclick
 
         function escapeHtml(s) {
             return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -247,6 +248,8 @@
         }
 
         function renderList(items) {
+            _templatesById = {};
+            items.forEach(t => { _templatesById[t.id] = t; });
             const list = document.getElementById('tpl-list');
             if (!items.length) {
                 list.innerHTML = `<div class="empty-state"><i class="bi bi-envelope" style="font-size:3rem;"></i>
@@ -283,10 +286,10 @@
                     <div class="tpl-body-preview">${escapeHtml(t.body)}</div>
                     ${t.notes ? `<div class="text-muted small mb-2"><i class="bi bi-info-circle"></i> ${escapeHtml(t.notes)}</div>` : ''}
                     <div class="d-flex gap-2 flex-wrap">
-                        ${t.is_active ? `<button class="btn btn-sm btn-success" onclick='openUse(${JSON.stringify(t)})'>
+                        ${t.is_active ? `<button class="btn btn-sm btn-success" onclick="openUseById('${t.id}')">
                             <i class="bi bi-send"></i> Usar esta plantilla
                         </button>` : ''}
-                        ${_isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick='openEdit(${JSON.stringify(t)})'>
+                        ${_isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick="openEditById('${t.id}')">
                             <i class="bi bi-pencil"></i> Editar
                         </button>` : ''}
                     </div>
@@ -303,6 +306,16 @@
                 if (!seen.includes(v)) seen.push(v);
             }
             return seen;
+        }
+
+        // Wrappers que evitan inyectar JSON dentro de atributos onclick (rompe con comillas).
+        function openUseById(id) {
+            const t = _templatesById[id];
+            if (t) openUse(t);
+        }
+        function openEditById(id) {
+            const t = _templatesById[id];
+            if (t) openEdit(t);
         }
 
         // ----- Edit / Create -----
