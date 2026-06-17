@@ -402,7 +402,7 @@
         const VAR_HINTS = {
             nombre:              { label: 'Nombre del contacto', placeholder: 'Ej: Juan García', textarea: false },
             empresa:             { label: 'Empresa',             placeholder: 'Ej: Acme Energy SL', textarea: false },
-            senal_detectada:     { label: 'Señal detectada',     placeholder: 'Frase nominal: "vuestra alta en CNMC", "el crecimiento de vuestros CUPS"…', textarea: true, help: 'Frase nominal que encaja con "He visto X." (sin "que"). Sin señal específica, no se envía — regla de la guía.' },
+            senal_detectada:     { label: 'Señal detectada',     placeholder: 'Frase nominal: "vuestra alta en CNMC"…', textarea: false, help: 'Frase nominal que encaja con "He visto X." (sin "que"). Click sobre el campo para ver sugerencias. Sin señal, no se envía.' },
             firma_comercial:     { label: 'Firma comercial',     placeholder: 'Nombre + cargo + email + tel + web', textarea: true, prefill: 'signature' },
             novedad_regulatoria: { label: 'Novedad regulatoria', placeholder: 'Ej: Verifactu, cambio de garantías OMIE, nueva circular CNMC…', textarea: true, help: 'Debe ser real y vigente esta semana (BOE / CNMC / OMIE / REE). Sin novedad real, este toque no se envía.' },
             fecha_plazo:         { label: 'Fecha / plazo',       placeholder: 'Ej: 1 de octubre 2026', textarea: false },
