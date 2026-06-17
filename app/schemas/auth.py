@@ -30,3 +30,4 @@ class MeResponse(BaseModel):
     role: str
     is_active: bool
     last_login_at: datetime | None = None
+    email_signature: str | None = None

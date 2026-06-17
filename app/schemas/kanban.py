@@ -27,6 +27,13 @@ class KanbanOwner(BaseModel):
     name: str
 
 
+class KanbanSequence(BaseModel):
+    """Estado de la secuencia de seguimiento (4 toques)"""
+    count_sent: int = 0
+    total: int = 4
+    any_response: bool = False
+
+
 class KanbanOpportunityItem(BaseModel):
     """Opportunity item in Kanban column"""
     opportunity_id: str
@@ -41,6 +48,7 @@ class KanbanOpportunityItem(BaseModel):
     next_task: Optional[KanbanNextTask] = None
     badges: KanbanBadges
     owner: Optional[KanbanOwner] = None
+    sequence: Optional[KanbanSequence] = None
 
 
 class KanbanStage(BaseModel):

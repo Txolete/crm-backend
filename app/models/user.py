@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, CheckConstraint
+from sqlalchemy import Column, String, Integer, Text, CheckConstraint
 from datetime import datetime, timezone
 from app.database import Base, UTCDateTime
 
@@ -16,6 +16,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False)
     is_active = Column(Integer, nullable=False, default=1)
+    email_signature = Column(Text, nullable=True)
     last_login_at = Column(UTCDateTime(), nullable=True)
     created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

@@ -54,7 +54,9 @@ LEAD_SOURCES = [
 
 CONTACT_ROLES = [
     "Decisor", "Sponsor", "Técnico", "Compras", "Finanzas",
-    "Legal", "Operaciones", "Usuario", "Administrador"
+    "Legal", "Operaciones", "Usuario", "Administrador",
+    "Centralita / Recepción", "Secretari@",
+    "Empleado de proximidad al responsable", "Responsable Back Office"
 ]
 
 TASK_TEMPLATES = [

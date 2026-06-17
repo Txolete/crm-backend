@@ -54,8 +54,11 @@
                 <button class="btn btn-outline-secondary" onclick="loadSent()" data-bs-toggle="modal" data-bs-target="#sentModal">
                     <i class="bi bi-archive"></i> Historial enviados
                 </button>
-                <button class="btn btn-outline-primary" id="btn-seed-tpl" style="display:none;" onclick="seedInitial()" title="Crea las 2 plantillas base (frío estándar + corporate) si no existen">
+                <button class="btn btn-outline-primary" id="btn-seed-tpl" style="display:none;" onclick="seedInitial(false)" title="Crea las plantillas base si no existen (no toca las que ya están)">
                     <i class="bi bi-magic"></i> Cargar plantillas base
+                </button>
+                <button class="btn btn-outline-warning" id="btn-reset-tpl" style="display:none;" onclick="seedInitial(true)" title="Sobrescribe asunto, cuerpo y variables de las plantillas oficiales con la última versión">
+                    <i class="bi bi-arrow-clockwise"></i> Forzar reset a oficial
                 </button>
                 <button class="btn btn-primary" id="btn-new-tpl" style="display:none;" onclick="openEdit(null)">
                     <i class="bi bi-plus-circle"></i> Nueva plantilla
@@ -134,31 +137,37 @@
                         <div class="col-md-6">
                             <h6 class="mb-2">Datos del destinatario</h6>
                             <div class="mb-2">
-                                <label class="form-label small">Email destinatario *</label>
-                                <input type="email" class="form-control" id="use-to-email">
+                                <label class="form-label small">Email destinatario(s) *</label>
+                                <input type="text" class="form-control" id="use-to-email"
+                                       placeholder="varios separados por ;  (ej: a@x.com; b@x.com)">
                             </div>
                             <div class="mb-2">
-                                <label class="form-label small">Nombre del contacto</label>
-                                <input type="text" class="form-control" id="use-var-nombre" onkeyup="renderPreview()">
+                                <label class="form-label small">CC (opcional)</label>
+                                <input type="text" class="form-control" id="use-cc-emails"
+                                       placeholder="separados por ;">
                             </div>
                             <div class="mb-2">
-                                <label class="form-label small">Empresa</label>
-                                <input type="text" class="form-control" id="use-var-empresa" onkeyup="renderPreview()">
+                                <label class="form-label small">CCO / BCC (opcional)</label>
+                                <input type="text" class="form-control" id="use-bcc-emails"
+                                       placeholder="separados por ;">
                             </div>
-                            <div class="mb-2">
-                                <label class="form-label small">
-                                    Señal detectada *
-                                    <span class="badge bg-danger" id="use-senal-required" style="display:none;">obligatoria</span>
-                                </label>
-                                <textarea class="form-control" id="use-var-senal" rows="2"
-                                          placeholder="Ej: tramitando el alta en CNMC, crecimiento de CUPS, cambio en operativa…"
-                                          onkeyup="renderPreview()"></textarea>
-                                <small class="text-muted">Sin señal específica, NO se envía. Esta es la regla de la guía.</small>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small">Firma comercial</label>
-                                <input type="text" class="form-control" id="use-var-firma" onkeyup="renderPreview()">
-                            </div>
+                            <!-- Inputs de variables dinamicos (generados segun la plantilla) -->
+                            <div id="use-vars-container"></div>
+                            <!-- Datalist global con sugerencias para senal_detectada -->
+                            <datalist id="senal-suggestions">
+                                <option value="vuestra alta en CNMC">
+                                <option value="vuestra alta en CNMC como R2">
+                                <option value="la publicación de vuestra alta en el BORME">
+                                <option value="vuestro registro como nueva comercializadora">
+                                <option value="que habéis constituido una sociedad para suministrar energía eléctrica">
+                                <option value="que estáis gestionando la obtención de una licencia para comercializar energía">
+                                <option value="el crecimiento de vuestros CUPS estos meses">
+                                <option value="vuestra entrada en el mercado del gas">
+                                <option value="vuestro cambio reciente de back office">
+                                <option value="vuestro cambio de ERP">
+                                <option value="vuestra incorporación de consumidores directos">
+                                <option value="vuestro anuncio de expansión en la web">
+                            </datalist>
                             <hr>
                             <h6 class="mb-2">Vincular a (opcional)</h6>
                             <div class="mb-2">
@@ -216,6 +225,7 @@
         let _isAdmin = false;
         let _currentUser = null;
         let _currentTpl = null;
+        let _templatesById = {};   // cache para evitar problemas de escape en onclick
 
         function escapeHtml(s) {
             return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -238,6 +248,8 @@
         }
 
         function renderList(items) {
+            _templatesById = {};
+            items.forEach(t => { _templatesById[t.id] = t; });
             const list = document.getElementById('tpl-list');
             if (!items.length) {
                 list.innerHTML = `<div class="empty-state"><i class="bi bi-envelope" style="font-size:3rem;"></i>
@@ -274,10 +286,10 @@
                     <div class="tpl-body-preview">${escapeHtml(t.body)}</div>
                     ${t.notes ? `<div class="text-muted small mb-2"><i class="bi bi-info-circle"></i> ${escapeHtml(t.notes)}</div>` : ''}
                     <div class="d-flex gap-2 flex-wrap">
-                        ${t.is_active ? `<button class="btn btn-sm btn-success" onclick='openUse(${JSON.stringify(t)})'>
+                        ${t.is_active ? `<button class="btn btn-sm btn-success" onclick="openUseById('${t.id}')">
                             <i class="bi bi-send"></i> Usar esta plantilla
                         </button>` : ''}
-                        ${_isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick='openEdit(${JSON.stringify(t)})'>
+                        ${_isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick="openEditById('${t.id}')">
                             <i class="bi bi-pencil"></i> Editar
                         </button>` : ''}
                     </div>
@@ -294,6 +306,16 @@
                 if (!seen.includes(v)) seen.push(v);
             }
             return seen;
+        }
+
+        // Wrappers que evitan inyectar JSON dentro de atributos onclick (rompe con comillas).
+        function openUseById(id) {
+            const t = _templatesById[id];
+            if (t) openUse(t);
+        }
+        function openEditById(id) {
+            const t = _templatesById[id];
+            if (t) openEdit(t);
         }
 
         // ----- Edit / Create -----
@@ -336,18 +358,26 @@
             loadTemplates();
         }
 
-        async function seedInitial() {
-            if (!confirm('Crear las 2 plantillas base (frío estándar + corporate) si no existen ya. ¿Continuar?')) return;
-            const btn = document.getElementById('btn-seed-tpl');
+        async function seedInitial(force) {
+            const msg = force
+                ? 'Sobrescribirá el asunto, cuerpo y variables obligatorias de las plantillas oficiales con la última versión. Si tienes ediciones manuales en ellas, se perderán. ¿Continuar?'
+                : 'Crear las plantillas base si no existen ya (las existentes no se tocan). ¿Continuar?';
+            if (!confirm(msg)) return;
+            const btnId = force ? 'btn-reset-tpl' : 'btn-seed-tpl';
+            const btn = document.getElementById(btnId);
             btn.disabled = true;
             try {
-                const res = await fetch('/email-templates/seed-initial', { method:'POST', credentials:'include' });
+                const url = `/email-templates/seed-initial${force ? '?force=true' : ''}`;
+                const res = await fetch(url, { method:'POST', credentials:'include' });
                 if (!res.ok) {
                     const err = await res.json().catch(()=>({}));
                     throw new Error(err.detail || `Error ${res.status}`);
                 }
                 const d = await res.json();
-                showToast(`Creadas ${d.created.length}, ya existían ${d.skipped.length}`, 'success');
+                const created = d.created?.length || 0;
+                const updated = d.updated?.length || 0;
+                const skipped = d.skipped?.length || 0;
+                showToast(`Creadas ${created}, actualizadas ${updated}, sin tocar ${skipped}`, 'success');
                 loadTemplates();
             } catch (e) {
                 alert('Error: ' + e.message);
@@ -367,29 +397,84 @@
         }
 
         // ----- Use template -----
+
+        // Sugerencias y forma del campo para variables conocidas
+        const VAR_HINTS = {
+            nombre:              { label: 'Nombre del contacto', placeholder: 'Ej: Juan García', textarea: false },
+            empresa:             { label: 'Empresa',             placeholder: 'Ej: Acme Energy SL', textarea: false },
+            senal_detectada:     { label: 'Señal detectada',     placeholder: 'Frase nominal: "vuestra alta en CNMC"…', textarea: false, help: 'Frase nominal que encaja con "He visto X." (sin "que"). Click sobre el campo para ver sugerencias. Sin señal, no se envía.' },
+            firma_comercial:     { label: 'Firma comercial',     placeholder: 'Nombre + cargo + email + tel + web', textarea: true, prefill: 'signature' },
+            novedad_regulatoria: { label: 'Novedad regulatoria', placeholder: 'Ej: Verifactu, cambio de garantías OMIE, nueva circular CNMC…', textarea: true, help: 'Debe ser real y vigente esta semana (BOE / CNMC / OMIE / REE). Sin novedad real, este toque no se envía.' },
+            fecha_plazo:         { label: 'Fecha / plazo',       placeholder: 'Ej: 1 de octubre 2026', textarea: false },
+            referencia:          { label: 'Referencia (cliente comparable)', placeholder: 'Ej: Paratí, Enersa…', textarea: false, help: 'Una comercializadora cliente del tamaño/perfil del lead. Si no quieres exponer un nombre, usa "otras de vuestro tamaño".' },
+            propuesta_hueco:     { label: 'Propuesta de hueco', placeholder: 'Ej: el jueves a las 10, 15 min esta semana', textarea: false, help: 'Franja concreta, no "cuándo te viene bien".' },
+        };
+
+        function humanizeVar(v) {
+            return v.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+        }
+
+        function buildVarInputs(tpl) {
+            const required = (tpl.required_variables || '').split(',').map(s => normVar(s.trim())).filter(Boolean);
+            const allVars = extractVars((tpl.subject || '') + '\n' + (tpl.body || ''));
+            const container = document.getElementById('use-vars-container');
+            container.innerHTML = '';
+            if (!allVars.length) {
+                container.innerHTML = '<div class="text-muted small">Esta plantilla no usa variables.</div>';
+                return;
+            }
+            allVars.forEach(v => {
+                const hint = VAR_HINTS[v] || { label: humanizeVar(v), placeholder: '', textarea: false };
+                const isRequired = required.includes(v);
+                const inputId = 'use-var-' + v;
+                const isTextarea = hint.textarea;
+                let prefillValue = '';
+                if (hint.prefill === 'signature' && _currentUser) {
+                    prefillValue = _currentUser.email_signature || _currentUser.name || '';
+                } else if (hint.prefill === 'name' && _currentUser) {
+                    prefillValue = _currentUser.name || '';
+                }
+                const wrapper = document.createElement('div');
+                wrapper.className = 'mb-2';
+                // Datalist con sugerencias si la variable es senal_detectada
+                const listAttr = v === 'senal_detectada' ? 'list="senal-suggestions"' : '';
+                wrapper.innerHTML = `
+                    <label class="form-label small" for="${inputId}">
+                        ${escapeHtml(hint.label)}${isRequired ? ' *' : ''}
+                        ${isRequired ? '<span class="badge bg-danger ms-1">obligatoria</span>' : ''}
+                    </label>
+                    ${isTextarea
+                        ? `<textarea class="form-control use-var-input" id="${inputId}" data-var="${v}" rows="2" placeholder="${escapeHtml(hint.placeholder)}" ${listAttr}>${escapeHtml(prefillValue)}</textarea>`
+                        : `<input type="text" class="form-control use-var-input" id="${inputId}" data-var="${v}" placeholder="${escapeHtml(hint.placeholder)}" value="${escapeHtml(prefillValue)}" ${listAttr}>`
+                    }
+                    ${hint.help ? `<small class="text-muted">${escapeHtml(hint.help)}</small>` : ''}
+                `;
+                container.appendChild(wrapper);
+            });
+            container.querySelectorAll('.use-var-input').forEach(el => {
+                el.addEventListener('input', renderPreview);
+            });
+        }
+
         function openUse(t) {
             _currentTpl = t;
             document.getElementById('use-tpl-id').value = t.id;
             document.getElementById('use-tpl-name').textContent = t.name;
             document.getElementById('use-to-email').value = '';
-            document.getElementById('use-var-nombre').value = '';
-            document.getElementById('use-var-empresa').value = '';
-            document.getElementById('use-var-senal').value = '';
-            document.getElementById('use-var-firma').value = _currentUser?.name || '';
-            const required = (t.required_variables || '').split(',').map(s=>s.trim()).filter(Boolean);
-            document.getElementById('use-senal-required').style.display = required.includes('senal_detectada') ? 'inline-block' : 'none';
+            document.getElementById('use-cc-emails').value = '';
+            document.getElementById('use-bcc-emails').value = '';
+            buildVarInputs(t);
             document.getElementById('use-required-warn').style.display = 'none';
             renderPreview();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('useModal')).show();
         }
 
         function getVariables() {
-            return {
-                nombre: document.getElementById('use-var-nombre').value,
-                empresa: document.getElementById('use-var-empresa').value,
-                senal_detectada: document.getElementById('use-var-senal').value,
-                firma_comercial: document.getElementById('use-var-firma').value,
-            };
+            const vars = {};
+            document.querySelectorAll('#use-vars-container .use-var-input').forEach(el => {
+                vars[el.dataset.var] = el.value;
+            });
+            return vars;
         }
 
         function renderLocal(text, vars) {
@@ -435,12 +520,24 @@
             }, () => alert('No se pudo copiar'));
         }
 
+        function normalizeRecipients(s) {
+            // Acepta separadores ; , o salto de linea. Devuelve coma-separados (estandar mailto:).
+            return (s || '').split(/[;,\n]/).map(x => x.trim()).filter(Boolean).join(',');
+        }
+
         function openInMailClient() {
-            const to = document.getElementById('use-to-email').value.trim();
+            const to = normalizeRecipients(document.getElementById('use-to-email').value);
             if (!to) { alert('Indica el email destinatario'); return; }
+            const cc = normalizeRecipients(document.getElementById('use-cc-emails').value);
+            const bcc = normalizeRecipients(document.getElementById('use-bcc-emails').value);
             const { subject, body } = getRenderedTexts();
-            const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            window.location.href = mailto;
+            const params = [
+                `subject=${encodeURIComponent(subject)}`,
+                `body=${encodeURIComponent(body)}`,
+            ];
+            if (cc) params.push(`cc=${encodeURIComponent(cc)}`);
+            if (bcc) params.push(`bcc=${encodeURIComponent(bcc)}`);
+            window.location.href = `mailto:${encodeURIComponent(to)}?${params.join('&')}`;
         }
 
         async function markAsSent() {
@@ -455,6 +552,8 @@
                 template_id: _currentTpl.id,
                 to_email: to,
                 to_name: vars.nombre || null,
+                cc_emails: document.getElementById('use-cc-emails').value.trim() || null,
+                bcc_emails: document.getElementById('use-bcc-emails').value.trim() || null,
                 subject, body,
                 senal_detectada: vars.senal_detectada || null,
                 account_id: document.getElementById('use-account-id').value || null,
@@ -544,6 +643,37 @@
             } catch(e) { /* silent */ }
         }
 
+        // Auto-abrir modal de uso si llega via hash (#use=TPL_ID&opp=OPP_ID)
+        function parseHash() {
+            const h = location.hash.replace(/^#/, '');
+            const out = {};
+            h.split('&').forEach(p => {
+                const [k,v] = p.split('=');
+                if (k) out[decodeURIComponent(k)] = v ? decodeURIComponent(v) : '';
+            });
+            return out;
+        }
+
+        async function maybeAutoOpen() {
+            const params = parseHash();
+            if (!params.use) return;
+            // Esperar a que las plantillas y selects esten cargados
+            try {
+                const res = await fetch('/email-templates/' + encodeURIComponent(params.use), { credentials: 'include' });
+                if (!res.ok) return;
+                const tpl = await res.json();
+                openUse(tpl);
+                if (params.opp) {
+                    const sel = document.getElementById('use-opportunity-id');
+                    if (sel) sel.value = params.opp;
+                }
+                if (params.account) {
+                    const sel = document.getElementById('use-account-id');
+                    if (sel) sel.value = params.account;
+                }
+            } catch (e) { console.warn('autoOpen', e); }
+        }
+
         (async () => {
             try {
                 const r = await fetch('/auth/me', { credentials: 'include' });
@@ -553,9 +683,11 @@
                 if (_isAdmin) {
                     document.getElementById('btn-new-tpl').style.display = 'inline-block';
                     document.getElementById('btn-seed-tpl').style.display = 'inline-block';
+                    document.getElementById('btn-reset-tpl').style.display = 'inline-block';
                 }
-                loadTemplates();
-                loadLinkSelects();
+                await loadTemplates();
+                await loadLinkSelects();
+                maybeAutoOpen();
             } catch { window.location.href = '/login'; }
         })();
     </script>

@@ -67,6 +67,8 @@ class EmailSentCreate(BaseModel):
     opportunity_id: Optional[str] = None
     to_email: str
     to_name: Optional[str] = None
+    cc_emails: Optional[str] = None
+    bcc_emails: Optional[str] = None
     subject: str
     body: str
     senal_detectada: Optional[str] = None
@@ -81,6 +83,8 @@ class EmailSentResponse(BaseModel):
     opportunity_id: Optional[str]
     to_email: str
     to_name: Optional[str]
+    cc_emails: Optional[str] = None
+    bcc_emails: Optional[str] = None
     subject: str
     body: str
     senal_detectada: Optional[str]

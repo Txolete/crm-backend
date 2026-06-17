@@ -165,6 +165,7 @@ function showEditModal(userId) {
     document.getElementById('user-email').value = user.email;
     document.getElementById('user-role').value = user.role;
     document.getElementById('user-active').checked = user.is_active;
+    document.getElementById('user-email-signature').value = user.email_signature || '';
     document.getElementById('password-group').style.display = 'none';
     document.getElementById('user-password').required = false;
     
@@ -200,7 +201,8 @@ async function saveUser() {
             name: name,
             email: email,
             role: role,
-            is_active: isActive
+            is_active: isActive,
+            email_signature: document.getElementById('user-email-signature').value || null,
         };
         
         if (!editingUserId) {
