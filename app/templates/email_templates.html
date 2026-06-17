@@ -54,8 +54,11 @@
                 <button class="btn btn-outline-secondary" onclick="loadSent()" data-bs-toggle="modal" data-bs-target="#sentModal">
                     <i class="bi bi-archive"></i> Historial enviados
                 </button>
-                <button class="btn btn-outline-primary" id="btn-seed-tpl" style="display:none;" onclick="seedInitial()" title="Crea las 2 plantillas base (frío estándar + corporate) si no existen">
+                <button class="btn btn-outline-primary" id="btn-seed-tpl" style="display:none;" onclick="seedInitial(false)" title="Crea las plantillas base si no existen (no toca las que ya están)">
                     <i class="bi bi-magic"></i> Cargar plantillas base
+                </button>
+                <button class="btn btn-outline-warning" id="btn-reset-tpl" style="display:none;" onclick="seedInitial(true)" title="Sobrescribe asunto, cuerpo y variables de las plantillas oficiales con la última versión">
+                    <i class="bi bi-arrow-clockwise"></i> Forzar reset a oficial
                 </button>
                 <button class="btn btn-primary" id="btn-new-tpl" style="display:none;" onclick="openEdit(null)">
                     <i class="bi bi-plus-circle"></i> Nueva plantilla
@@ -152,14 +155,15 @@
                             <div id="use-vars-container"></div>
                             <!-- Datalist global con sugerencias para senal_detectada -->
                             <datalist id="senal-suggestions">
-                                <option value="que estáis tramitando el alta en CNMC">
-                                <option value="que os habéis registrado este mes como nueva comercializadora">
-                                <option value="que habéis crecido en CUPS estos últimos meses">
-                                <option value="que vais a empezar a comercializar gas">
-                                <option value="que habéis cambiado recientemente de operativa de back office">
-                                <option value="que acabáis de cambiar de ERP">
-                                <option value="que estáis revisando proveedor de servicios de mercado">
-                                <option value="que habéis incorporado consumidores directos">
+                                <option value="vuestra alta en CNMC">
+                                <option value="la publicación de vuestra alta en el BORME">
+                                <option value="vuestro registro como nueva comercializadora">
+                                <option value="el crecimiento de vuestros CUPS estos meses">
+                                <option value="vuestra entrada en el mercado del gas">
+                                <option value="vuestro cambio reciente de back office">
+                                <option value="vuestro cambio de ERP">
+                                <option value="vuestra incorporación de consumidores directos">
+                                <option value="vuestro anuncio de expansión en la web">
                             </datalist>
                             <hr>
                             <h6 class="mb-2">Vincular a (opcional)</h6>
@@ -338,18 +342,26 @@
             loadTemplates();
         }
 
-        async function seedInitial() {
-            if (!confirm('Crear las 2 plantillas base (frío estándar + corporate) si no existen ya. ¿Continuar?')) return;
-            const btn = document.getElementById('btn-seed-tpl');
+        async function seedInitial(force) {
+            const msg = force
+                ? 'Sobrescribirá el asunto, cuerpo y variables obligatorias de las plantillas oficiales con la última versión. Si tienes ediciones manuales en ellas, se perderán. ¿Continuar?'
+                : 'Crear las plantillas base si no existen ya (las existentes no se tocan). ¿Continuar?';
+            if (!confirm(msg)) return;
+            const btnId = force ? 'btn-reset-tpl' : 'btn-seed-tpl';
+            const btn = document.getElementById(btnId);
             btn.disabled = true;
             try {
-                const res = await fetch('/email-templates/seed-initial', { method:'POST', credentials:'include' });
+                const url = `/email-templates/seed-initial${force ? '?force=true' : ''}`;
+                const res = await fetch(url, { method:'POST', credentials:'include' });
                 if (!res.ok) {
                     const err = await res.json().catch(()=>({}));
                     throw new Error(err.detail || `Error ${res.status}`);
                 }
                 const d = await res.json();
-                showToast(`Creadas ${d.created.length}, ya existían ${d.skipped.length}`, 'success');
+                const created = d.created?.length || 0;
+                const updated = d.updated?.length || 0;
+                const skipped = d.skipped?.length || 0;
+                showToast(`Creadas ${created}, actualizadas ${updated}, sin tocar ${skipped}`, 'success');
                 loadTemplates();
             } catch (e) {
                 alert('Error: ' + e.message);
@@ -374,7 +386,7 @@
         const VAR_HINTS = {
             nombre:              { label: 'Nombre del contacto', placeholder: 'Ej: Juan García', textarea: false },
             empresa:             { label: 'Empresa',             placeholder: 'Ej: Acme Energy SL', textarea: false },
-            senal_detectada:     { label: 'Señal detectada',     placeholder: 'Ej: tramitando el alta en CNMC, crecimiento de CUPS, cambio en operativa…', textarea: true, help: 'Sin señal específica, no se envía. Regla de la guía.' },
+            senal_detectada:     { label: 'Señal detectada',     placeholder: 'Frase nominal: "vuestra alta en CNMC", "el crecimiento de vuestros CUPS"…', textarea: true, help: 'Frase nominal que encaja con "He visto X." (sin "que"). Sin señal específica, no se envía — regla de la guía.' },
             firma_comercial:     { label: 'Firma comercial',     placeholder: 'Nombre + cargo + email + tel + web', textarea: true, prefill: 'signature' },
             novedad_regulatoria: { label: 'Novedad regulatoria', placeholder: 'Ej: Verifactu, cambio de garantías OMIE, nueva circular CNMC…', textarea: true, help: 'Debe ser real y vigente esta semana (BOE / CNMC / OMIE / REE). Sin novedad real, este toque no se envía.' },
             fecha_plazo:         { label: 'Fecha / plazo',       placeholder: 'Ej: 1 de octubre 2026', textarea: false },
@@ -655,6 +667,7 @@
                 if (_isAdmin) {
                     document.getElementById('btn-new-tpl').style.display = 'inline-block';
                     document.getElementById('btn-seed-tpl').style.display = 'inline-block';
+                    document.getElementById('btn-reset-tpl').style.display = 'inline-block';
                 }
                 await loadTemplates();
                 await loadLinkSelects();

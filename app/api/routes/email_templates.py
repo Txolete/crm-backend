@@ -341,11 +341,10 @@ _SEED_TEMPLATES = [
             "y más ejecución práctica: trámites, procesos, sistemas, automatización y puesta en marcha.\n\n"
             "Podemos actuar como apoyo especialista local, tanto si se trata de una unidad propia, un partner "
             "o un proyecto en España/Iberia que necesite conocimiento operativo del mercado.\n\n"
-            "{{senal_detectada}}\n\n"
             "¿Tiene sentido que lo validemos brevemente, o ahora mismo no tenéis ningún frente activo en esta línea?\n\n"
             "Un saludo,\n{{firma_comercial}}"
         ),
-        "required_variables": "nombre,empresa,senal_detectada,firma_comercial",
+        "required_variables": "nombre,empresa,firma_comercial",
         "notes": (
             "Para corporaciones grandes que NO van a comprar back office completo pero pueden necesitar apoyo "
             "en proyectos puntuales en Iberia. Tono más senior, menos comercial, ofreciendo ejecución práctica "
@@ -357,17 +356,20 @@ _SEED_TEMPLATES = [
 
 @router.post("/seed-initial")
 def seed_initial_templates(
+    force: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ):
     """
-    Siembra las 2 plantillas base si no existen ya (por categoria). Idempotente.
-    Util cuando la migracion no llego a sembrar (deploy en cliente con BD ya existente).
+    Siembra las plantillas base por categoria.
+    - Sin force: idempotente, solo crea las que no existen.
+    - Con force=True: pisa asunto/cuerpo/required/notes de las que ya existen (mantiene el id).
     """
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Solo admin")
     now = get_utc_now()
     created = []
+    updated = []
     skipped = []
     for seed in _SEED_TEMPLATES:
         exists = (
@@ -376,7 +378,17 @@ def seed_initial_templates(
             .first()
         )
         if exists:
-            skipped.append({"category": seed["category"], "id": exists.id, "name": exists.name})
+            if force:
+                exists.name = seed["name"]
+                exists.subject = seed["subject"]
+                exists.body = seed["body"]
+                exists.required_variables = seed["required_variables"]
+                exists.notes = seed["notes"]
+                exists.is_active = 1
+                exists.updated_at = now
+                updated.append({"category": seed["category"], "id": exists.id, "name": exists.name})
+            else:
+                skipped.append({"category": seed["category"], "id": exists.id, "name": exists.name})
             continue
         t = EmailTemplate(
             id=generate_id(),
@@ -395,8 +407,8 @@ def seed_initial_templates(
         db.flush()
         created.append({"category": seed["category"], "id": t.id, "name": t.name})
     db.commit()
-    logger.info(f"[email-templates] seed created={len(created)} skipped={len(skipped)}")
-    return {"created": created, "skipped": skipped}
+    logger.info(f"[email-templates] seed force={force} created={len(created)} updated={len(updated)} skipped={len(skipped)}")
+    return {"created": created, "updated": updated, "skipped": skipped}
 
 
 # ---------------------------------------------------------------------------
