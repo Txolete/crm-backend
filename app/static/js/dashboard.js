@@ -2839,13 +2839,22 @@ function renderSequenceBadge(seq) {
     if (seq.any_response) {
         return `<span class="badge bg-success small" title="Respuesta recibida — secuencia parada"><i class="bi bi-reply"></i> Respondió</span>`;
     }
-    if (!seq.count_sent) return '';
     const dots = [];
     for (let i = 0; i < seq.total; i++) {
         dots.push(i < seq.count_sent ? '●' : '○');
     }
-    const color = seq.count_sent >= seq.total ? 'bg-warning text-dark' : 'bg-primary';
-    return `<span class="badge ${color} small" title="${seq.count_sent}/${seq.total} toques de la secuencia enviados">✉ ${dots.join('')}</span>`;
+    let color, title;
+    if (seq.count_sent === 0) {
+        color = 'bg-light text-secondary border';
+        title = 'Secuencia de seguimiento: ninguno enviado todavía';
+    } else if (seq.count_sent >= seq.total) {
+        color = 'bg-warning text-dark';
+        title = `${seq.count_sent}/${seq.total} toques enviados — aparcar tras toque 3 sin respuesta`;
+    } else {
+        color = 'bg-primary';
+        title = `${seq.count_sent}/${seq.total} toques de la secuencia enviados`;
+    }
+    return `<span class="badge ${color} small" title="${title}">✉ ${dots.join('')}</span>`;
 }
 
 // ============================================================================
