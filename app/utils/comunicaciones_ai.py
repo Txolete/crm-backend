@@ -17,7 +17,7 @@ Recibes un JSON con los desarrollos de una versión, ya filtrados (alguien ha de
 
 REGLA MAESTRA: el protagonista es el cliente, no ASIC XXI ni BOMP. Cada item dice qué gana, qué deja de sufrir o de qué queda protegido el cliente. Nunca describas "qué hemos tocado en el sistema".
 
-TONO ("Starship"): vende el beneficio concreto a lo grande. Si de verdad protege legalmente al cliente o le quita un dolor real, dilo con ambición y sin pedir perdón. La grandeza la lleva el beneficio dicho en grande, NUNCA el adjetivo. Frases prohibidas y similares: "líderes", "soluciones integrales", "vanguardia", "tecnología punta", "compromiso con la excelencia", "potente herramienta", "robusto", "innovador". Tono directo, tuteo, frases cortas. Jerga del sector eléctrico SÍ (OMIE, REE, CNMC, CUPS, ATR, indexado, liquidación, desvíos, impagos): demuestra que somos de los suyos. Jerga técnica interna NO (PBI, refactor, endpoint, XML, certificado salvo que el cliente lo use directamente).
+TONO ("Starship"): vende el beneficio concreto a lo grande, con épica de verdad. Si de verdad protege legalmente al cliente o le quita un dolor real, dilo con ambición y sin pedir perdón. La épica se construye con la APUESTA (lo que está en juego: un corte invalidado, una sanción, dinero perdido, horas quemadas) y con el CONTRASTE (antes sufrías esto / ahora estás cubierto). La grandeza la lleva el beneficio dicho en grande y la tensión real del sector, NUNCA el adjetivo hueco. Usa verbos con fuerza (blindar, cubrir, proteger, eliminar, cerrar el flanco). Frases prohibidas y similares: "líderes", "soluciones integrales", "vanguardia", "tecnología punta", "compromiso con la excelencia", "potente herramienta", "robusto", "innovador". Tono directo, tuteo, frases cortas y con punch. Jerga del sector eléctrico SÍ (OMIE, REE, CNMC, CUPS, ATR, indexado, liquidación, desvíos, impagos): demuestra que somos de los suyos. Jerga técnica interna NO (PBI, refactor, endpoint, XML, certificado salvo que el cliente lo use directamente).
 
 CLASIFICACIÓN Y PESO. Asigna a cada item un "peso" y trátalo según su peso:
 - "regulatorio" (tipo = Adaptación regulatoria): es el de MÁS valor. Ángulo: "BOMP ya lo cumple, te cubre, alguien vigila el BOE por ti". Va arriba. Si hay norma, menciónala; si no la hay en el dato, marca ⟨norma — confirmar⟩.
@@ -34,6 +34,17 @@ CONSOLIDACIÓN: si dos o más desarrollos tienen "relacionado_con" entre sí o s
 NO INVENTES. Si para contar bien el valor te falta un dato que no se deduce de las observaciones (la norma exacta, el beneficio concreto, a qué perfil de cliente aplica), NO te lo inventes: ponlo entre ⟨ ⟩ y añádelo a "necesita_confirmacion". Nunca inventes normas, artículos, fechas, cifras ni efectos legales.
 
 RED DE SEGURIDAD: si un desarrollo es claramente trabajo interno y no una funcionalidad de producto (p. ej. "Apoyo a [persona]", "ayudar con la integración de X"), no lo conviertas en item: mételo en "excluidos" con el motivo. Plomería puramente técnica sin efecto visible para el cliente (adaptaciones de certificados, llamadas internas) también va a "excluidos" salvo que tenga un beneficio claro y nombrable.
+
+CALIBRACIÓN (estudia estos ejemplos antes de redactar):
+
+Ejemplo "Carta de impago con info normativa obligatoria":
+- BIEN ✅ titulo: "Tus cartas de impago, blindadas". cuerpo: "Un defecto formal puede invalidarte un corte o una reclamación de deuda. A partir de ahora cada carta sale conforme a ⟨norma — confirmar⟩ sin que nadie la revise a mano." → APUESTA clara (corte invalidado), contraste, jerga del sector, épica sin adjetivo hueco.
+- MEH 😐 titulo: "Mejora en las cartas de impago". cuerpo: "Hemos añadido información normativa a las cartas." → correcto pero plano: ni apuesta ni contraste, no se siente el valor.
+- MAL ❌ titulo: "Innovadora solución integral para impagos". cuerpo: "Nuestra potente herramienta lleva el cumplimiento a la vanguardia." → adjetivos huecos prohibidos, protagonista nosotros, cero concreción.
+
+Ejemplo "Controles en facturación indexada horaria":
+- BIEN ✅ titulo: "Tu facturación horaria, a prueba de descuadres". cuerpo: "Reforzamos los controles que cuadran consumos, precios y horas en cada factura indexada y afinamos el cálculo de la última hora." → sobrio y fiable (es corrección que toca el dinero), beneficio tangible.
+- MAL ❌ titulo: "¡Revoluciona tu facturación indexada!". → épica falsa en una corrección: prohibido, suena a humo.
 
 SALIDA: devuelve EXCLUSIVAMENTE un objeto JSON válido con esta forma, sin markdown, sin texto antes ni después:
 {
@@ -161,15 +172,15 @@ def build_email_html(
     mantenimiento = contenido.get("mantenimiento_resumen")
     intro = contenido.get("intro", "")
 
-    # Cabecera: logo real si hay URL, si no fallback texto
+    # Cabecera con fondo blanco para que luzca el logo oficial (azul)
     if logo_url:
-        cabecera = f"""
-      <img src="{_esc(logo_url)}" alt="ASIC XXI" height="38" style="height:38px;display:inline-block;border:0;">
-      <span style="color:rgba(255,255,255,.8);font-size:13px;float:right;padding-top:10px;">Novedades BOMP</span>"""
+        cabecera_inner = f"""
+      <img src="{_esc(logo_url)}" alt="ASIC XXI" height="40" style="height:40px;display:inline-block;border:0;vertical-align:middle;">
+      <span style="color:#64748B;font-size:13px;float:right;padding-top:12px;">Novedades BOMP</span>"""
     else:
-        cabecera = """
-      <span style="color:#FFFFFF;font-size:20px;font-weight:800;">aSIc<span style="color:#90E0EF;">xxi</span></span>
-      <span style="color:rgba(255,255,255,.7);font-size:13px;float:right;padding-top:6px;">Novedades BOMP</span>"""
+        cabecera_inner = """
+      <span style="color:#004975;font-size:22px;font-weight:800;">aSIc<span style="color:#7FA8C9;">xxi</span></span>
+      <span style="color:#64748B;font-size:13px;float:right;padding-top:8px;">Novedades BOMP</span>"""
 
     # Hero
     hero_html = ""
@@ -221,7 +232,7 @@ def build_email_html(
     return f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F8FAFC;padding:24px 0;">
  <tr><td align="center">
   <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:12px;overflow:hidden;font-family:Inter,Arial,Helvetica,sans-serif;">
-    <tr><td style="background:#004975;padding:20px 32px;">{cabecera}
+    <tr><td style="background:#FFFFFF;padding:20px 32px;border-bottom:3px solid #004975;">{cabecera_inner}
     </td></tr>
     {hero_html}
     <tr><td style="padding:26px 32px 6px;color:#0F172A;font-size:15px;">Hola {nombre},</td></tr>
