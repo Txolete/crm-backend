@@ -71,7 +71,6 @@ def adaptar_correo(desarrollos: list) -> dict:
                 model=model,
                 instructions=SYSTEM_PROMPT_CORREO,
                 input=user_message,
-                temperature=0.4,
                 max_output_tokens=4000,
                 text={"format": {"type": "json_object"}},
             )
@@ -86,7 +85,6 @@ def adaptar_correo(desarrollos: list) -> dict:
                 {"role": "system", "content": SYSTEM_PROMPT_CORREO},
                 {"role": "user", "content": user_message},
             ],
-            temperature=0.4,
             response_format={"type": "json_object"},
             max_completion_tokens=4000,
         )
