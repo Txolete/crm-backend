@@ -65,6 +65,8 @@ function updateNavbarUser(user) {
         if (navUsers) navUsers.style.display = 'block';
         const navFeedback = document.getElementById('nav-feedback');
         if (navFeedback) navFeedback.style.display = 'block';
+        const navComunicaciones = document.getElementById('nav-comunicaciones');
+        if (navComunicaciones) navComunicaciones.style.display = 'block';
     }
 }
 
