@@ -493,7 +493,8 @@ def correo_eml(
     if bcc:
         msg["Bcc"] = bcc
     msg.set_content("Tu cliente de correo no soporta HTML. Abre el mensaje en un cliente compatible.")
-    msg.add_alternative(html, subtype="html")
+    # base64 evita los artefactos '=' de quoted-printable (asicx=i.es) al partir lineas largas
+    msg.add_alternative(html, subtype="html", cte="base64")
 
     eml_bytes = msg.as_bytes()
     return Response(

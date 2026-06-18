@@ -314,9 +314,11 @@
                 </div>
                 <hr>
                 <div class="d-flex gap-2 flex-wrap">
-                    <button class="btn btn-outline-primary" onclick="copiarHTML()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-clipboard"></i> Copiar HTML</button>
+                    <button class="btn btn-primary" onclick="copiarFormato()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-clipboard-check"></i> Copiar correo (con formato)</button>
+                    <button class="btn btn-outline-secondary" onclick="copiarHTML()" ${phs.length?'disabled':''}><i class="bi bi-code-slash"></i> Copiar código HTML</button>
                     <button class="btn btn-success" onclick="descargarEml()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-download"></i> Descargar .eml (Outlook)</button>
                 </div>
+                <p class="text-muted small mt-1">"Con formato": pégalo directamente en un correo nuevo de Outlook/Gmail (sale maquetado). El .eml lo abres como borrador. Nota: Outlook de escritorio puede mostrar las etiquetas con esquinas cuadradas (no soporta bordes redondeados).</p>
             `;
             loadPreview();
         }
@@ -367,7 +369,21 @@
         async function copiarHTML(){
             const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/html`,{credentials:'include'});
             const html=await res.text();
-            navigator.clipboard.writeText(html).then(()=>alert('HTML copiado al portapapeles'),()=>alert('No se pudo copiar'));
+            navigator.clipboard.writeText(html).then(()=>alert('Código HTML copiado al portapapeles'),()=>alert('No se pudo copiar'));
+        }
+        async function copiarFormato(){
+            const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/html`,{credentials:'include'});
+            const html=await res.text();
+            try{
+                const item=new ClipboardItem({
+                    'text/html':new Blob([html],{type:'text/html'}),
+                    'text/plain':new Blob([html],{type:'text/plain'})
+                });
+                await navigator.clipboard.write([item]);
+                showFb('Correo copiado con formato — pégalo en un correo nuevo de Outlook/Gmail');
+            }catch(e){
+                alert('Tu navegador no permite copiar con formato. Usa "Descargar .eml" o "Copiar código HTML".');
+            }
         }
         function descargarEml(){
             window.location.href=`/comunicaciones/${_currentPub.publicacion.id}/correo/eml`;
