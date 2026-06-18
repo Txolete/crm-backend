@@ -40,6 +40,7 @@
             </div>
             <div>
                 <button class="btn btn-outline-secondary" onclick="showList()"><i class="bi bi-list-ul"></i> Publicaciones</button>
+                <button class="btn btn-outline-secondary" onclick="openAjustes()"><i class="bi bi-gear"></i> Ajustes IA</button>
                 <button class="btn btn-primary" onclick="showIngesta()"><i class="bi bi-upload"></i> Nueva publicación</button>
             </div>
         </div>
@@ -104,6 +105,32 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Modal Ajustes IA -->
+    <div class="modal fade" id="ajustesModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title"><i class="bi bi-gear"></i> Ajustes IA — prompt de novedades (correo)</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <div class="col-md-4 border-end">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong>Versiones</strong>
+                    <button class="btn btn-sm btn-primary" onclick="newPrompt()"><i class="bi bi-plus"></i> Nueva</button>
+                </div>
+                <div id="prompt-list"></div>
+              </div>
+              <div class="col-md-8">
+                <div id="prompt-editor" class="text-muted">Selecciona o crea una versión para editarla.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -257,7 +284,12 @@
                                 <select class="form-select form-select-sm" style="width:auto;" onchange="setItem(${i},'peso',this.value)">
                                     ${['regulatorio','hito','mejora','correccion'].map(p=>`<option value="${p}" ${it.peso===p?'selected':''}>${p}</option>`).join('')}
                                 </select>
-                                <button class="btn btn-sm btn-outline-danger" onclick="delItem(${i})"><i class="bi bi-trash"></i></button>
+                                <div class="btn-group btn-group-sm" role="group" title="Feedback para la IA">
+                                    <button class="btn btn-outline-success" onclick="feedbackItem(${i},'bien')" title="Bien">👍</button>
+                                    <button class="btn btn-outline-warning" onclick="feedbackItem(${i},'meh')" title="Meh">😐</button>
+                                    <button class="btn btn-outline-danger" onclick="feedbackItem(${i},'mal')" title="Mal">👎</button>
+                                    <button class="btn btn-outline-secondary" onclick="delItem(${i})" title="Borrar bloque"><i class="bi bi-trash"></i></button>
+                                </div>
                             </div>
                             <input type="text" class="form-control form-control-sm mb-1" value="${esc(it.titulo||'')}" onchange="setItem(${i},'titulo',this.value)" placeholder="Título de beneficio">
                             <textarea class="form-control form-control-sm" rows="2" onchange="setItem(${i},'cuerpo',this.value)" placeholder="Cuerpo">${esc(it.cuerpo||'')}</textarea>
@@ -270,6 +302,10 @@
                     <iframe class="preview-frame" id="preview-iframe"></iframe>
                 </div>
                 <div id="pane-dest" style="display:none;">
+                    <div class="mb-2"><label class="form-label small">Saludo de apertura</label>
+                        <input type="text" class="form-control" id="dest-saludo" value="${esc(meta.saludo||'Hola')}" placeholder="Hola">
+                        <small class="text-muted">En envíos masivos (BCC) no hay nombre por destinatario: usa un saludo genérico, p. ej. "Hola" o "Buenos días".</small>
+                    </div>
                     <p class="text-muted small">Para envíos a varios clientes usa <strong>CCO/BCC</strong> (no expone unos emails a otros). Separa por <code>;</code></p>
                     <div class="mb-2"><label class="form-label small">Para (To)</label><textarea class="form-control" id="dest-to" rows="2" placeholder="a@x.com; b@y.com">${esc((meta.destinatarios_to||[]).join('; '))}</textarea></div>
                     <div class="mb-2"><label class="form-label small">CC</label><textarea class="form-control" id="dest-cc" rows="1">${esc((meta.destinatarios_cc||[]).join('; '))}</textarea></div>
@@ -321,6 +357,7 @@
             meta.destinatarios_to=parseEmails(document.getElementById('dest-to').value);
             meta.destinatarios_cc=parseEmails(document.getElementById('dest-cc').value);
             meta.destinatarios_bcc=parseEmails(document.getElementById('dest-bcc').value);
+            meta.saludo=document.getElementById('dest-saludo').value.trim()||'Hola';
             meta.asunto=document.getElementById('sal-asunto').value;
             await fetch('/comunicaciones/salida/'+_currentSalida.id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({meta})});
             _currentSalida.meta=meta;
@@ -335,6 +372,79 @@
         function descargarEml(){
             window.location.href=`/comunicaciones/${_currentPub.publicacion.id}/correo/eml`;
         }
+
+        // ===== Ajustes IA: prompts / hero / calibración =====
+        let _prompts=[], _defaultPrompt='', _editingPrompt=null;
+        async function openAjustes(){
+            const res=await fetch('/comunicaciones/prompts',{credentials:'include'});
+            if(!res.ok){alert('Error al cargar prompts');return;}
+            const d=await res.json();_prompts=d.prompts;_defaultPrompt=d.default_prompt;
+            renderPromptList();
+            document.getElementById('prompt-editor').innerHTML='Selecciona o crea una versión para editarla.';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('ajustesModal')).show();
+        }
+        function renderPromptList(){
+            const el=document.getElementById('prompt-list');
+            if(!_prompts.length){el.innerHTML='<p class="text-muted small">Sin versiones. Crea una (si no, se usa el prompt por defecto del sistema).</p>';return;}
+            el.innerHTML=_prompts.map(p=>`
+                <div class="block-edit ${p.activa?'border-primary':''}" style="cursor:pointer;" onclick="editPrompt('${p.id}')">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>${esc(p.nombre)}</strong>
+                        ${p.activa?'<span class="badge bg-success">activa</span>':''}
+                    </div>
+                    <div class="small text-muted">Hero nivel ${p.hero_level}</div>
+                </div>`).join('');
+        }
+        function newPrompt(){
+            _editingPrompt={id:null,nombre:'',prompt_text:'',hero_level:2,calibracion:''};
+            renderPromptEditor();
+        }
+        function editPrompt(id){
+            _editingPrompt=JSON.parse(JSON.stringify(_prompts.find(p=>p.id===id)));
+            renderPromptEditor();
+        }
+        function renderPromptEditor(){
+            const p=_editingPrompt;
+            document.getElementById('prompt-editor').innerHTML=`
+                <div class="mb-2"><label class="form-label small">Nombre de la versión</label>
+                    <input type="text" class="form-control" id="p-nombre" value="${esc(p.nombre)}"></div>
+                <div class="mb-2"><label class="form-label small">Nivel de HERO</label>
+                    <select class="form-select" id="p-hero">
+                        <option value="1" ${p.hero_level==1?'selected':''}>1 — menos hero (sobrio)</option>
+                        <option value="2" ${p.hero_level==2?'selected':''}>2 — medio</option>
+                        <option value="3" ${p.hero_level==3?'selected':''}>3 — más hero (máximo impacto)</option>
+                    </select></div>
+                <div class="mb-2"><label class="form-label small">Prompt (déjalo vacío para usar el del sistema)</label>
+                    <textarea class="form-control" id="p-text" rows="8" placeholder="Vacío = se usa el prompt por defecto del sistema">${esc(p.prompt_text||'')}</textarea>
+                    <button class="btn btn-link btn-sm p-0" onclick="document.getElementById('p-text').value=_defaultPrompt;">Cargar el prompt por defecto para editarlo</button>
+                </div>
+                <div class="mb-2"><label class="form-label small">Calibración (ejemplos bien/meh/mal acumulados desde la curación)</label>
+                    <textarea class="form-control" id="p-cal" rows="5">${esc(p.calibracion||'')}</textarea></div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="savePrompt()"><i class="bi bi-save"></i> Guardar</button>
+                    ${p.id&&!p.activa?`<button class="btn btn-success" onclick="activarPrompt('${p.id}')"><i class="bi bi-check2"></i> Activar</button>`:''}
+                    ${p.id?`<button class="btn btn-outline-danger ms-auto" onclick="delPrompt('${p.id}')"><i class="bi bi-trash"></i></button>`:''}
+                </div>`;
+        }
+        async function savePrompt(){
+            const body={nombre:document.getElementById('p-nombre').value.trim(),hero_level:parseInt(document.getElementById('p-hero').value),prompt_text:document.getElementById('p-text').value,calibracion:document.getElementById('p-cal').value};
+            if(!body.nombre){alert('Pon un nombre');return;}
+            const id=_editingPrompt.id;
+            const res=await fetch(id?`/comunicaciones/prompts/${id}`:'/comunicaciones/prompts',{method:id?'PATCH':'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+            if(!res.ok){alert('Error al guardar');return;}
+            await openAjustes();
+        }
+        async function activarPrompt(id){await fetch(`/comunicaciones/prompts/${id}/activar`,{method:'POST',credentials:'include'});openAjustes();}
+        async function delPrompt(id){if(!confirm('Borrar esta versión?'))return;await fetch(`/comunicaciones/prompts/${id}`,{method:'DELETE',credentials:'include'});openAjustes();}
+
+        // Feedback desde curación: añade ejemplo a la calibración del prompt activo
+        async function feedbackItem(i,veredicto){
+            const c=getContenido();const it=c.items[i];
+            const nota=prompt(`Marcar como ${veredicto.toUpperCase()}. Nota opcional (por qué):`)||'';
+            const res=await fetch('/comunicaciones/prompts/feedback',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({titulo:it.titulo,cuerpo:it.cuerpo,veredicto,nota})});
+            if(res.ok){showFb('Feedback guardado en la calibración del prompt activo');}else{alert('Error al guardar feedback');}
+        }
+        function showFb(msg){const t=document.createElement('div');t.textContent=msg;t.style.cssText='position:fixed;bottom:24px;right:24px;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;z-index:10000;';document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
 
         (async()=>{
             try{

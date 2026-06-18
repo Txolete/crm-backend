@@ -59,6 +59,7 @@ app.include_router(materials.router)
 app.include_router(email_templates.router)
 app.include_router(email_templates.sent_router)
 app.include_router(email_templates.sequence_router)
+app.include_router(comunicaciones.prompts_router)  # antes del router principal (evita colisión con /{publicacion_id})
 app.include_router(comunicaciones.router)
 
 

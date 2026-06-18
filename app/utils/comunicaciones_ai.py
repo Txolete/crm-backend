@@ -56,10 +56,27 @@ SALIDA: devuelve EXCLUSIVAMENTE un objeto JSON válido con esta forma, sin markd
 }"""
 
 
-def adaptar_correo(desarrollos: list) -> dict:
+HERO_MODIFIERS = {
+    1: "\n\nNIVEL DE HERO: BAJO. El 'intro' debe ser sobrio y breve (una frase), sin grandilocuencia. Prioriza claridad sobre épica.",
+    2: "\n\nNIVEL DE HERO: MEDIO. El 'intro' engancha con una idea con fuerza, equilibrando ambición y sobriedad.",
+    3: "\n\nNIVEL DE HERO: ALTO. El 'intro' debe ser muy potente y memorable, con tensión real del sector y ambición máxima (sin caer en adjetivos huecos). Es lo primero que ve el cliente: que impacte.",
+}
+
+
+def build_system_prompt(prompt_text: Optional[str] = None, hero_level: int = 2, calibracion_extra: Optional[str] = None) -> str:
+    """Construye el system prompt final: base (override o default) + hero level + calibracion extra."""
+    base = (prompt_text or "").strip() or SYSTEM_PROMPT_CORREO
+    out = base + HERO_MODIFIERS.get(hero_level, HERO_MODIFIERS[2])
+    if calibracion_extra and calibracion_extra.strip():
+        out += "\n\nCALIBRACIÓN ADICIONAL (feedback real del revisor, respétalo):\n" + calibracion_extra.strip()
+    return out
+
+
+def adaptar_correo(desarrollos: list, system_prompt: Optional[str] = None) -> dict:
     """
     Llama a OpenAI con el system prompt del canal correo y devuelve el JSON parseado.
     `desarrollos` = lista de dicts con los campos en crudo marcados para correo.
+    `system_prompt` = prompt final ya construido (si None, usa el por defecto).
     """
     from app.config import get_settings
     settings = get_settings()
@@ -74,6 +91,7 @@ def adaptar_correo(desarrollos: list) -> dict:
 
     client = OpenAI(api_key=settings.openai_api_key)
     model = settings.comunicaciones_ai_model
+    sys_prompt = system_prompt or SYSTEM_PROMPT_CORREO
 
     user_message = json.dumps({"desarrollos": desarrollos}, ensure_ascii=False, indent=2)
 
@@ -83,7 +101,7 @@ def adaptar_correo(desarrollos: list) -> dict:
         if hasattr(client, "responses"):
             resp = client.responses.create(
                 model=model,
-                instructions=SYSTEM_PROMPT_CORREO,
+                instructions=sys_prompt,
                 input=user_message,
                 max_output_tokens=4000,
                 text={"format": {"type": "json_object"}},
@@ -96,7 +114,7 @@ def adaptar_correo(desarrollos: list) -> dict:
         resp = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT_CORREO},
+                {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_message},
             ],
             response_format={"type": "json_object"},
@@ -157,7 +175,7 @@ def _esc(s) -> str:
 def build_email_html(
     contenido: dict,
     firma: str = "El equipo de ASIC XXI",
-    nombre: str = "{{nombre}}",
+    saludo: str = "Hola",
     logo_url: str = "",
     cta_web: str = "www.asicxxi.com",
     cta_email: str = "",
@@ -223,9 +241,9 @@ def build_email_html(
         contacto_bits.append(f'<a href="{_esc(web_url)}" style="color:#FFFFFF;text-decoration:underline;">{_esc(cta_web)}</a>')
     contacto_line = " &nbsp;·&nbsp; ".join(contacto_bits)
     cta_html = f"""
-    <tr><td style="background:#00B4D8;padding:22px 32px;text-align:center;">
+    <tr><td style="background:#004975;padding:22px 32px;text-align:center;">
       <p style="margin:0 0 6px;color:#FFFFFF;font-size:16px;font-weight:800;">¿Quieres ver cómo te afecta a ti?</p>
-      <p style="margin:0 0 12px;color:#E0F7FF;font-size:13px;">Te lo contamos en 15 minutos, sin compromiso.</p>
+      <p style="margin:0 0 12px;color:#B9D4E6;font-size:13px;">Te lo contamos en 15 minutos, sin compromiso.</p>
       <p style="margin:0;color:#FFFFFF;font-size:13px;">{contacto_line}</p>
     </td></tr>"""
 
@@ -235,7 +253,7 @@ def build_email_html(
     <tr><td style="background:#FFFFFF;padding:20px 32px;border-bottom:3px solid #004975;">{cabecera_inner}
     </td></tr>
     {hero_html}
-    <tr><td style="padding:26px 32px 6px;color:#0F172A;font-size:15px;">Hola {nombre},</td></tr>
+    <tr><td style="padding:26px 32px 6px;color:#0F172A;font-size:15px;">{_esc(saludo)},</td></tr>
     {''.join(bloques)}
     {mant_html}
     <tr><td style="padding:20px 32px 26px;color:#0F172A;font-size:14px;">Un saludo,<br>{firma_html}</td></tr>

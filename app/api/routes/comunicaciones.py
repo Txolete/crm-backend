@@ -15,11 +15,12 @@ import logging
 
 from app.database import get_db
 from app.models.user import User
-from app.models.comunicacion import Publicacion, Desarrollo, SalidaCanal
+from app.models.comunicacion import Publicacion, Desarrollo, SalidaCanal, ComunicacionPrompt
 from app.schemas.comunicacion import (
     DesarrolloResponse, DesarrolloUpdate,
     PublicacionResponse, PublicacionListResponse, PublicacionDetailResponse,
     IngestaResponse, SalidaCanalResponse, SalidaCanalUpdate,
+    PromptResponse, PromptListResponse, PromptCreate, PromptUpdate, FeedbackItem,
 )
 from app.utils.auth import get_current_user_from_cookie
 from app.utils.audit import generate_id, get_utc_now
@@ -314,9 +315,20 @@ def adaptar_correo_endpoint(
     if not para_correo:
         raise HTTPException(status_code=400, detail="No hay desarrollos marcados para el canal correo")
 
-    from app.utils.comunicaciones_ai import adaptar_correo
+    from app.utils.comunicaciones_ai import adaptar_correo, build_system_prompt
+    # Cargar prompt activo (si existe), aplicar hero level + calibracion
+    activa = (
+        db.query(ComunicacionPrompt)
+        .filter(ComunicacionPrompt.canal == "correo", ComunicacionPrompt.activa == 1)
+        .first()
+    )
+    sys_prompt = build_system_prompt(
+        prompt_text=(activa.prompt_text if activa else None),
+        hero_level=(activa.hero_level if activa else 2),
+        calibracion_extra=(activa.calibracion if activa else None),
+    )
     try:
-        contenido = adaptar_correo([_desarrollo_to_ai_dict(d) for d in para_correo])
+        contenido = adaptar_correo([_desarrollo_to_ai_dict(d) for d in para_correo], system_prompt=sys_prompt)
     except Exception as e:
         logger.error(f"[comunicaciones] adaptar IA error: {e}")
         raise HTTPException(status_code=502, detail=f"Error en la IA: {e}")
@@ -426,7 +438,7 @@ def correo_html(
     cfg = get_settings()
     logo_url = (cfg.public_base_url.rstrip("/") + "/static/img/asicxxi_logo.png") if cfg.public_base_url else ""
     html = build_email_html(
-        contenido, firma=firma, nombre="{{nombre}}",
+        contenido, firma=firma, saludo=meta.get("saludo", "Hola"),
         logo_url=logo_url,
         cta_web=cfg.comunicaciones_cta_web,
         cta_email=cfg.comunicaciones_cta_email,
@@ -459,7 +471,7 @@ def correo_eml(
     cfg = get_settings()
     logo_url = (cfg.public_base_url.rstrip("/") + "/static/img/asicxxi_logo.png") if cfg.public_base_url else ""
     html = build_email_html(
-        contenido, firma=firma, nombre="cliente",
+        contenido, firma=firma, saludo=meta.get("saludo", "Hola"),
         logo_url=logo_url,
         cta_web=cfg.comunicaciones_cta_web,
         cta_email=cfg.comunicaciones_cta_email,
@@ -506,3 +518,143 @@ def delete_publicacion(
     db.delete(p)
     db.commit()
     return None
+
+
+# ===========================================================================
+# Prompts del adaptador (versiones + hero level + calibración/feedback)
+# Router aparte con prefijo más específico, registrado ANTES del router
+# principal para que /comunicaciones/prompts no colisione con /{publicacion_id}.
+# ===========================================================================
+
+prompts_router = APIRouter(prefix="/comunicaciones/prompts", tags=["Comunicaciones Prompts"])
+
+
+def _prompt_response(p: ComunicacionPrompt) -> PromptResponse:
+    return PromptResponse(
+        id=p.id, nombre=p.nombre, canal=p.canal, prompt_text=p.prompt_text,
+        hero_level=p.hero_level, calibracion=p.calibracion, activa=bool(p.activa),
+    )
+
+
+@prompts_router.get("", response_model=PromptListResponse)
+def list_prompts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    _require_admin(current_user)
+    from app.utils.comunicaciones_ai import SYSTEM_PROMPT_CORREO
+    items = db.query(ComunicacionPrompt).filter(ComunicacionPrompt.canal == "correo").order_by(ComunicacionPrompt.created_at.asc()).all()
+    return PromptListResponse(
+        prompts=[_prompt_response(p) for p in items],
+        default_prompt=SYSTEM_PROMPT_CORREO,
+    )
+
+
+@prompts_router.post("", response_model=PromptResponse, status_code=201)
+def create_prompt(
+    payload: PromptCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    _require_admin(current_user)
+    now = get_utc_now()
+    p = ComunicacionPrompt(
+        id=generate_id(), nombre=payload.nombre.strip(), canal="correo",
+        prompt_text=(payload.prompt_text or "").strip() or None,
+        hero_level=payload.hero_level, calibracion=(payload.calibracion or "").strip() or None,
+        activa=0, created_at=now, updated_at=now,
+    )
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return _prompt_response(p)
+
+
+@prompts_router.patch("/{prompt_id}", response_model=PromptResponse)
+def update_prompt(
+    prompt_id: str,
+    payload: PromptUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    _require_admin(current_user)
+    p = db.query(ComunicacionPrompt).filter(ComunicacionPrompt.id == prompt_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Prompt no encontrado")
+    if payload.nombre is not None: p.nombre = payload.nombre.strip()
+    if payload.prompt_text is not None: p.prompt_text = payload.prompt_text.strip() or None
+    if payload.hero_level is not None: p.hero_level = payload.hero_level
+    if payload.calibracion is not None: p.calibracion = payload.calibracion.strip() or None
+    p.updated_at = get_utc_now()
+    db.commit()
+    db.refresh(p)
+    return _prompt_response(p)
+
+
+@prompts_router.post("/{prompt_id}/activar", response_model=PromptResponse)
+def activar_prompt(
+    prompt_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    _require_admin(current_user)
+    p = db.query(ComunicacionPrompt).filter(ComunicacionPrompt.id == prompt_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Prompt no encontrado")
+    db.query(ComunicacionPrompt).filter(ComunicacionPrompt.canal == "correo").update({"activa": 0})
+    p.activa = 1
+    p.updated_at = get_utc_now()
+    db.commit()
+    db.refresh(p)
+    return _prompt_response(p)
+
+
+@prompts_router.delete("/{prompt_id}", status_code=204)
+def delete_prompt(
+    prompt_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    _require_admin(current_user)
+    p = db.query(ComunicacionPrompt).filter(ComunicacionPrompt.id == prompt_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="No encontrado")
+    db.delete(p)
+    db.commit()
+    return None
+
+
+@prompts_router.post("/feedback", status_code=200)
+def feedback_calibracion(
+    payload: FeedbackItem,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """
+    Añade un ejemplo de calibración (bien/meh/mal) al prompt ACTIVO desde la
+    pantalla de curación. Si no hay prompt activo, crea uno por defecto editable.
+    """
+    _require_admin(current_user)
+    activa = (
+        db.query(ComunicacionPrompt)
+        .filter(ComunicacionPrompt.canal == "correo", ComunicacionPrompt.activa == 1)
+        .first()
+    )
+    if not activa:
+        now = get_utc_now()
+        activa = ComunicacionPrompt(
+            id=generate_id(), nombre="Prompt activo (auto)", canal="correo",
+            prompt_text=None, hero_level=2, calibracion=None, activa=1,
+            created_at=now, updated_at=now,
+        )
+        db.add(activa)
+        db.flush()
+
+    marca = {"bien": "BIEN ✅", "meh": "MEH 😐", "mal": "MAL ❌"}.get(payload.veredicto, payload.veredicto)
+    linea = f'- {marca} titulo: "{(payload.titulo or "").strip()}". cuerpo: "{(payload.cuerpo or "").strip()}".'
+    if payload.nota:
+        linea += f' Nota del revisor: {payload.nota.strip()}'
+    activa.calibracion = ((activa.calibracion or "") + "\n" + linea).strip()
+    activa.updated_at = get_utc_now()
+    db.commit()
+    return {"ok": True, "prompt_id": activa.id}

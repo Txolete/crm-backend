@@ -80,3 +80,42 @@ class SalidaCanalUpdate(BaseModel):
     contenido_editado: Optional[Any] = None
     meta: Optional[Any] = None
     estado: Optional[str] = None
+
+
+class PromptResponse(BaseModel):
+    id: str
+    nombre: str
+    canal: str
+    prompt_text: Optional[str] = None
+    hero_level: int = 2
+    calibracion: Optional[str] = None
+    activa: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class PromptListResponse(BaseModel):
+    prompts: List[PromptResponse]
+    default_prompt: str   # el prompt por defecto del código, para referencia
+
+
+class PromptCreate(BaseModel):
+    nombre: str = Field(..., min_length=1, max_length=120)
+    prompt_text: Optional[str] = None
+    hero_level: int = Field(2, ge=1, le=3)
+    calibracion: Optional[str] = None
+
+
+class PromptUpdate(BaseModel):
+    nombre: Optional[str] = None
+    prompt_text: Optional[str] = None
+    hero_level: Optional[int] = Field(None, ge=1, le=3)
+    calibracion: Optional[str] = None
+
+
+class FeedbackItem(BaseModel):
+    titulo: Optional[str] = None
+    cuerpo: Optional[str] = None
+    veredicto: str = Field(..., pattern="^(bien|meh|mal)$")
+    nota: Optional[str] = None

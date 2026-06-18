@@ -47,6 +47,26 @@ class Desarrollo(Base):
     orden = Column(Integer, nullable=True)
 
 
+class ComunicacionPrompt(Base):
+    """
+    Tabla: comunicacion_prompts
+    Versiones del prompt del adaptador de correo. El socio puede guardar varias
+    y activar una. hero_level controla cuánta épica/hero mete (1 menos, 3 más).
+    calibracion son ejemplos extra (bien/meh/mal) que se aprenden desde la curación.
+    """
+    __tablename__ = "comunicacion_prompts"
+
+    id = Column(String, primary_key=True)
+    nombre = Column(String, nullable=False)
+    canal = Column(String, nullable=False, default="correo")
+    prompt_text = Column(Text, nullable=True)   # si null/vacío, usa el prompt por defecto del código
+    hero_level = Column(Integer, nullable=False, default=2)  # 1=menos, 2=medio, 3=más
+    calibracion = Column(Text, nullable=True)   # ejemplos extra acumulados (feedback)
+    activa = Column(Integer, nullable=False, default=0)
+    created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class SalidaCanal(Base):
     """
     Tabla: salidas_canal
