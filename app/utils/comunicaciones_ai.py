@@ -218,17 +218,17 @@ def build_email_html(
         # Badge tipo "pill" redondeado en todos los clientes:
         # - VML roundrect SOLO lo ve Outlook (dentro de comentario condicional)
         # - el <span> con border-radius lo ven el resto de clientes (oculto en Outlook con mso-hide)
-        badge_w = len(etiqueta) * 11 + 34  # ancho holgado para que el texto no se corte
+        badge_w = len(etiqueta) * 13 + 48  # ancho holgado para que el texto no se corte en Outlook
         badge = f"""<!--[if mso]>
       <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
-        href="#" style="height:28px;v-text-anchor:middle;width:{badge_w}px;mso-padding-alt:0;" arcsize="50%" stroke="f" fillcolor="{color}">
+        href="#" style="height:34px;v-text-anchor:middle;width:{badge_w}px;mso-padding-alt:0;" arcsize="50%" stroke="f" fillcolor="{color}">
         <w:anchorlock/>
-        <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">{etiqueta}</center>
+        <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">{etiqueta}</center>
       </v:roundrect>
       <![endif]-->
       <!--[if !mso]><!-->
-      <span style="display:inline-block;background:{color};color:#fff;font-size:12px;font-weight:700;
-            text-transform:uppercase;letter-spacing:.06em;padding:6px 16px;border-radius:20px;">{etiqueta}</span>
+      <span style="display:inline-block;background:{color};color:#fff;font-size:14px;font-weight:700;
+            text-transform:uppercase;letter-spacing:.06em;padding:8px 20px;border-radius:24px;line-height:1;">{etiqueta}</span>
       <!--<![endif]-->"""
         bloques.append(f"""
     <tr><td style="padding:16px 32px;border-bottom:1px solid #EEF2F6;">
