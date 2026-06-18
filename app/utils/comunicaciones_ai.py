@@ -25,7 +25,9 @@ CLASIFICACIÓN Y PESO. Asigna a cada item un "peso" y trátalo según su peso:
 - "mejora" (Mejora de funcionalidad existente): ángulo "ya lo hacías, ahora mejor / más rápido / con menos fricción". Enmárcalo por tiempo ahorrado o errores evitados.
 - "correccion" (Corrección de errores, o mantenimiento = true): sin épica NUNCA. Si la corrección toca la integridad de la factura o el dinero del cliente (cálculos, indexados, liquidaciones), conviértela en un mensaje sobrio de fiabilidad ("tu facturación, más a prueba de descuadres"). Si es trivial o de caso borde, NO le hagas item propio: agrúpalo en "mantenimiento_resumen".
 
-ESTRUCTURA DE CADA ITEM: un "titulo" de beneficio de menos de 10 palabras + un "cuerpo" de 1 o 2 frases. Brevedad agresiva.
+HERO / INTRO: genera un campo "intro": 1-2 frases de apertura que enganchen al cliente y transmitan que ASIC XXI crea valor de forma continua para su operativa. No es un saludo ni un "os presentamos las novedades": es un gancho con tensión real del sector ("Mientras tú facturas, el BOE no para. Por eso BOMP tampoco.") o una promesa de tranquilidad operativa. Tono Starship, una idea con fuerza, sin corporativo hueco. Es lo primero que lee el cliente bajo la cabecera.
+
+ESTRUCTURA DE CADA ITEM: un "titulo" de beneficio de menos de 10 palabras + un "cuerpo" de 1 o 2 frases. Brevedad agresiva, pero con empaque: el título debe poder leerse solo y vender el beneficio; el cuerpo aterriza el qué-ganas con concreción (tiempo ahorrado, riesgo evitado, dinero protegido).
 
 CONSOLIDACIÓN: si dos o más desarrollos tienen "relacionado_con" entre sí o son claramente lo mismo, fúndelos en un único item.
 
@@ -36,6 +38,7 @@ RED DE SEGURIDAD: si un desarrollo es claramente trabajo interno y no una funcio
 SALIDA: devuelve EXCLUSIVAMENTE un objeto JSON válido con esta forma, sin markdown, sin texto antes ni después:
 {
   "asunto": "...",
+  "intro": "1-2 frases de gancho (hero)",
   "items": [{ "id": "...", "peso": "...", "titulo": "...", "cuerpo": "...", "modulo": "...", "aplica_a": "...", "necesita_confirmacion": [] }],
   "mantenimiento_resumen": "..." | null,
   "excluidos": [{ "id": "...", "titulo_crudo": "...", "motivo": "..." }]
@@ -104,6 +107,7 @@ def adaptar_correo(desarrollos: list) -> dict:
 
     # Normalizar claves esperadas
     data.setdefault("asunto", "Novedades BOMP")
+    data.setdefault("intro", "")
     data.setdefault("items", [])
     data.setdefault("mantenimiento_resumen", None)
     data.setdefault("excluidos", [])
@@ -139,7 +143,15 @@ def _esc(s) -> str:
     )
 
 
-def build_email_html(contenido: dict, firma: str = "El equipo de ASIC XXI", nombre: str = "{{nombre}}") -> str:
+def build_email_html(
+    contenido: dict,
+    firma: str = "El equipo de ASIC XXI",
+    nombre: str = "{{nombre}}",
+    logo_url: str = "",
+    cta_web: str = "www.asicxxi.com",
+    cta_email: str = "",
+    cta_tel: str = "",
+) -> str:
     """
     Construye el HTML email-safe a partir del JSON adaptado (contenido_editado o _generado).
     Mantiene {{nombre}} como placeholder por defecto para personalizar en el envío.
@@ -147,6 +159,25 @@ def build_email_html(contenido: dict, firma: str = "El equipo de ASIC XXI", nomb
     items = contenido.get("items", []) or []
     items_sorted = sorted(items, key=lambda it: PESO_ORDEN.get(it.get("peso", "mejora"), 9))
     mantenimiento = contenido.get("mantenimiento_resumen")
+    intro = contenido.get("intro", "")
+
+    # Cabecera: logo real si hay URL, si no fallback texto
+    if logo_url:
+        cabecera = f"""
+      <img src="{_esc(logo_url)}" alt="ASIC XXI" height="38" style="height:38px;display:inline-block;border:0;">
+      <span style="color:rgba(255,255,255,.8);font-size:13px;float:right;padding-top:10px;">Novedades BOMP</span>"""
+    else:
+        cabecera = """
+      <span style="color:#FFFFFF;font-size:20px;font-weight:800;">aSIc<span style="color:#90E0EF;">xxi</span></span>
+      <span style="color:rgba(255,255,255,.7);font-size:13px;float:right;padding-top:6px;">Novedades BOMP</span>"""
+
+    # Hero
+    hero_html = ""
+    if intro:
+        hero_html = f"""
+    <tr><td style="background:#003354;padding:26px 32px;">
+      <p style="margin:0;color:#FFFFFF;font-size:19px;font-weight:700;line-height:1.4;">{_esc(intro)}</p>
+    </td></tr>"""
 
     bloques = []
     for it in items_sorted:
@@ -156,7 +187,7 @@ def build_email_html(contenido: dict, firma: str = "El equipo de ASIC XXI", nomb
         titulo = _esc(it.get("titulo", ""))
         cuerpo = _esc(it.get("cuerpo", ""))
         bloques.append(f"""
-    <tr><td style="padding:14px 32px;">
+    <tr><td style="padding:16px 32px;border-bottom:1px solid #EEF2F6;">
       <span style="display:inline-block;background:{color};color:#fff;font-size:11px;font-weight:700;
             text-transform:uppercase;letter-spacing:.06em;padding:3px 10px;border-radius:20px;">{etiqueta}</span>
       <h2 style="margin:10px 0 6px;color:#003354;font-size:18px;font-weight:800;line-height:1.25;">{titulo}</h2>
@@ -170,19 +201,36 @@ def build_email_html(contenido: dict, firma: str = "El equipo de ASIC XXI", nomb
 
     firma_html = _esc(firma).replace("\n", "<br>")
 
+    # CTA con datos de contacto
+    contacto_bits = []
+    if cta_email:
+        contacto_bits.append(f'<a href="mailto:{_esc(cta_email)}" style="color:#FFFFFF;text-decoration:underline;">{_esc(cta_email)}</a>')
+    if cta_tel:
+        contacto_bits.append(_esc(cta_tel))
+    if cta_web:
+        web_url = cta_web if cta_web.startswith("http") else "https://" + cta_web
+        contacto_bits.append(f'<a href="{_esc(web_url)}" style="color:#FFFFFF;text-decoration:underline;">{_esc(cta_web)}</a>')
+    contacto_line = " &nbsp;·&nbsp; ".join(contacto_bits)
+    cta_html = f"""
+    <tr><td style="background:#00B4D8;padding:22px 32px;text-align:center;">
+      <p style="margin:0 0 6px;color:#FFFFFF;font-size:16px;font-weight:800;">¿Quieres ver cómo te afecta a ti?</p>
+      <p style="margin:0 0 12px;color:#E0F7FF;font-size:13px;">Te lo contamos en 15 minutos, sin compromiso.</p>
+      <p style="margin:0;color:#FFFFFF;font-size:13px;">{contacto_line}</p>
+    </td></tr>"""
+
     return f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F8FAFC;padding:24px 0;">
  <tr><td align="center">
   <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:12px;overflow:hidden;font-family:Inter,Arial,Helvetica,sans-serif;">
-    <tr><td style="background:#004975;padding:24px 32px;">
-      <span style="color:#FFFFFF;font-size:18px;font-weight:800;">ASIC<span style="color:#90E0EF;">XXI</span></span>
-      <span style="color:rgba(255,255,255,.7);font-size:13px;float:right;">Novedades BOMP</span>
+    <tr><td style="background:#004975;padding:20px 32px;">{cabecera}
     </td></tr>
-    <tr><td style="padding:28px 32px 8px;color:#0F172A;font-size:15px;">Hola {nombre},</td></tr>
+    {hero_html}
+    <tr><td style="padding:26px 32px 6px;color:#0F172A;font-size:15px;">Hola {nombre},</td></tr>
     {''.join(bloques)}
     {mant_html}
-    <tr><td style="padding:20px 32px 28px;color:#0F172A;font-size:14px;">Un saludo,<br>{firma_html}</td></tr>
+    <tr><td style="padding:20px 32px 26px;color:#0F172A;font-size:14px;">Un saludo,<br>{firma_html}</td></tr>
+    {cta_html}
     <tr><td style="background:#F1F5F9;padding:16px 32px;color:#94A3B8;font-size:12px;text-align:center;">
-      ASIC XXI · Back-office y software para comercializadoras
+      ASIC XXI · Servicios de ingeniería · Back-office y software para comercializadoras
     </td></tr>
   </table>
  </td></tr>

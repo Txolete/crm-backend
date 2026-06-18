@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     ai_enabled: bool = True
     # Hub de comunicacion: modelo dedicado (mejor redaccion para novedades)
     comunicaciones_ai_model: str = "gpt-5.5"
+    # URL publica del CRM (para que el logo del correo cargue en clientes de email)
+    public_base_url: str = ""
+    # Datos de contacto del CTA del correo de novedades
+    comunicaciones_cta_web: str = "www.asicxxi.com"
+    comunicaciones_cta_email: str = ""
+    comunicaciones_cta_tel: str = ""
 
     # Sprint 5A — Tres agentes especializados (Assistant IDs opcionales)
     # Si no están configurados, usa Chat Completions con system prompt de rol

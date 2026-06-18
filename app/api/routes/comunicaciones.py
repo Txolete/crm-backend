@@ -422,7 +422,16 @@ def correo_html(
     contenido, meta = _contenido_y_meta(s)
     firma = meta.get("firma") or (current_user.email_signature or "El equipo de ASIC XXI")
     from app.utils.comunicaciones_ai import build_email_html
-    html = build_email_html(contenido, firma=firma, nombre="{{nombre}}")
+    from app.config import get_settings
+    cfg = get_settings()
+    logo_url = (cfg.public_base_url.rstrip("/") + "/static/img/asicxxi_logo.png") if cfg.public_base_url else ""
+    html = build_email_html(
+        contenido, firma=firma, nombre="{{nombre}}",
+        logo_url=logo_url,
+        cta_web=cfg.comunicaciones_cta_web,
+        cta_email=cfg.comunicaciones_cta_email,
+        cta_tel=cfg.comunicaciones_cta_tel,
+    )
     return HTMLResponse(content=html)
 
 
@@ -445,8 +454,17 @@ def correo_eml(
     firma = meta.get("firma") or (current_user.email_signature or "El equipo de ASIC XXI")
 
     from app.utils.comunicaciones_ai import build_email_html
+    from app.config import get_settings
     from email.message import EmailMessage
-    html = build_email_html(contenido, firma=firma, nombre="cliente")
+    cfg = get_settings()
+    logo_url = (cfg.public_base_url.rstrip("/") + "/static/img/asicxxi_logo.png") if cfg.public_base_url else ""
+    html = build_email_html(
+        contenido, firma=firma, nombre="cliente",
+        logo_url=logo_url,
+        cta_web=cfg.comunicaciones_cta_web,
+        cta_email=cfg.comunicaciones_cta_email,
+        cta_tel=cfg.comunicaciones_cta_tel,
+    )
 
     def _join(lst):
         return ", ".join([x for x in (lst or []) if x])
