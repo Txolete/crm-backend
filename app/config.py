@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     openai_assistant_id: str = ""      # opcional — si se usa Assistants API
     openai_model: str = "gpt-4.1"  # gpt-4.1 | gpt-4o | gpt-4o-mini — configurable vía OPENAI_MODEL en .env
     ai_enabled: bool = True
+    # Hub de comunicacion: modelo dedicado (mejor redaccion para novedades)
+    comunicaciones_ai_model: str = "gpt-5.5"
 
     # Sprint 5A — Tres agentes especializados (Assistant IDs opcionales)
     # Si no están configurados, usa Chat Completions con system prompt de rol

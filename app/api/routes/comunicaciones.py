@@ -239,6 +239,240 @@ def update_desarrollo(
     )
 
 
+def _desarrollo_to_ai_dict(d: Desarrollo) -> dict:
+    return {
+        "id": d.id,
+        "titulo_crudo": d.titulo_crudo,
+        "tipo": d.tipo,
+        "modulo": d.modulo,
+        "proyecto": d.proyecto,
+        "origen": d.origen,
+        "observaciones": d.observaciones,
+        "mantenimiento": bool(d.mantenimiento),
+        "relacionado_con": d.relacionado_con,
+        "norma": d.norma,
+    }
+
+
+def _get_or_create_salida(db: Session, publicacion_id: str, canal: str = "correo") -> SalidaCanal:
+    s = (
+        db.query(SalidaCanal)
+        .filter(SalidaCanal.publicacion_id == publicacion_id, SalidaCanal.canal == canal)
+        .first()
+    )
+    if not s:
+        now = get_utc_now()
+        s = SalidaCanal(
+            id=generate_id(), publicacion_id=publicacion_id, canal=canal,
+            estado="borrador", created_at=now, updated_at=now,
+        )
+        db.add(s)
+        db.flush()
+    return s
+
+
+def _salida_response(s: SalidaCanal) -> SalidaCanalResponse:
+    def _loads(v):
+        if not v:
+            return None
+        try:
+            return json.loads(v)
+        except Exception:
+            return None
+    return SalidaCanalResponse(
+        id=s.id, publicacion_id=s.publicacion_id, canal=s.canal,
+        contenido_generado=_loads(s.contenido_generado),
+        contenido_editado=_loads(s.contenido_editado),
+        estado=s.estado, meta=_loads(s.meta),
+        fecha_publicacion=s.fecha_publicacion,
+    )
+
+
+@router.post("/{publicacion_id}/adaptar-correo", response_model=SalidaCanalResponse)
+def adaptar_correo_endpoint(
+    publicacion_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """
+    Llama a la IA con los desarrollos marcados para correo (incluir=1 y canal 'correo')
+    y guarda el JSON adaptado en la SalidaCanal.
+    """
+    _require_admin(current_user)
+    p = db.query(Publicacion).filter(Publicacion.id == publicacion_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Publicación no encontrada")
+
+    desarrollos = (
+        db.query(Desarrollo)
+        .filter(Desarrollo.publicacion_id == publicacion_id, Desarrollo.incluir == 1)
+        .order_by(Desarrollo.orden.asc())
+        .all()
+    )
+    # Filtrar los que van al canal correo
+    para_correo = [d for d in desarrollos if not d.canales or "correo" in (d.canales or "")]
+    if not para_correo:
+        raise HTTPException(status_code=400, detail="No hay desarrollos marcados para el canal correo")
+
+    from app.utils.comunicaciones_ai import adaptar_correo
+    try:
+        contenido = adaptar_correo([_desarrollo_to_ai_dict(d) for d in para_correo])
+    except Exception as e:
+        logger.error(f"[comunicaciones] adaptar IA error: {e}")
+        raise HTTPException(status_code=502, detail=f"Error en la IA: {e}")
+
+    s = _get_or_create_salida(db, publicacion_id, "correo")
+    s.contenido_generado = json.dumps(contenido, ensure_ascii=False)
+    # Inicializar contenido_editado con lo generado si está vacío (para que el socio edite encima)
+    if not s.contenido_editado:
+        s.contenido_editado = s.contenido_generado
+    s.estado = "adaptado"
+    # Sembrar el asunto en meta si no existe
+    meta = {}
+    if s.meta:
+        try:
+            meta = json.loads(s.meta)
+        except Exception:
+            meta = {}
+    meta.setdefault("asunto", contenido.get("asunto", "Novedades BOMP"))
+    meta.setdefault("destinatarios_to", [])
+    meta.setdefault("destinatarios_cc", [])
+    meta.setdefault("destinatarios_bcc", [])
+    s.meta = json.dumps(meta, ensure_ascii=False)
+    s.updated_at = get_utc_now()
+    p.estado = "curada"
+    db.commit()
+    db.refresh(s)
+    logger.info(f"[comunicaciones] adaptado correo pub={publicacion_id} items={len(contenido.get('items', []))}")
+    return _salida_response(s)
+
+
+@router.get("/{publicacion_id}/salida/{canal}", response_model=SalidaCanalResponse)
+def get_salida(
+    publicacion_id: str,
+    canal: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    _require_admin(current_user)
+    s = (
+        db.query(SalidaCanal)
+        .filter(SalidaCanal.publicacion_id == publicacion_id, SalidaCanal.canal == canal)
+        .first()
+    )
+    if not s:
+        raise HTTPException(status_code=404, detail="Aún no se ha adaptado este canal")
+    return _salida_response(s)
+
+
+@router.patch("/salida/{salida_id}", response_model=SalidaCanalResponse)
+def update_salida(
+    salida_id: str,
+    payload: SalidaCanalUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """Guarda la edición del socio (bloques editados, asunto, destinatarios, estado)."""
+    _require_admin(current_user)
+    s = db.query(SalidaCanal).filter(SalidaCanal.id == salida_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Salida no encontrada")
+    if payload.contenido_editado is not None:
+        s.contenido_editado = json.dumps(payload.contenido_editado, ensure_ascii=False)
+    if payload.meta is not None:
+        s.meta = json.dumps(payload.meta, ensure_ascii=False)
+    if payload.estado is not None:
+        s.estado = payload.estado
+    s.updated_at = get_utc_now()
+    db.commit()
+    db.refresh(s)
+    return _salida_response(s)
+
+
+def _contenido_y_meta(s: SalidaCanal):
+    contenido = {}
+    if s.contenido_editado:
+        contenido = json.loads(s.contenido_editado)
+    elif s.contenido_generado:
+        contenido = json.loads(s.contenido_generado)
+    meta = {}
+    if s.meta:
+        try:
+            meta = json.loads(s.meta)
+        except Exception:
+            meta = {}
+    return contenido, meta
+
+
+@router.get("/{publicacion_id}/correo/html", response_class=HTMLResponse)
+def correo_html(
+    publicacion_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """Devuelve el HTML email-safe maquetado (para preview y copiar)."""
+    _require_admin(current_user)
+    s = (
+        db.query(SalidaCanal)
+        .filter(SalidaCanal.publicacion_id == publicacion_id, SalidaCanal.canal == "correo")
+        .first()
+    )
+    if not s:
+        raise HTTPException(status_code=404, detail="Aún no se ha adaptado el correo")
+    contenido, meta = _contenido_y_meta(s)
+    firma = meta.get("firma") or (current_user.email_signature or "El equipo de ASIC XXI")
+    from app.utils.comunicaciones_ai import build_email_html
+    html = build_email_html(contenido, firma=firma, nombre="{{nombre}}")
+    return HTMLResponse(content=html)
+
+
+@router.get("/{publicacion_id}/correo/eml")
+def correo_eml(
+    publicacion_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """Descarga un .eml con To/CC/BCC + HTML listo para abrir en Outlook."""
+    _require_admin(current_user)
+    s = (
+        db.query(SalidaCanal)
+        .filter(SalidaCanal.publicacion_id == publicacion_id, SalidaCanal.canal == "correo")
+        .first()
+    )
+    if not s:
+        raise HTTPException(status_code=404, detail="Aún no se ha adaptado el correo")
+    contenido, meta = _contenido_y_meta(s)
+    firma = meta.get("firma") or (current_user.email_signature or "El equipo de ASIC XXI")
+
+    from app.utils.comunicaciones_ai import build_email_html
+    from email.message import EmailMessage
+    html = build_email_html(contenido, firma=firma, nombre="cliente")
+
+    def _join(lst):
+        return ", ".join([x for x in (lst or []) if x])
+
+    msg = EmailMessage()
+    msg["Subject"] = meta.get("asunto", "Novedades BOMP")
+    to = _join(meta.get("destinatarios_to"))
+    cc = _join(meta.get("destinatarios_cc"))
+    bcc = _join(meta.get("destinatarios_bcc") or meta.get("destinatarios_extra"))
+    if to:
+        msg["To"] = to
+    if cc:
+        msg["Cc"] = cc
+    if bcc:
+        msg["Bcc"] = bcc
+    msg.set_content("Tu cliente de correo no soporta HTML. Abre el mensaje en un cliente compatible.")
+    msg.add_alternative(html, subtype="html")
+
+    eml_bytes = msg.as_bytes()
+    return Response(
+        content=eml_bytes,
+        media_type="message/rfc822",
+        headers={"Content-Disposition": 'attachment; filename="novedades_bomp.eml"'},
+    )
+
+
 @router.delete("/{publicacion_id}", status_code=204)
 def delete_publicacion(
     publicacion_id: str,
