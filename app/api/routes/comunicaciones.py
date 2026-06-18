@@ -482,6 +482,9 @@ def correo_eml(
         return ", ".join([x for x in (lst or []) if x])
 
     msg = EmailMessage()
+    # X-Unsent:1 hace que Outlook abra el .eml como mensaje NUEVO editable/enviable
+    # (en vez de en modo lectura como un correo ya recibido).
+    msg["X-Unsent"] = "1"
     msg["Subject"] = meta.get("asunto", "Novedades BOMP")
     to = _join(meta.get("destinatarios_to"))
     cc = _join(meta.get("destinatarios_cc"))
