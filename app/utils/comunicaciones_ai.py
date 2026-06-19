@@ -218,12 +218,12 @@ def build_email_html(
         # Badge tipo "pill" redondeado en todos los clientes:
         # - VML roundrect SOLO lo ve Outlook (dentro de comentario condicional)
         # - el <span> con border-radius lo ven el resto de clientes (oculto en Outlook con mso-hide)
-        badge_w = len(etiqueta) * 16 + 70  # ancho holgado para que el texto no se corte en Outlook
+        # Medidas pedidas para Outlook: 1,09 cm alto (~41px) x 4,23 cm ancho (~160px), fijas para todas.
         badge = f"""<!--[if mso]>
       <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
-        href="#" style="height:46px;v-text-anchor:middle;width:{badge_w}px;mso-padding-alt:0;" arcsize="50%" stroke="f" fillcolor="{color}">
+        href="#" style="height:41px;v-text-anchor:middle;width:160px;mso-padding-alt:0;" arcsize="50%" stroke="f" fillcolor="{color}">
         <w:anchorlock/>
-        <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">{etiqueta}</center>
+        <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;mso-line-height-rule:exactly;line-height:41px;">{etiqueta}</center>
       </v:roundrect>
       <![endif]-->
       <!--[if !mso]><!-->
