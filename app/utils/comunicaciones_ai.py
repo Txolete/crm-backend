@@ -212,29 +212,24 @@ def build_email_html(
     for it in items_sorted:
         peso = it.get("peso", "mejora")
         color = PESO_COLOR.get(peso, "#00B4D8")
-        etiqueta = PESO_LABEL.get(peso, peso.capitalize())
+        etiqueta = _esc(PESO_LABEL.get(peso, peso.capitalize()))
         titulo = _esc(it.get("titulo", ""))
         cuerpo = _esc(it.get("cuerpo", ""))
-        # Badge tipo "pill" redondeado en todos los clientes:
-        # - VML roundrect SOLO lo ve Outlook (dentro de comentario condicional)
-        # - el <span> con border-radius lo ven el resto de clientes (oculto en Outlook con mso-hide)
-        # Medidas pedidas para Outlook: 1,09 cm alto (~41px) x 4,23 cm ancho (~160px), fijas para todas.
-        badge = f"""<!--[if mso]>
-      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
-        href="#" style="height:41px;v-text-anchor:middle;width:160px;mso-padding-alt:0;" arcsize="50%" stroke="f" fillcolor="{color}">
-        <w:anchorlock/>
-        <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;mso-line-height-rule:exactly;line-height:41px;">{etiqueta}</center>
-      </v:roundrect>
-      <![endif]-->
-      <!--[if !mso]><!-->
-      <span style="display:inline-block;background:{color};color:#fff;font-size:14px;font-weight:700;
-            text-transform:uppercase;letter-spacing:.06em;padding:8px 20px;border-radius:24px;line-height:1;">{etiqueta}</span>
-      <!--<![endif]-->"""
+        # Acento de color lateral (celda 4px con bgcolor) + categoria como texto de color.
+        # 100% email-safe: sin VML, sin border-radius, sin medidas fijas. Identico en
+        # Outlook, Gmail, Apple Mail y webmail; escala con cualquier texto.
         bloques.append(f"""
-    <tr><td style="padding:16px 32px;border-bottom:1px solid #EEF2F6;">
-      {badge}
-      <h2 style="margin:10px 0 6px;color:#003354;font-size:18px;font-weight:800;line-height:1.25;">{titulo}</h2>
-      <p style="margin:0;color:#475569;font-size:14px;line-height:1.6;">{cuerpo}</p>
+    <tr><td style="padding:8px 32px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td width="4" bgcolor="{color}" style="width:4px;background:{color};font-size:0;line-height:0;">&nbsp;</td>
+          <td style="padding:2px 0 2px 16px;">
+            <p style="margin:0 0 6px;color:{color};font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">{etiqueta}</p>
+            <h2 style="margin:0 0 6px;color:#003354;font-size:18px;font-weight:800;line-height:1.25;">{titulo}</h2>
+            <p style="margin:0;color:#475569;font-size:14px;line-height:1.6;">{cuerpo}</p>
+          </td>
+        </tr>
+      </table>
     </td></tr>""")
 
     mant_html = ""
