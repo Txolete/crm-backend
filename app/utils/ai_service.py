@@ -357,6 +357,15 @@ Justificación: [1 línea explicando por qué ese porcentaje]
         inyectado en las instrucciones del sistema.
         """
         system = self.SYSTEM_PROMPT
+        # Regla anti-corte: el modelo debe cerrar siempre la frase y aprovechar el espacio
+        system += (
+            "\n\nFORMATO DE RESPUESTA:"
+            "\n- Tienes hasta unas 1800 palabras por respuesta (no las gastes si no hace falta)."
+            "\n- Sé directo y accionable. Estructura con bullets o secciones cortas cuando ayude."
+            "\n- Si la respuesta va a ser larga, prioriza lo más importante al principio."
+            "\n- CIERRA SIEMPRE la última frase. Nunca termines a mitad de palabra ni de oración."
+            "\n- Si te falta espacio, resume la última parte en una línea cerrada en vez de cortar."
+        )
         if context:
             system += f"\n\n---\nCONTEXTO ACTUAL DE LA OPORTUNIDAD (datos en tiempo real):\n\n{context}\n---"
 
@@ -365,7 +374,7 @@ Justificación: [1 línea explicando por qué ese porcentaje]
                 system_prompt=system,
                 user_message=message,
                 previous_response_id=thread_id,
-                max_tokens=500,
+                max_tokens=2000,
                 temperature=0.4,
             )
             return text
