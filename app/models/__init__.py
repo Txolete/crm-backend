@@ -19,6 +19,7 @@ from app.models.audit import AuditLog, AppVersion
 from app.models.feedback import UserFeedback
 from app.models.material import MaterialDocument
 from app.models.email_template import EmailTemplate, EmailSent
+from app.models.comunicacion import Publicacion, Desarrollo, SalidaCanal, ComunicacionPrompt
 
 __all__ = [
     # Users
@@ -51,4 +52,8 @@ __all__ = [
     "MaterialDocument",
     "EmailTemplate",
     "EmailSent",
+    "Publicacion",
+    "Desarrollo",
+    "SalidaCanal",
+    "ComunicacionPrompt",
 ]

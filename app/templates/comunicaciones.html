@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hub de comunicación — CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background:#f8f9fa; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+        .main-container { padding:1.5rem; max-width:1500px; margin:0 auto; }
+        .page-header { background:#fff; padding:1.25rem 1.5rem; border-radius:8px;
+                       box-shadow:0 1px 3px rgba(0,0,0,.1); margin-bottom:1.25rem;
+                       display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
+        .card-sec { background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:1rem; }
+        .preview-frame { width:100%; height:640px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; }
+        .placeholder-warn { background:#fee2e2; color:#991b1b; padding:8px 12px; border-radius:6px; font-size:.85rem; }
+        .peso-badge { font-size:.7rem; text-transform:uppercase; font-weight:700; padding:2px 8px; border-radius:12px; color:#fff; }
+        .peso-regulatorio { background:#F59E0B; } .peso-hito { background:#004975; }
+        .peso-mejora { background:#00B4D8; } .peso-correccion { background:#64748B; }
+        .dev-row.excluido { opacity:.5; }
+        .block-edit { border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:8px; }
+        .block-edit textarea { font-size:.85rem; }
+        .step-hidden { display:none; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/dashboard"><i class="bi bi-arrow-left"></i> Volver al CRM</a>
+            <span class="navbar-text text-white">📣 Hub de comunicación — Novedades BOMP</span>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="page-header">
+            <div>
+                <h3 class="mb-0">Hub de comunicación</h3>
+                <small class="text-muted">Publica las novedades del ERP como comunicación de valor (canal correo)</small>
+            </div>
+            <div>
+                <button class="btn btn-outline-secondary" onclick="showList()"><i class="bi bi-list-ul"></i> Publicaciones</button>
+                <button class="btn btn-outline-secondary" onclick="openAjustes()"><i class="bi bi-gear"></i> Ajustes IA</button>
+                <button class="btn btn-primary" onclick="showIngesta()"><i class="bi bi-upload"></i> Nueva publicación</button>
+            </div>
+        </div>
+
+        <!-- VISTA: Lista de publicaciones -->
+        <div id="view-list">
+            <div class="card-sec p-3">
+                <div id="pub-list"><p class="text-muted text-center py-3">Cargando…</p></div>
+            </div>
+        </div>
+
+        <!-- VISTA: Ingesta Excel -->
+        <div id="view-ingesta" class="step-hidden">
+            <div class="card-sec p-4">
+                <h5>Subir Excel de novedades del ERP</h5>
+                <p class="text-muted small">Columnas esperadas: Actualización, Tipo, Fecha, Observaciones, Módulo, Origen, Proyecto.</p>
+                <div class="mb-3">
+                    <label class="form-label">Versión / release (opcional)</label>
+                    <input type="text" class="form-control" id="ing-version" placeholder="Ej: BOMP v2026.06">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Archivo Excel</label>
+                    <input type="file" class="form-control" id="ing-file" accept=".xlsx,.xls">
+                </div>
+                <button class="btn btn-primary" id="ing-btn" onclick="subirExcel()"><i class="bi bi-upload"></i> Subir e ingerir</button>
+                <button class="btn btn-link" onclick="showList()">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- VISTA: Detalle de publicación (curación + adaptación + preview) -->
+        <div id="view-detail" class="step-hidden">
+            <div class="card-sec p-3 mb-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-0" id="det-version">Publicación</h5>
+                        <small class="text-muted" id="det-meta"></small>
+                    </div>
+                    <div>
+                        <button class="btn btn-link text-secondary" onclick="showList()"><i class="bi bi-arrow-left"></i> Volver</button>
+                        <button class="btn btn-success" id="btn-adaptar" onclick="adaptarIA()">
+                            <i class="bi bi-stars"></i> Adaptar con IA
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Curación: desarrollos en crudo -->
+                <div class="col-lg-5">
+                    <div class="card-sec p-3">
+                        <h6><i class="bi bi-card-checklist"></i> Desarrollos (curación)</h6>
+                        <p class="text-muted small">Marca cuáles se comunican y, en regulatorios, añade la norma.</p>
+                        <div id="dev-list"></div>
+                    </div>
+                </div>
+
+                <!-- Adaptación + preview -->
+                <div class="col-lg-7">
+                    <div class="card-sec p-3" id="salida-panel">
+                        <p class="text-muted text-center py-4">Pulsa <strong>Adaptar con IA</strong> para generar la comunicación.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ajustes IA -->
+    <div class="modal fade" id="ajustesModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title"><i class="bi bi-gear"></i> Ajustes IA — prompt de novedades (correo)</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <div class="col-md-4 border-end">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong>Versiones</strong>
+                    <button class="btn btn-sm btn-primary" onclick="newPrompt()"><i class="bi bi-plus"></i> Nueva</button>
+                </div>
+                <div id="prompt-list"></div>
+              </div>
+              <div class="col-md-8">
+                <div id="prompt-editor" class="text-muted">Selecciona o crea una versión para editarla.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let _currentUser = null;
+        let _currentPub = null;     // detalle actual
+        let _currentSalida = null;  // salida correo actual
+
+        function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+        function show(id){['view-list','view-ingesta','view-detail'].forEach(v=>document.getElementById(v).classList.add('step-hidden'));document.getElementById(id).classList.remove('step-hidden');}
+        function showList(){show('view-list');loadList();}
+        function showIngesta(){show('view-ingesta');document.getElementById('ing-version').value='';document.getElementById('ing-file').value='';}
+
+        async function loadList(){
+            const el=document.getElementById('pub-list');
+            el.innerHTML='<p class="text-muted text-center py-3">Cargando…</p>';
+            const res=await fetch('/comunicaciones',{credentials:'include'});
+            if(!res.ok){el.innerHTML='<div class="alert alert-danger">Error al cargar</div>';return;}
+            const d=await res.json();
+            if(!d.publicaciones.length){el.innerHTML='<div class="text-center py-4 text-muted"><i class="bi bi-megaphone" style="font-size:2.5rem;"></i><p class="mt-2">Sin publicaciones. Sube el Excel de novedades del ERP.</p></div>';return;}
+            el.innerHTML=`<table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Versión</th><th>Fecha ingesta</th><th>Desarrollos</th><th>Estado</th><th></th></tr></thead>
+                <tbody>${d.publicaciones.map(p=>`
+                    <tr>
+                        <td><strong>${esc(p.version_erp||'(sin versión)')}</strong></td>
+                        <td>${new Date(p.fecha_ingesta).toLocaleString('es-ES',{dateStyle:'short',timeStyle:'short'})}</td>
+                        <td>${p.n_desarrollos}</td>
+                        <td><span class="badge bg-secondary">${esc(p.estado)}</span></td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-primary" onclick="openDetail('${p.id}')">Abrir</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="delPub('${p.id}')"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>`).join('')}</tbody></table>`;
+        }
+
+        async function subirExcel(){
+            const f=document.getElementById('ing-file').files[0];
+            if(!f){alert('Selecciona un archivo Excel');return;}
+            const version=document.getElementById('ing-version').value.trim();
+            const fd=new FormData();fd.append('file',f);
+            const btn=document.getElementById('ing-btn');btn.disabled=true;btn.textContent='Subiendo…';
+            try{
+                const url='/comunicaciones/ingesta-excel'+(version?`?version_erp=${encodeURIComponent(version)}`:'');
+                const res=await fetch(url,{method:'POST',credentials:'include',body:fd});
+                if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.detail||res.status);}
+                const d=await res.json();
+                openDetail(d.publicacion_id);
+            }catch(e){alert('Error: '+e.message);}
+            finally{btn.disabled=false;btn.innerHTML='<i class="bi bi-upload"></i> Subir e ingerir';}
+        }
+
+        async function delPub(id){
+            if(!confirm('Borrar esta publicación y sus desarrollos. ¿Seguro?'))return;
+            await fetch('/comunicaciones/'+id,{method:'DELETE',credentials:'include'});
+            loadList();
+        }
+
+        async function openDetail(id){
+            show('view-detail');
+            document.getElementById('salida-panel').innerHTML='<p class="text-muted text-center py-4">Pulsa <strong>Adaptar con IA</strong> para generar la comunicación.</p>';
+            const res=await fetch('/comunicaciones/'+id,{credentials:'include'});
+            if(!res.ok){alert('Error al cargar publicación');return;}
+            _currentPub=await res.json();
+            document.getElementById('det-version').textContent=_currentPub.publicacion.version_erp||'Publicación';
+            document.getElementById('det-meta').textContent=`${_currentPub.publicacion.n_desarrollos} desarrollos · ingerido ${new Date(_currentPub.publicacion.fecha_ingesta).toLocaleDateString('es-ES')}`;
+            renderDevs();
+            // intentar cargar salida correo ya existente
+            const sres=await fetch(`/comunicaciones/${id}/salida/correo`,{credentials:'include'});
+            if(sres.ok){_currentSalida=await sres.json();renderSalida();}
+        }
+
+        function renderDevs(){
+            const el=document.getElementById('dev-list');
+            el.innerHTML=_currentPub.desarrollos.map(d=>{
+                const esReg=(d.tipo||'').toLowerCase().includes('regulat');
+                return `<div class="dev-row block-edit ${d.incluir?'':'excluido'}" data-id="${d.id}">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" ${d.incluir?'checked':''} onchange="toggleIncluir('${d.id}',this.checked)">
+                        <label class="form-check-label"><strong>${esc(d.titulo_crudo)}</strong></label>
+                    </div>
+                    <div class="small text-muted mt-1">${esc(d.tipo||'')} · ${esc(d.modulo||'')} · ${esc(d.proyecto||'')}</div>
+                    ${d.observaciones?`<div class="small mt-1" style="color:#475569;">${esc(d.observaciones)}</div>`:''}
+                    <div class="row g-2 mt-1">
+                        <div class="col-7">
+                            <input type="text" class="form-control form-control-sm" placeholder="Norma (si es regulatorio)"
+                                   value="${esc(d.norma||'')}" ${esReg?'':'style="display:none;"'}
+                                   onchange="setNorma('${d.id}',this.value)">
+                        </div>
+                        <div class="col-5">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" ${d.mantenimiento?'checked':''} onchange="setMant('${d.id}',this.checked)">
+                                <label class="form-check-label small">Mantenimiento</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function patchDev(id,payload){
+            await fetch('/comunicaciones/desarrollos/'+id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        }
+        function toggleIncluir(id,v){patchDev(id,{incluir:v});const r=document.querySelector(`.dev-row[data-id="${id}"]`);if(r)r.classList.toggle('excluido',!v);}
+        function setNorma(id,v){patchDev(id,{norma:v});}
+        function setMant(id,v){patchDev(id,{mantenimiento:v});}
+
+        async function adaptarIA(){
+            const btn=document.getElementById('btn-adaptar');btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm"></span> Adaptando…';
+            try{
+                const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/adaptar-correo`,{method:'POST',credentials:'include'});
+                if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.detail||res.status);}
+                _currentSalida=await res.json();
+                renderSalida();
+            }catch(e){alert('Error: '+e.message);}
+            finally{btn.disabled=false;btn.innerHTML='<i class="bi bi-stars"></i> Adaptar con IA';}
+        }
+
+        function getContenido(){
+            return _currentSalida.contenido_editado||_currentSalida.contenido_generado||{items:[]};
+        }
+
+        function detectPlaceholders(c){
+            const txt=JSON.stringify(c);
+            const m=txt.match(/⟨[^⟩]*⟩/g)||[];
+            return [...new Set(m)];
+        }
+
+        function renderSalida(){
+            const panel=document.getElementById('salida-panel');
+            const c=getContenido();
+            const meta=_currentSalida.meta||{};
+            const phs=detectPlaceholders(c);
+            const items=c.items||[];
+            const excluidos=c.excluidos||[];
+
+            panel.innerHTML=`
+                ${phs.length?`<div class="placeholder-warn mb-2"><i class="bi bi-exclamation-triangle"></i> Hay datos sin confirmar (${phs.map(esc).join(', ')}). Resuélvelos antes de enviar.</div>`:''}
+                <div class="mb-2">
+                    <label class="form-label small">Asunto</label>
+                    <input type="text" class="form-control" id="sal-asunto" value="${esc(meta.asunto||c.asunto||'')}">
+                </div>
+                <ul class="nav nav-tabs mb-2">
+                    <li class="nav-item"><a class="nav-link active" href="#" onclick="tab('edit');return false;" id="tab-edit">Editar bloques</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="tab('preview');return false;" id="tab-preview">Previsualización</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="tab('dest');return false;" id="tab-dest">Destinatarios</a></li>
+                </ul>
+                <div id="pane-edit">
+                    ${items.map((it,i)=>`
+                        <div class="block-edit">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <select class="form-select form-select-sm" style="width:auto;" onchange="setItem(${i},'peso',this.value)">
+                                    ${['regulatorio','hito','mejora','correccion'].map(p=>`<option value="${p}" ${it.peso===p?'selected':''}>${p}</option>`).join('')}
+                                </select>
+                                <div class="btn-group btn-group-sm" role="group" title="Feedback para la IA">
+                                    <button class="btn btn-outline-success" onclick="feedbackItem(${i},'bien')" title="Bien">👍</button>
+                                    <button class="btn btn-outline-warning" onclick="feedbackItem(${i},'meh')" title="Meh">😐</button>
+                                    <button class="btn btn-outline-danger" onclick="feedbackItem(${i},'mal')" title="Mal">👎</button>
+                                    <button class="btn btn-outline-secondary" onclick="delItem(${i})" title="Borrar bloque"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                            <input type="text" class="form-control form-control-sm mb-1" value="${esc(it.titulo||'')}" onchange="setItem(${i},'titulo',this.value)" placeholder="Título de beneficio">
+                            <textarea class="form-control form-control-sm" rows="2" onchange="setItem(${i},'cuerpo',this.value)" placeholder="Cuerpo">${esc(it.cuerpo||'')}</textarea>
+                        </div>`).join('')}
+                    ${c.mantenimiento_resumen?`<div class="block-edit"><label class="small text-muted">Resumen mantenimiento</label><textarea class="form-control form-control-sm" rows="2" onchange="setMantResumen(this.value)">${esc(c.mantenimiento_resumen)}</textarea></div>`:''}
+                    ${excluidos.length?`<div class="mt-2"><small class="text-muted"><strong>Excluidos por la IA:</strong> ${excluidos.map(e=>esc(e.titulo_crudo)+' ('+esc(e.motivo)+')').join(' · ')}</small></div>`:''}
+                    <button class="btn btn-sm btn-outline-secondary mt-2" onclick="saveContenido()"><i class="bi bi-save"></i> Guardar cambios</button>
+                </div>
+                <div id="pane-preview" style="display:none;">
+                    <iframe class="preview-frame" id="preview-iframe"></iframe>
+                </div>
+                <div id="pane-dest" style="display:none;">
+                    <div class="mb-2"><label class="form-label small">Saludo de apertura</label>
+                        <input type="text" class="form-control" id="dest-saludo" value="${esc(meta.saludo||'Hola')}" placeholder="Hola">
+                        <small class="text-muted">En envíos masivos (BCC) no hay nombre por destinatario: usa un saludo genérico, p. ej. "Hola" o "Buenos días".</small>
+                    </div>
+                    <p class="text-muted small">Para envíos a varios clientes usa <strong>CCO/BCC</strong> (no expone unos emails a otros). Separa por <code>;</code></p>
+                    <div class="mb-2"><label class="form-label small">Para (To)</label><textarea class="form-control" id="dest-to" rows="2" placeholder="a@x.com; b@y.com">${esc((meta.destinatarios_to||[]).join('; '))}</textarea></div>
+                    <div class="mb-2"><label class="form-label small">CC</label><textarea class="form-control" id="dest-cc" rows="1">${esc((meta.destinatarios_cc||[]).join('; '))}</textarea></div>
+                    <div class="mb-2"><label class="form-label small">CCO / BCC (recomendado para mailing)</label><textarea class="form-control" id="dest-bcc" rows="2">${esc((meta.destinatarios_bcc||[]).join('; '))}</textarea></div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="saveDest()"><i class="bi bi-save"></i> Guardar destinatarios</button>
+                </div>
+                <hr>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-primary" onclick="copiarFormato()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-clipboard-check"></i> Copiar correo (con formato)</button>
+                    <button class="btn btn-outline-secondary" onclick="copiarHTML()" ${phs.length?'disabled':''}><i class="bi bi-code-slash"></i> Copiar código HTML</button>
+                    <button class="btn btn-success" onclick="descargarEml()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-download"></i> Descargar .eml (Outlook)</button>
+                </div>
+                <p class="text-muted small mt-1">"Con formato": pégalo directamente en un correo nuevo de Outlook/Gmail (sale maquetado). El .eml lo abres como borrador. Nota: Outlook de escritorio puede mostrar las etiquetas con esquinas cuadradas (no soporta bordes redondeados).</p>
+            `;
+            loadPreview();
+        }
+
+        function tab(which){
+            ['edit','preview','dest'].forEach(t=>{
+                document.getElementById('pane-'+t).style.display=t===which?'block':'none';
+                document.getElementById('tab-'+t).classList.toggle('active',t===which);
+            });
+            if(which==='preview')loadPreview();
+        }
+
+        async function loadPreview(){
+            const iframe=document.getElementById('preview-iframe');
+            if(!iframe)return;
+            const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/html`,{credentials:'include'});
+            if(res.ok){iframe.srcdoc=await res.text();}
+        }
+
+        // edición local del contenido
+        function setItem(i,k,v){const c=getContenido();c.items[i][k]=v;_currentSalida.contenido_editado=c;}
+        function delItem(i){const c=getContenido();c.items.splice(i,1);_currentSalida.contenido_editado=c;renderSalida();}
+        function setMantResumen(v){const c=getContenido();c.mantenimiento_resumen=v;_currentSalida.contenido_editado=c;}
+
+        async function saveContenido(){
+            const c=getContenido();
+            const meta=_currentSalida.meta||{};
+            meta.asunto=document.getElementById('sal-asunto').value;
+            await fetch('/comunicaciones/salida/'+_currentSalida.id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({contenido_editado:c,meta})});
+            _currentSalida.meta=meta;
+            alert('Guardado');
+            loadPreview();
+        }
+
+        function parseEmails(s){return (s||'').split(/[;,\n]/).map(x=>x.trim()).filter(Boolean);}
+        async function saveDest(){
+            const meta=_currentSalida.meta||{};
+            meta.destinatarios_to=parseEmails(document.getElementById('dest-to').value);
+            meta.destinatarios_cc=parseEmails(document.getElementById('dest-cc').value);
+            meta.destinatarios_bcc=parseEmails(document.getElementById('dest-bcc').value);
+            meta.saludo=document.getElementById('dest-saludo').value.trim()||'Hola';
+            meta.asunto=document.getElementById('sal-asunto').value;
+            await fetch('/comunicaciones/salida/'+_currentSalida.id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({meta})});
+            _currentSalida.meta=meta;
+            alert('Destinatarios guardados');
+        }
+
+        async function copiarHTML(){
+            const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/html`,{credentials:'include'});
+            const html=await res.text();
+            navigator.clipboard.writeText(html).then(()=>alert('Código HTML copiado al portapapeles'),()=>alert('No se pudo copiar'));
+        }
+        async function copiarFormato(){
+            const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/html`,{credentials:'include'});
+            const html=await res.text();
+            try{
+                const item=new ClipboardItem({
+                    'text/html':new Blob([html],{type:'text/html'}),
+                    'text/plain':new Blob([html],{type:'text/plain'})
+                });
+                await navigator.clipboard.write([item]);
+                showFb('Correo copiado con formato — pégalo en un correo nuevo de Outlook/Gmail');
+            }catch(e){
+                alert('Tu navegador no permite copiar con formato. Usa "Descargar .eml" o "Copiar código HTML".');
+            }
+        }
+        function descargarEml(){
+            window.location.href=`/comunicaciones/${_currentPub.publicacion.id}/correo/eml`;
+        }
+
+        // ===== Ajustes IA: prompts / hero / calibración =====
+        let _prompts=[], _defaultPrompt='', _editingPrompt=null;
+        async function openAjustes(){
+            const res=await fetch('/comunicaciones/prompts',{credentials:'include'});
+            if(!res.ok){alert('Error al cargar prompts');return;}
+            const d=await res.json();_prompts=d.prompts;_defaultPrompt=d.default_prompt;
+            renderPromptList();
+            document.getElementById('prompt-editor').innerHTML='Selecciona o crea una versión para editarla.';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('ajustesModal')).show();
+        }
+        function renderPromptList(){
+            const el=document.getElementById('prompt-list');
+            if(!_prompts.length){el.innerHTML='<p class="text-muted small">Sin versiones. Crea una (si no, se usa el prompt por defecto del sistema).</p>';return;}
+            el.innerHTML=_prompts.map(p=>`
+                <div class="block-edit ${p.activa?'border-primary':''}" style="cursor:pointer;" onclick="editPrompt('${p.id}')">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>${esc(p.nombre)}</strong>
+                        ${p.activa?'<span class="badge bg-success">activa</span>':''}
+                    </div>
+                    <div class="small text-muted">Hero nivel ${p.hero_level}</div>
+                </div>`).join('');
+        }
+        function newPrompt(){
+            _editingPrompt={id:null,nombre:'',prompt_text:'',hero_level:2,calibracion:''};
+            renderPromptEditor();
+        }
+        function editPrompt(id){
+            _editingPrompt=JSON.parse(JSON.stringify(_prompts.find(p=>p.id===id)));
+            renderPromptEditor();
+        }
+        function renderPromptEditor(){
+            const p=_editingPrompt;
+            document.getElementById('prompt-editor').innerHTML=`
+                <div class="mb-2"><label class="form-label small">Nombre de la versión</label>
+                    <input type="text" class="form-control" id="p-nombre" value="${esc(p.nombre)}"></div>
+                <div class="mb-2"><label class="form-label small">Nivel de HERO</label>
+                    <select class="form-select" id="p-hero">
+                        <option value="1" ${p.hero_level==1?'selected':''}>1 — menos hero (sobrio)</option>
+                        <option value="2" ${p.hero_level==2?'selected':''}>2 — medio</option>
+                        <option value="3" ${p.hero_level==3?'selected':''}>3 — más hero (máximo impacto)</option>
+                    </select></div>
+                <div class="mb-2"><label class="form-label small">Prompt (déjalo vacío para usar el del sistema)</label>
+                    <textarea class="form-control" id="p-text" rows="8" placeholder="Vacío = se usa el prompt por defecto del sistema">${esc(p.prompt_text||'')}</textarea>
+                    <button class="btn btn-link btn-sm p-0" onclick="document.getElementById('p-text').value=_defaultPrompt;">Cargar el prompt por defecto para editarlo</button>
+                </div>
+                <div class="mb-2"><label class="form-label small">Calibración (ejemplos bien/meh/mal acumulados desde la curación)</label>
+                    <textarea class="form-control" id="p-cal" rows="5">${esc(p.calibracion||'')}</textarea></div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="savePrompt()"><i class="bi bi-save"></i> Guardar</button>
+                    ${p.id&&!p.activa?`<button class="btn btn-success" onclick="activarPrompt('${p.id}')"><i class="bi bi-check2"></i> Activar</button>`:''}
+                    ${p.id?`<button class="btn btn-outline-danger ms-auto" onclick="delPrompt('${p.id}')"><i class="bi bi-trash"></i></button>`:''}
+                </div>`;
+        }
+        async function savePrompt(){
+            const body={nombre:document.getElementById('p-nombre').value.trim(),hero_level:parseInt(document.getElementById('p-hero').value),prompt_text:document.getElementById('p-text').value,calibracion:document.getElementById('p-cal').value};
+            if(!body.nombre){alert('Pon un nombre');return;}
+            const id=_editingPrompt.id;
+            const res=await fetch(id?`/comunicaciones/prompts/${id}`:'/comunicaciones/prompts',{method:id?'PATCH':'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+            if(!res.ok){alert('Error al guardar');return;}
+            await openAjustes();
+        }
+        async function activarPrompt(id){await fetch(`/comunicaciones/prompts/${id}/activar`,{method:'POST',credentials:'include'});openAjustes();}
+        async function delPrompt(id){if(!confirm('Borrar esta versión?'))return;await fetch(`/comunicaciones/prompts/${id}`,{method:'DELETE',credentials:'include'});openAjustes();}
+
+        // Feedback desde curación: añade ejemplo a la calibración del prompt activo
+        async function feedbackItem(i,veredicto){
+            const c=getContenido();const it=c.items[i];
+            const nota=prompt(`Marcar como ${veredicto.toUpperCase()}. Nota opcional (por qué):`)||'';
+            const res=await fetch('/comunicaciones/prompts/feedback',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({titulo:it.titulo,cuerpo:it.cuerpo,veredicto,nota})});
+            if(res.ok){showFb('Feedback guardado en la calibración del prompt activo');}else{alert('Error al guardar feedback');}
+        }
+        function showFb(msg){const t=document.createElement('div');t.textContent=msg;t.style.cssText='position:fixed;bottom:24px;right:24px;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;z-index:10000;';document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
+
+        (async()=>{
+            try{
+                const r=await fetch('/auth/me',{credentials:'include'});
+                if(!r.ok){window.location.href='/login';return;}
+                _currentUser=await r.json();
+                if(_currentUser.role!=='admin'){document.querySelector('.main-container').innerHTML='<div class="alert alert-danger m-4">Solo administradores.</div>';return;}
+                loadList();
+            }catch{window.location.href='/login';}
+        })();
+    </script>
+    <script src="/static/js/feedback_widget.js"></script>
+</body>
+</html>

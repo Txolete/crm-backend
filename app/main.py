@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.database import init_db
-from app.api.routes import auth, admin, accounts, contacts, opportunities, tasks, activities, kanban, dashboard, import_excel, config, config_ui, admin_automations, ai, feedback, materials, email_templates
+from app.api.routes import auth, admin, accounts, contacts, opportunities, tasks, activities, kanban, dashboard, import_excel, config, config_ui, admin_automations, ai, feedback, materials, email_templates, comunicaciones
 from datetime import datetime
 import logging
 import os
@@ -59,6 +59,8 @@ app.include_router(materials.router)
 app.include_router(email_templates.router)
 app.include_router(email_templates.sent_router)
 app.include_router(email_templates.sequence_router)
+app.include_router(comunicaciones.prompts_router)  # antes del router principal (evita colisión con /{publicacion_id})
+app.include_router(comunicaciones.router)
 
 
 @app.on_event("startup")
