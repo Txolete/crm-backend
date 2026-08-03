@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import (
@@ -99,20 +99,21 @@ def create_user(
     - Creates user with initial password
     - Logs action in audit_log
     """
-    # Check if email already exists
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    # Check if email already exists (case-insensitive)
+    normalized_email = user_data.email.strip().lower()
+    existing_user = db.query(User).filter(func.lower(User.email) == normalized_email).first()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
-    
+
     # Create new user
     timestamp = get_utc_now()
     new_user = User(
         id=generate_id(),
         name=user_data.name,
-        email=user_data.email,
+        email=normalized_email,
         password_hash=hash_password(user_data.password),
         role=user_data.role,
         is_active=1,  # Active by default
@@ -198,9 +199,10 @@ def update_user(
         user.name = user_data.name
     
     if user_data.email is not None:
-        # Check if new email already exists (excluding current user)
+        normalized_email = user_data.email.strip().lower()
+        # Check if new email already exists (excluding current user, case-insensitive)
         existing = db.query(User).filter(
-            User.email == user_data.email,
+            func.lower(User.email) == normalized_email,
             User.id != user_id
         ).first()
         if existing:
@@ -208,7 +210,7 @@ def update_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
-        user.email = user_data.email
+        user.email = normalized_email
     
     if user_data.role is not None:
         user.role = user_data.role
@@ -370,3 +372,22 @@ def encrypt_existing_pii(
         db.commit()
     logger.info(f"[security] encrypt-existing-pii commit={commit} total_a_cifrar={total_enc}")
     return {"dry_run": not commit, "total_a_cifrar": total_enc, "detalle": report}
+
+
+@router.post("/security/test-smtp")
+def test_smtp(
+    current_user: User = Depends(require_role("admin")),
+):
+    """
+    Envia un email de prueba a si mismo para validar que SMTP_USER/SMTP_PASSWORD
+    estan correctamente configurados (usados tambien para el 2FA por email).
+    """
+    from app.automations.email_service import send_email
+    ok = send_email(
+        current_user.email,
+        "Prueba SMTP — CRM ASIC XXI",
+        "<p>Si ves este email, la configuración SMTP funciona correctamente.</p>",
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail="No se pudo enviar. Revisa SMTP_USER/SMTP_PASSWORD/EMAIL_ENABLED en las variables de entorno.")
+    return {"message": f"Email de prueba enviado a {current_user.email}"}

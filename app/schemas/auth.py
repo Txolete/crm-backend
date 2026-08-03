@@ -14,7 +14,20 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     """Schema for login response"""
     message: str
-    user: dict  # Will contain: id, name, email, role
+    user: dict | None = None  # Will contain: id, name, email, role
+    requires_2fa: bool = False
+    challenge_id: str | None = None
+
+
+class Verify2FARequest(BaseModel):
+    """Schema for 2FA code verification"""
+    challenge_id: str
+    code: str
+
+
+class Resend2FARequest(BaseModel):
+    """Schema to resend a 2FA code"""
+    challenge_id: str
 
 
 class LogoutResponse(BaseModel):

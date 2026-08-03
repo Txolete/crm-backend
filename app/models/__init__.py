@@ -20,6 +20,7 @@ from app.models.feedback import UserFeedback
 from app.models.material import MaterialDocument
 from app.models.email_template import EmailTemplate, EmailSent
 from app.models.comunicacion import Publicacion, Desarrollo, SalidaCanal, ComunicacionPrompt
+from app.models.two_factor import TwoFactorCode
 
 __all__ = [
     # Users
@@ -56,4 +57,5 @@ __all__ = [
     "Desarrollo",
     "SalidaCanal",
     "ComunicacionPrompt",
+    "TwoFactorCode",
 ]
