@@ -15,9 +15,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy import create_engine, text
 from app.utils.encryption import encrypt_value, _get_fernet
 
-# (tabla, columna) a cifrar en esta fase piloto. Se ampliará al resto de campos.
+# (tabla, columna) a cifrar. Todos los campos PII de la Fase 1.
 TARGETS = [
-    ("contact_channels", "value"),
+    ("contact_channels", "value"),      # email / telefono
+    ("contacts", "first_name"),
+    ("contacts", "last_name"),
+    ("accounts", "email"),
+    ("accounts", "phone"),
+    ("accounts", "address"),
+    ("accounts", "tax_id"),
+    ("users", "email_signature"),
 ]
 
 DRY = "--commit" not in sys.argv

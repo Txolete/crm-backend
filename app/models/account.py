@@ -15,13 +15,13 @@ class Account(Base):
     name = Column(String, nullable=False)
 
     # Contact info
-    website = Column(String, nullable=True)
-    phone = Column(String, nullable=True)
-    email = Column(String, nullable=True)
-    address = Column(String, nullable=True)
+    website = Column(String, nullable=True)          # no es PII sensible
+    phone = Column(EncryptedString, nullable=True)   # PII cifrado
+    email = Column(EncryptedString, nullable=True)   # PII cifrado
+    address = Column(EncryptedString, nullable=True) # PII cifrado
 
     # Legal/fiscal
-    tax_id = Column(String, nullable=True)  # CIF/NIF
+    tax_id = Column(EncryptedString, nullable=True)  # CIF/NIF — PII cifrado (blind index en fase importador)
 
     # Classification
     region_id = Column(String, nullable=True)
@@ -56,8 +56,8 @@ class Contact(Base):
 
     id = Column(String, primary_key=True)
     account_id = Column(String, ForeignKey('accounts.id'), nullable=False)
-    first_name = Column(String, nullable=True)
-    last_name = Column(String, nullable=True)
+    first_name = Column(EncryptedString, nullable=True)  # PII cifrado
+    last_name = Column(EncryptedString, nullable=True)   # PII cifrado
     contact_role_id = Column(String, nullable=True)
     contact_role_other_text = Column(String, nullable=True)
     status = Column(String, nullable=False, default='active')
