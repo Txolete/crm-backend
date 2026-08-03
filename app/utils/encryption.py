@@ -110,6 +110,19 @@ def blind_index(value: Optional[str]) -> Optional[str]:
     return hmac.new(k, norm.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
+def is_encrypted(value: Optional[str]) -> bool:
+    """True si el valor ya es un token Fernet válido (para migración idempotente)."""
+    f = _get_fernet()
+    if f is None or value is None or value == "":
+        return False
+    from cryptography.fernet import InvalidToken
+    try:
+        f.decrypt(value.encode("ascii"))
+        return True
+    except (InvalidToken, ValueError):
+        return False
+
+
 class EncryptedString(TypeDecorator):
     """
     Columna de texto cifrada de forma transparente.
