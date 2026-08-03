@@ -2,6 +2,7 @@
 Authentication endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Response
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
@@ -41,8 +42,8 @@ def login(
       - Set JWT in HttpOnly cookie
       - Return user data (id, name, email, role)
     """
-    # Find user by email
-    user = db.query(User).filter(User.email == credentials.email).first()
+    # Find user by email (case-insensitive: el email no debe ser sensible a mayusculas/minusculas)
+    user = db.query(User).filter(func.lower(User.email) == credentials.email.strip().lower()).first()
     
     # If user doesn't exist → 401
     if not user:
