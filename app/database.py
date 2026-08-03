@@ -65,13 +65,20 @@ is_postgres = DATABASE_URL.startswith("postgresql://")
 
 # Create engine with appropriate settings
 if is_postgres:
-    # PostgreSQL settings
+    # SSL opcional para la conexión a Postgres (ENS — cifrado en tránsito).
+    # Configurable con DB_SSLMODE (p.ej. "require"). No se fuerza por defecto para no
+    # romper conexiones internas de Railway que no negocian SSL igual.
+    pg_connect_args = {}
+    _sslmode = os.getenv("DB_SSLMODE", "").strip()
+    if _sslmode:
+        pg_connect_args["sslmode"] = _sslmode
     engine = create_engine(
         DATABASE_URL,
         echo=False,  # Disable SQL logging in production
         pool_pre_ping=True,  # Verify connections before using
         pool_size=5,
-        max_overflow=10
+        max_overflow=10,
+        connect_args=pg_connect_args,
     )
 else:
     # SQLite settings (development)

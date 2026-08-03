@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Integer, ForeignKey, CheckConstraint
 from datetime import datetime, timezone
 from app.database import Base, UTCDateTime
+from app.utils.encryption import EncryptedString
 
 
 class Account(Base):
@@ -78,7 +79,7 @@ class ContactChannel(Base):
     id = Column(String, primary_key=True)
     contact_id = Column(String, ForeignKey('contacts.id'), nullable=False)
     type = Column(String, nullable=False)
-    value = Column(String, nullable=False)
+    value = Column(EncryptedString, nullable=False)  # cifrado en columna (email/telefono)
     is_primary = Column(Integer, nullable=False, default=0)
     created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
 
