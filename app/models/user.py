@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Integer, Text, CheckConstraint
 from datetime import datetime, timezone
 from app.database import Base, UTCDateTime
+from app.utils.encryption import EncryptedString
 
 
 class User(Base):
@@ -16,7 +17,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False)
     is_active = Column(Integer, nullable=False, default=1)
-    email_signature = Column(Text, nullable=True)
+    email_signature = Column(EncryptedString, nullable=True)  # lleva email/tel personal — cifrado
     last_login_at = Column(UTCDateTime(), nullable=True)
     created_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(UTCDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

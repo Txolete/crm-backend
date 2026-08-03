@@ -1,10 +1,11 @@
 """
 Admin endpoints for user management
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import (
@@ -312,3 +313,60 @@ def reset_user_password(
         "user_id": user.id,
         "email": user.email
     }
+
+
+# ===========================================================================
+# Seguridad — cifrado de PII existente (ENS). Endpoint de un solo uso, idempotente.
+# Se ejecuta DENTRO de Railway (donde la BD interna es alcanzable). Solo admin.
+# ===========================================================================
+
+_PII_TARGETS = [
+    ("contact_channels", "value"),
+    ("contacts", "first_name"),
+    ("contacts", "last_name"),
+    ("accounts", "email"),
+    ("accounts", "phone"),
+    ("accounts", "address"),
+    ("accounts", "tax_id"),
+    ("users", "email_signature"),
+]
+
+
+@router.post("/security/encrypt-existing-pii")
+def encrypt_existing_pii(
+    commit: bool = Query(False, description="false = dry-run (solo cuenta); true = aplica"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """
+    Cifra los datos personales ya existentes que aún estén en claro.
+    Idempotente: los valores ya cifrados se saltan. Dry-run por defecto.
+    """
+    from app.utils.encryption import encrypt_value, is_encrypted, _get_fernet
+    if _get_fernet() is None:
+        raise HTTPException(status_code=400, detail="ENCRYPTION_KEY no configurada en el entorno")
+
+    report = []
+    total_enc = 0
+    conn = db.connection()
+    for tabla, col in _PII_TARGETS:
+        rows = conn.execute(text(f"SELECT id, {col} FROM {tabla}")).fetchall()
+        n_enc = n_skip = 0
+        for rid, val in rows:
+            if val is None or val == "":
+                continue
+            if is_encrypted(val):
+                n_skip += 1
+                continue
+            if commit:
+                conn.execute(
+                    text(f"UPDATE {tabla} SET {col} = :v WHERE id = :id"),
+                    {"v": encrypt_value(val), "id": rid},
+                )
+            n_enc += 1
+        report.append({"tabla": tabla, "columna": col, "a_cifrar": n_enc, "ya_cifrados": n_skip, "filas": len(rows)})
+        total_enc += n_enc
+    if commit:
+        db.commit()
+    logger.info(f"[security] encrypt-existing-pii commit={commit} total_a_cifrar={total_enc}")
+    return {"dry_run": not commit, "total_a_cifrar": total_enc, "detalle": report}

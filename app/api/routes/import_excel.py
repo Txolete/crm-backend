@@ -179,12 +179,15 @@ def process_excel_row(
     contact_last = safe_str(row_data.get('contact_last_name'))
     
     if contact_first or contact_last:
-        # Check if contact already exists
-        existing_contact = db.query(Contact).filter(
-            Contact.account_id == account.id,
-            Contact.first_name == contact_first,
-            Contact.last_name == contact_last
-        ).first()
+        # Check if contact already exists.
+        # Nota: first_name/last_name estan cifrados en columna (no se puede filtrar por SQL),
+        # asi que cargamos los contactos de la cuenta y comparamos en Python (descifrado).
+        _acc_contacts = db.query(Contact).filter(Contact.account_id == account.id).all()
+        existing_contact = next(
+            (c for c in _acc_contacts
+             if (c.first_name or "") == contact_first and (c.last_name or "") == contact_last),
+            None,
+        )
         
         if not existing_contact:
             contact = Contact(
