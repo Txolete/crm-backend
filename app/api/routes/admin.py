@@ -370,3 +370,22 @@ def encrypt_existing_pii(
         db.commit()
     logger.info(f"[security] encrypt-existing-pii commit={commit} total_a_cifrar={total_enc}")
     return {"dry_run": not commit, "total_a_cifrar": total_enc, "detalle": report}
+
+
+@router.post("/security/test-smtp")
+def test_smtp(
+    current_user: User = Depends(require_role("admin")),
+):
+    """
+    Envia un email de prueba a si mismo para validar que SMTP_USER/SMTP_PASSWORD
+    estan correctamente configurados (usados tambien para el 2FA por email).
+    """
+    from app.automations.email_service import send_email
+    ok = send_email(
+        current_user.email,
+        "Prueba SMTP — CRM ASIC XXI",
+        "<p>Si ves este email, la configuración SMTP funciona correctamente.</p>",
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail="No se pudo enviar. Revisa SMTP_USER/SMTP_PASSWORD/EMAIL_ENABLED en las variables de entorno.")
+    return {"message": f"Email de prueba enviado a {current_user.email}"}

@@ -198,8 +198,39 @@
                     <span id="buttonSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
                 </button>
             </form>
+
+            <!-- Paso 2: verificación en dos pasos -->
+            <form id="twoFactorForm" class="d-none">
+                <div class="text-center mb-3">
+                    <i class="bi bi-shield-lock" style="font-size: 40px; color: var(--primary-color);"></i>
+                    <p class="mt-2 mb-0">Te hemos enviado un código a tu email.</p>
+                    <p class="text-muted small">Introduce el código de 6 dígitos para continuar.</p>
+                </div>
+                <div class="mb-4">
+                    <input
+                        type="text"
+                        class="form-control text-center"
+                        id="twoFactorCode"
+                        name="code"
+                        placeholder="000000"
+                        maxlength="6"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        style="font-size: 28px; letter-spacing: 10px;"
+                        required
+                        autocomplete="one-time-code"
+                    >
+                </div>
+                <button type="submit" class="btn btn-primary btn-login" id="verifyButton">
+                    <span id="verifyButtonText">Verificar</span>
+                    <span id="verifyButtonSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                </button>
+                <div class="text-center mt-3">
+                    <a href="#" id="resendCodeLink" class="small">¿No te ha llegado? Reenviar código</a>
+                </div>
+            </form>
         </div>
-        
+
         <div class="version-info">
             CRM v0.5.0 | © 2025
         </div>
@@ -245,21 +276,23 @@
             }, 5000);
         }
         
+        let currentChallengeId = null;
+
         // Handle form submission
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const loginButton = document.getElementById('loginButton');
             const buttonText = document.getElementById('buttonText');
             const buttonSpinner = document.getElementById('buttonSpinner');
-            
+
             // Disable button and show spinner
             loginButton.disabled = true;
             buttonText.classList.add('d-none');
             buttonSpinner.classList.remove('d-none');
-            
+
             try {
                 const response = await fetch('/auth/login', {
                     method: 'POST',
@@ -269,10 +302,19 @@
                     body: JSON.stringify({ email, password }),
                     credentials: 'include'  // Important for cookies
                 });
-                
+
                 if (response.ok) {
-                    // Success - redirect to dashboard
-                    window.location.href = '/dashboard';
+                    const data = await response.json();
+                    if (data.requires_2fa) {
+                        // Mostrar paso 2: pedir codigo
+                        currentChallengeId = data.challenge_id;
+                        document.getElementById('loginForm').classList.add('d-none');
+                        document.getElementById('twoFactorForm').classList.remove('d-none');
+                        document.getElementById('twoFactorCode').focus();
+                    } else {
+                        // Success - redirect to dashboard
+                        window.location.href = '/dashboard';
+                    }
                 } else {
                     // Error - show message
                     let errorMessage = 'Error al iniciar sesión';
@@ -314,6 +356,72 @@
             }
         });
         
+        // Handle 2FA code submission
+        document.getElementById('twoFactorForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const code = document.getElementById('twoFactorCode').value.trim();
+            const verifyButton = document.getElementById('verifyButton');
+            const verifyButtonText = document.getElementById('verifyButtonText');
+            const verifyButtonSpinner = document.getElementById('verifyButtonSpinner');
+
+            verifyButton.disabled = true;
+            verifyButtonText.classList.add('d-none');
+            verifyButtonSpinner.classList.remove('d-none');
+
+            try {
+                const response = await fetch('/auth/verify-2fa', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ challenge_id: currentChallengeId, code }),
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    window.location.href = '/dashboard';
+                } else {
+                    let errorMessage = 'Código incorrecto o caducado';
+                    try {
+                        const data = await response.json();
+                        if (typeof data.detail === 'string') errorMessage = data.detail;
+                    } catch (e) {}
+                    showAlert(errorMessage);
+                    document.getElementById('twoFactorCode').value = '';
+                    document.getElementById('twoFactorCode').focus();
+                }
+            } catch (error) {
+                console.error('2FA verify error:', error);
+                showAlert('Error de conexión. Por favor, verifica que el servidor esté activo.');
+            } finally {
+                verifyButton.disabled = false;
+                verifyButtonText.classList.remove('d-none');
+                verifyButtonSpinner.classList.add('d-none');
+            }
+        });
+
+        // Resend 2FA code
+        document.getElementById('resendCodeLink').addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (!currentChallengeId) return;
+            try {
+                const response = await fetch('/auth/resend-2fa', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ challenge_id: currentChallengeId }),
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    currentChallengeId = data.challenge_id;
+                    showAlert('Se ha enviado un nuevo código', 'success');
+                } else {
+                    showAlert('No se pudo reenviar el código');
+                }
+            } catch (error) {
+                showAlert('Error de conexión al reenviar el código');
+            }
+        });
+
         // Auto-focus email field
         document.getElementById('email').focus();
         
