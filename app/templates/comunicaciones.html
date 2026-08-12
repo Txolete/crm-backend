@@ -416,10 +416,14 @@
             // Guardar SIEMPRE primero lo que hay en pantalla — evita enviar una version
             // vieja si el usuario edito los campos sin pulsar "Guardar destinatarios".
             const meta = await persistDestinatarios();
-            const unicos = [...new Set([...(meta.destinatarios_to||[]), ...(meta.destinatarios_cc||[]), ...(meta.destinatarios_bcc||[])])];
+            const to = meta.destinatarios_to||[];
+            const cc = meta.destinatarios_cc||[];
+            const bcc = meta.destinatarios_bcc||[];
+            const unicos = [...new Set([...to, ...cc, ...bcc])];
             if(unicos.length===0){ alert('No hay destinatarios. Rellena To/CC/CCO antes de enviar.'); return; }
-            const lista = unicos.map(e=>'• '+e).join('\n');
-            if(!confirm(`Vas a enviar este correo DE VERDAD a ${unicos.length} destinatario(s):\n\n${lista}\n\n¿Confirmas?`)) return;
+            const bloque = (titulo, arr) => arr.length ? `${titulo} (${arr.length}):\n${arr.map(e=>'• '+e).join('\n')}\n\n` : '';
+            const detalle = bloque('PARA', to) + bloque('CC', cc) + bloque('CCO', bcc);
+            if(!confirm(`Vas a enviar este correo DE VERDAD a ${unicos.length} destinatario(s) único(s):\n\n${detalle}¿Confirmas?`)) return;
             try{
                 const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/enviar`,{method:'POST',credentials:'include'});
                 if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.detail||res.status); }
