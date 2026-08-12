@@ -205,6 +205,70 @@ def send_email(to_email: str, subject: str, html_body: str) -> bool:
         return False
 
 
+def send_email_multi(
+    to: list,
+    subject: str,
+    html_body: str,
+    cc: list = None,
+    bcc: list = None,
+) -> tuple[bool, int]:
+    """
+    Envia un email con soporte de CC/BCC (varios destinatarios). Reutiliza la misma
+    configuracion SMTP que send_email(). Pensado para el hub de comunicaciones
+    (boletin de novedades a varios clientes, BCC recomendado para no exponer emails).
+
+    Devuelve (ok, n_destinatarios_totales).
+    """
+    to = [x for x in (to or []) if x]
+    cc = [x for x in (cc or []) if x]
+    bcc = [x for x in (bcc or []) if x]
+    total = len(set(to + cc + bcc))
+
+    if total == 0:
+        logger.warning("[email] send_email_multi sin destinatarios, no se envia")
+        return False, 0
+
+    if not settings.email_enabled:
+        logger.info("Email disabled, skipping multi-send")
+        return False, 0
+
+    if not settings.smtp_user or not settings.smtp_password:
+        logger.warning("SMTP credentials not configured, skipping multi-send")
+        return False, 0
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f"{settings.smtp_from_name} <{settings.smtp_from_email or settings.smtp_user}>"
+        if to:
+            msg['To'] = ", ".join(to)
+        if cc:
+            msg['Cc'] = ", ".join(cc)
+        # BCC nunca va en cabeceras (por eso es "oculta"): se pasa solo en el sobre (envelope) del SMTP.
+
+        html_part = MIMEText(html_body, 'html', 'utf-8')
+        msg.attach(html_part)
+
+        envelope_recipients = list(set(to + cc + bcc))
+
+        if settings.smtp_tls:
+            server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
+            server.starttls()
+        else:
+            server = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port)
+
+        server.login(settings.smtp_user, settings.smtp_password)
+        server.sendmail(settings.smtp_from_email or settings.smtp_user, envelope_recipients, msg.as_string())
+        server.quit()
+
+        logger.info(f"[email] Multi-send OK: {len(to)} to, {len(cc)} cc, {len(bcc)} bcc ({total} totales)")
+        return True, total
+
+    except Exception as e:
+        logger.error(f"[email] Failed multi-send: {e}")
+        return False, 0
+
+
 def send_daily_task_emails():
     """
     Send daily task summary email to all active users with tasks
