@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importar clientes — CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background:#f8f9fa; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+        .main-container { padding:1.5rem; max-width:1100px; margin:0 auto; }
+        .card-sec { background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.08); padding:1.5rem; margin-bottom:1rem; }
+        .stat-pill { display:inline-block; padding:6px 14px; border-radius:20px; font-size:.85rem; font-weight:600; margin-right:8px; }
+        .stat-created { background:#dcfce7; color:#14532d; }
+        .stat-updated { background:#dbeafe; color:#1e3a8a; }
+        .stat-skipped { background:#fef3c7; color:#78350f; }
+        table.detail-table td, table.detail-table th { font-size:.82rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/dashboard"><i class="bi bi-arrow-left"></i> Volver al CRM</a>
+            <span class="navbar-text text-white">📥 Importar clientes desde BOMP</span>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="card-sec">
+            <h5>Subir extracción de clientes</h5>
+            <p class="text-muted small">
+                Excel con 2 hojas: <strong>Clientes</strong> (Nombre, CIF/NIF, Email empresa, Teléfono, Web, Dirección, Provincia, Notas)
+                y <strong>Contactos</strong> (CIF/NIF cliente, Nombre cliente, Nombre, Rol, Email, Teléfono, Acceso, Activo).
+                Los clientes se deduplican por CIF/NIF; los contactos por nombre dentro de la cuenta.
+                Puedes volver a subir la misma extracción tras una actualización: los existentes se actualizan, no se duplican.
+            </p>
+            <input type="file" class="form-control mb-3" id="file-input" accept=".xlsx,.xls">
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="runImport(true)"><i class="bi bi-eye"></i> Simular (dry-run)</button>
+                <button class="btn btn-success" id="btn-commit" onclick="runImport(false)" disabled><i class="bi bi-check-circle"></i> Aplicar de verdad</button>
+            </div>
+        </div>
+
+        <div id="result-panel" style="display:none;">
+            <div class="card-sec">
+                <h6 id="result-title"></h6>
+                <div class="mb-3">
+                    <span class="stat-pill stat-created" id="stat-clientes-creados"></span>
+                    <span class="stat-pill stat-updated" id="stat-clientes-actualizados"></span>
+                    <span class="stat-pill stat-skipped" id="stat-clientes-omitidos"></span>
+                    <br><br>
+                    <span class="stat-pill stat-created" id="stat-contactos-creados"></span>
+                    <span class="stat-pill stat-updated" id="stat-contactos-actualizados"></span>
+                    <span class="stat-pill stat-skipped" id="stat-contactos-omitidos"></span>
+                </div>
+                <div style="max-height:500px; overflow-y:auto;">
+                    <table class="table table-sm detail-table">
+                        <thead><tr><th>Fila</th><th>Tipo</th><th>Estado</th><th>Nombre</th><th>Detalle</th></tr></thead>
+                        <tbody id="detail-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+        async function runImport(dryRun){
+            const f = document.getElementById('file-input').files[0];
+            if(!f){ alert('Selecciona un archivo Excel'); return; }
+            if(!dryRun && !confirm('Vas a aplicar los cambios de verdad sobre la base de datos. ¿Continuar?')) return;
+
+            const fd = new FormData();
+            fd.append('file', f);
+            try {
+                const res = await fetch(`/import-clients?dry_run=${dryRun}`, { method:'POST', credentials:'include', body: fd });
+                if(!res.ok){ const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.status); }
+                const d = await res.json();
+                renderResult(d);
+                document.getElementById('btn-commit').disabled = false;
+            } catch(e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        function renderResult(d){
+            document.getElementById('result-panel').style.display = 'block';
+            document.getElementById('result-title').textContent = d.dry_run ? '🔍 Simulación (nada se ha guardado todavía)' : '✅ Aplicado en la base de datos';
+            document.getElementById('stat-clientes-creados').textContent = `Clientes nuevos: ${d.clientes_creados}`;
+            document.getElementById('stat-clientes-actualizados').textContent = `Clientes actualizados: ${d.clientes_actualizados}`;
+            document.getElementById('stat-clientes-omitidos').textContent = `Clientes omitidos: ${d.clientes_omitidos}`;
+            document.getElementById('stat-contactos-creados').textContent = `Contactos nuevos: ${d.contactos_creados}`;
+            document.getElementById('stat-contactos-actualizados').textContent = `Contactos actualizados: ${d.contactos_actualizados}`;
+            document.getElementById('stat-contactos-omitidos').textContent = `Contactos omitidos: ${d.contactos_omitidos}`;
+
+            document.getElementById('detail-body').innerHTML = d.detalle.map(r => `
+                <tr>
+                    <td>${r.row}</td>
+                    <td>${esc(r.entity)}</td>
+                    <td><span class="badge bg-${r.status==='created'?'success':r.status==='updated'?'primary':r.status==='skipped'?'warning text-dark':'danger'}">${esc(r.status)}</span></td>
+                    <td>${esc(r.name||'')}</td>
+                    <td class="text-muted">${esc(r.detail||'')}</td>
+                </tr>`).join('');
+        }
+
+        (async()=>{
+            try{
+                const r=await fetch('/auth/me',{credentials:'include'});
+                if(!r.ok){window.location.href='/login';return;}
+                const u = await r.json();
+                if(u.role!=='admin'){document.querySelector('.main-container').innerHTML='<div class="alert alert-danger m-4">Solo administradores.</div>';}
+            }catch{window.location.href='/login';}
+        })();
+    </script>
+    <script src="/static/js/feedback_widget.js"></script>
+</body>
+</html>
