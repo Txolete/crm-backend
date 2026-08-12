@@ -13,8 +13,11 @@ import io
 import json
 import logging
 
+import re
+
 from app.database import get_db
 from app.models.user import User
+from app.models.account import Account, Contact, ContactChannel
 from app.models.comunicacion import Publicacion, Desarrollo, SalidaCanal, ComunicacionPrompt
 from app.schemas.comunicacion import (
     DesarrolloResponse, DesarrolloUpdate,
@@ -174,6 +177,56 @@ def list_publicaciones(
         ],
         total=len(pubs),
     )
+
+
+@router.get("/destinatarios-disponibles")
+def destinatarios_disponibles(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """
+    Lista de posibles destinatarios sacados de las fichas del CRM (cuentas activas +
+    email de empresa, y sus contactos activos con email). Para el selector de
+    destinatarios del boletin — evita tener que pegar direcciones a mano.
+
+    IMPORTANTE: registrada ANTES de /{publicacion_id} (misma forma de un solo
+    segmento) para que FastAPI no la confunda con un ID de publicacion.
+    """
+    _require_admin(current_user)
+
+    accounts = db.query(Account).filter(Account.status == "active").order_by(Account.name.asc()).all()
+    contacts = db.query(Contact).filter(Contact.status == "active").all()
+    contacts_by_account = {}
+    for c in contacts:
+        contacts_by_account.setdefault(c.account_id, []).append(c)
+
+    contact_ids = [c.id for c in contacts]
+    channels = (
+        db.query(ContactChannel)
+        .filter(ContactChannel.contact_id.in_(contact_ids), ContactChannel.type == "email")
+        .all()
+        if contact_ids else []
+    )
+    email_by_contact = {}
+    for ch in channels:
+        if ch.contact_id not in email_by_contact or ch.is_primary:
+            email_by_contact[ch.contact_id] = ch.value
+
+    result = []
+    for acc in accounts:
+        acc_contacts = []
+        for c in contacts_by_account.get(acc.id, []):
+            email = email_by_contact.get(c.id)
+            if email:
+                nombre = f"{c.first_name or ''} {c.last_name or ''}".strip() or "(sin nombre)"
+                acc_contacts.append({"contact_id": c.id, "nombre": nombre, "email": email})
+        result.append({
+            "account_id": acc.id,
+            "nombre": acc.name,
+            "email_empresa": acc.email,
+            "contactos": acc_contacts,
+        })
+    return {"cuentas": result, "total": len(result)}
 
 
 @router.get("/{publicacion_id}", response_model=PublicacionDetailResponse)
@@ -505,6 +558,79 @@ def correo_eml(
         media_type="message/rfc822",
         headers={"Content-Disposition": 'attachment; filename="novedades_bomp.eml"'},
     )
+
+
+_PLACEHOLDER_RE = re.compile(r"⟨[^⟩]*⟩")
+
+
+def _find_placeholders(contenido: dict) -> list:
+    text = json.dumps(contenido, ensure_ascii=False)
+    return sorted(set(_PLACEHOLDER_RE.findall(text)))
+
+
+@router.post("/{publicacion_id}/correo/enviar")
+def enviar_correo(
+    publicacion_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """
+    Envio real por SMTP (a diferencia de copiar/pegar o .eml). Usa la misma cuenta
+    ya configurada para notificaciones/2FA. Bloquea si quedan placeholders sin
+    resolver o si no hay destinatarios.
+    """
+    _require_admin(current_user)
+    s = (
+        db.query(SalidaCanal)
+        .filter(SalidaCanal.publicacion_id == publicacion_id, SalidaCanal.canal == "correo")
+        .first()
+    )
+    if not s:
+        raise HTTPException(status_code=404, detail="Aún no se ha adaptado el correo")
+
+    contenido, meta = _contenido_y_meta(s)
+
+    placeholders = _find_placeholders(contenido)
+    if placeholders:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Hay datos sin confirmar antes de enviar: {', '.join(placeholders)}",
+        )
+
+    to = meta.get("destinatarios_to") or []
+    cc = meta.get("destinatarios_cc") or []
+    bcc = meta.get("destinatarios_bcc") or []
+    if not (to or cc or bcc):
+        raise HTTPException(status_code=400, detail="No hay destinatarios configurados (pestaña Destinatarios)")
+
+    firma = meta.get("firma") or (current_user.email_signature or "El equipo de ASIC XXI")
+    from app.utils.comunicaciones_ai import build_email_html
+    from app.config import get_settings
+    from app.automations.email_service import send_email_multi
+    cfg = get_settings()
+    logo_url = (cfg.public_base_url.rstrip("/") + "/static/img/asicxxi_logo.png") if cfg.public_base_url else ""
+    html = build_email_html(
+        contenido, firma=firma, saludo=meta.get("saludo", "Hola"),
+        logo_url=logo_url,
+        cta_web=cfg.comunicaciones_cta_web,
+        cta_email=cfg.comunicaciones_cta_email,
+        cta_tel=cfg.comunicaciones_cta_tel,
+    )
+    asunto = meta.get("asunto", "Novedades BOMP")
+
+    ok, total = send_email_multi(to=to, subject=asunto, html_body=html, cc=cc, bcc=bcc)
+    if not ok:
+        raise HTTPException(
+            status_code=502,
+            detail="No se pudo enviar. Revisa la configuración SMTP (SMTP_USER/SMTP_PASSWORD/EMAIL_ENABLED).",
+        )
+
+    s.estado = "publicado"
+    s.fecha_publicacion = get_utc_now()
+    s.updated_at = get_utc_now()
+    db.commit()
+    logger.info(f"[comunicaciones] enviado correo pub={publicacion_id} destinatarios={total} por={current_user.email}")
+    return {"message": f"Enviado a {total} destinatarios", "count": total}
 
 
 @router.delete("/{publicacion_id}", status_code=204)

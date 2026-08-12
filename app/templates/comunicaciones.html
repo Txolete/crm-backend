@@ -311,14 +311,24 @@
                     <div class="mb-2"><label class="form-label small">CC</label><textarea class="form-control" id="dest-cc" rows="1">${esc((meta.destinatarios_cc||[]).join('; '))}</textarea></div>
                     <div class="mb-2"><label class="form-label small">CCO / BCC (recomendado para mailing)</label><textarea class="form-control" id="dest-bcc" rows="2">${esc((meta.destinatarios_bcc||[]).join('; '))}</textarea></div>
                     <button class="btn btn-sm btn-outline-secondary" onclick="saveDest()"><i class="bi bi-save"></i> Guardar destinatarios</button>
+
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong class="small">Elegir de las fichas del CRM</strong>
+                        <button class="btn btn-sm btn-outline-primary" onclick="loadDestinatariosPicker()"><i class="bi bi-people"></i> Cargar clientes</button>
+                    </div>
+                    <input type="text" class="form-control form-control-sm mb-2" id="picker-search" placeholder="Buscar cliente o contacto…" style="display:none;" oninput="renderPicker()">
+                    <div id="picker-list" style="max-height:260px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:6px; padding:6px; display:none;"></div>
+                    <button class="btn btn-sm btn-primary mt-2" id="btn-add-picker" style="display:none;" onclick="addPickerSelectionToBcc()"><i class="bi bi-plus-circle"></i> Añadir seleccionados a CCO</button>
                 </div>
                 <hr>
                 <div class="d-flex gap-2 flex-wrap">
                     <button class="btn btn-primary" onclick="copiarFormato()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-clipboard-check"></i> Copiar correo (con formato)</button>
                     <button class="btn btn-outline-secondary" onclick="copiarHTML()" ${phs.length?'disabled':''}><i class="bi bi-code-slash"></i> Copiar código HTML</button>
                     <button class="btn btn-success" onclick="descargarEml()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-download"></i> Descargar .eml (Outlook)</button>
+                    <button class="btn btn-danger" onclick="enviarAhora()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-send-fill"></i> Enviar ahora (real)</button>
                 </div>
-                <p class="text-muted small mt-1">"Con formato": pégalo directamente en un correo nuevo de Outlook/Gmail (sale maquetado). El .eml lo abres como borrador. Nota: Outlook de escritorio puede mostrar las etiquetas con esquinas cuadradas (no soporta bordes redondeados).</p>
+                <p class="text-muted small mt-1">"Con formato": pégalo directamente en un correo nuevo de Outlook/Gmail (sale maquetado). El .eml lo abres como borrador. "Enviar ahora" manda el correo de verdad por SMTP a los destinatarios guardados — revísalos antes. Nota: Outlook de escritorio puede mostrar las etiquetas con esquinas cuadradas (no soporta bordes redondeados).</p>
             `;
             loadPreview();
         }
@@ -387,6 +397,81 @@
         }
         function descargarEml(){
             window.location.href=`/comunicaciones/${_currentPub.publicacion.id}/correo/eml`;
+        }
+
+        async function enviarAhora(){
+            if(!confirm('Vas a enviar este correo DE VERDAD por email a los destinatarios guardados en la pestaña Destinatarios. ¿Confirmas?')) return;
+            try{
+                const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/enviar`,{method:'POST',credentials:'include'});
+                if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.detail||res.status); }
+                const d=await res.json();
+                showFb(d.message||'Enviado');
+                alert(d.message||'Enviado correctamente');
+            }catch(e){
+                alert('No se pudo enviar: '+e.message);
+            }
+        }
+
+        // ===== Selector de destinatarios desde el CRM =====
+        let _destinatariosData=null;
+        let _pickerSelected=new Set(); // valores tipo 'acc:<id>' o 'contact:<id>'
+
+        async function loadDestinatariosPicker(){
+            try{
+                const res=await fetch('/comunicaciones/destinatarios-disponibles',{credentials:'include'});
+                if(!res.ok) throw new Error(res.status);
+                _destinatariosData=await res.json();
+                document.getElementById('picker-search').style.display='block';
+                document.getElementById('picker-list').style.display='block';
+                document.getElementById('btn-add-picker').style.display='inline-block';
+                renderPicker();
+            }catch(e){
+                alert('No se pudieron cargar los clientes: '+e.message);
+            }
+        }
+
+        function renderPicker(){
+            if(!_destinatariosData) return;
+            const q=(document.getElementById('picker-search').value||'').trim().toLowerCase();
+            const el=document.getElementById('picker-list');
+            let rows=[];
+            for(const acc of _destinatariosData.cuentas){
+                const accMatches=!q || acc.nombre.toLowerCase().includes(q);
+                const matchingContacts=acc.contactos.filter(c=>!q || accMatches || c.nombre.toLowerCase().includes(q) || c.email.toLowerCase().includes(q));
+                if(!accMatches && matchingContacts.length===0 && q) continue;
+
+                if(acc.email_empresa){
+                    const val=`acc:${acc.account_id}`;
+                    rows.push(`<div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="pk-${val}" ${_pickerSelected.has(val)?'checked':''} onchange="togglePicker('${val}','${esc(acc.email_empresa)}')">
+                        <label class="form-check-label small" for="pk-${val}"><strong>${esc(acc.nombre)}</strong> — ${esc(acc.email_empresa)}</label>
+                    </div>`);
+                }
+                for(const c of (q?matchingContacts:acc.contactos)){
+                    const val=`contact:${c.contact_id}`;
+                    rows.push(`<div class="form-check ms-3">
+                        <input class="form-check-input" type="checkbox" id="pk-${val}" ${_pickerSelected.has(val)?'checked':''} onchange="togglePicker('${val}','${esc(c.email)}')">
+                        <label class="form-check-label small" for="pk-${val}">${esc(c.nombre)} <span class="text-muted">(${esc(acc.nombre)})</span> — ${esc(c.email)}</label>
+                    </div>`);
+                }
+            }
+            el.innerHTML = rows.length ? rows.join('') : '<p class="text-muted small mb-0">Sin resultados.</p>';
+        }
+
+        const _pickerEmails={};
+        function togglePicker(val, email){
+            _pickerEmails[val]=email;
+            if(_pickerSelected.has(val)) _pickerSelected.delete(val); else _pickerSelected.add(val);
+        }
+
+        function addPickerSelectionToBcc(){
+            if(_pickerSelected.size===0){ alert('No has seleccionado ningún destinatario'); return; }
+            const bccField=document.getElementById('dest-bcc');
+            const current=parseEmails(bccField.value);
+            const toAdd=[..._pickerSelected].map(v=>_pickerEmails[v]).filter(Boolean);
+            const merged=[...new Set([...current, ...toAdd])];
+            bccField.value=merged.join('; ');
+            showFb(`${toAdd.length} destinatarios añadidos a CCO`);
         }
 
         // ===== Ajustes IA: prompts / hero / calibración =====
