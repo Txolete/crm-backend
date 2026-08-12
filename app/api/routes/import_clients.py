@@ -10,7 +10,7 @@ Dedupe por CIF/NIF (cuentas) y por email/nombre dentro de la cuenta (contactos).
 Nota: CIF/email/telefono/nombre estan cifrados en columna -> comparacion en Python, no SQL.
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -73,6 +73,84 @@ class ImportClientsResponse(BaseModel):
 async def import_clients_page(request: Request, current_user: User = Depends(get_current_user_from_cookie)):
     _require_admin(current_user)
     return templates.TemplateResponse("import_clients.html", {"request": request})
+
+
+@router.get("/export")
+async def export_clients(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """
+    Extracción de clientes + contactos en el mismo formato (2 hojas) que espera el
+    importador, para poder depurar en Excel y volver a subir directamente.
+    """
+    _require_admin(current_user)
+
+    from openpyxl import Workbook
+
+    regions_by_id = {r.id: r.name for r in db.query(CfgRegion).all()}
+    roles_by_id = {r.id: r.name for r in db.query(CfgContactRole).all()}
+
+    accounts = db.query(Account).order_by(Account.status, Account.name).all()
+    accounts_by_id = {a.id: a for a in accounts}
+
+    contacts = db.query(Contact).order_by(Contact.account_id).all()
+    channels = db.query(ContactChannel).all()
+    channels_by_contact = {}
+    for ch in channels:
+        channels_by_contact.setdefault(ch.contact_id, []).append(ch)
+
+    wb = Workbook()
+    ws1 = wb.active
+    ws1.title = "Clientes"
+    ws1.append(["Nombre", "CIF/NIF", "Email empresa", "Teléfono", "Web", "Dirección", "Provincia", "Notas", "Estado"])
+    for acc in accounts:
+        provincia = regions_by_id.get(acc.region_id) or acc.region_other_text or ""
+        ws1.append([
+            acc.name or "",
+            acc.tax_id or "",
+            acc.email or "",
+            acc.phone or "",
+            acc.website or "",
+            acc.address or "",
+            provincia,
+            acc.notes or "",
+            "Activo" if acc.status == "active" else "Archivado",
+        ])
+
+    ws2 = wb.create_sheet("Contactos")
+    ws2.append(["CIF/NIF cliente", "Nombre cliente", "Nombre", "Rol", "Email", "Teléfono", "Acceso", "Activo"])
+    for c in contacts:
+        acc = accounts_by_id.get(c.account_id)
+        if not acc:
+            continue
+        full_name = f"{c.first_name or ''} {c.last_name or ''}".strip()
+        rol = roles_by_id.get(c.contact_role_id) or c.contact_role_other_text or ""
+        chs = channels_by_contact.get(c.id, [])
+        email = next((ch.value for ch in chs if ch.type == "email" and ch.is_primary), "") \
+            or next((ch.value for ch in chs if ch.type == "email"), "")
+        phone = next((ch.value for ch in chs if ch.type == "phone"), "")
+        ws2.append([
+            acc.tax_id or "",
+            acc.name or "",
+            full_name,
+            rol,
+            email,
+            phone,
+            "",
+            "Sí" if c.status == "active" else "No",
+        ])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"extraccion_clientes_crm_{get_utc_now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx"
+    logger.info(f"[import-clients] export por {current_user.email}: {len(accounts)} cuentas, {len(contacts)} contactos")
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("", response_model=ImportClientsResponse)
