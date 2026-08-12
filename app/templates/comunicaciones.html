@@ -191,6 +191,10 @@
         async function openDetail(id){
             show('view-detail');
             document.getElementById('salida-panel').innerHTML='<p class="text-muted text-center py-4">Pulsa <strong>Adaptar con IA</strong> para generar la comunicación.</p>';
+            // Resetear el selector de destinatarios: evita arrastrar selecciones de otra publicacion
+            _pickerSelected = new Set();
+            for (const k in _pickerEmails) delete _pickerEmails[k];
+            _destinatariosData = null;
             const res=await fetch('/comunicaciones/'+id,{credentials:'include'});
             if(!res.ok){alert('Error al cargar publicación');return;}
             _currentPub=await res.json();
@@ -364,7 +368,11 @@
         }
 
         function parseEmails(s){return (s||'').split(/[;,\n]/).map(x=>x.trim()).filter(Boolean);}
-        async function saveDest(){
+
+        // Unica fuente de verdad: lee los campos EN PANTALLA y los persiste.
+        // saveDest() y enviarAhora() la comparten para que nunca haya desfase
+        // entre "lo que veo" y "lo que se guarda / se envia".
+        async function persistDestinatarios(){
             const meta=_currentSalida.meta||{};
             meta.destinatarios_to=parseEmails(document.getElementById('dest-to').value);
             meta.destinatarios_cc=parseEmails(document.getElementById('dest-cc').value);
@@ -373,6 +381,11 @@
             meta.asunto=document.getElementById('sal-asunto').value;
             await fetch('/comunicaciones/salida/'+_currentSalida.id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({meta})});
             _currentSalida.meta=meta;
+            return meta;
+        }
+
+        async function saveDest(){
+            await persistDestinatarios();
             alert('Destinatarios guardados');
         }
 
@@ -400,7 +413,13 @@
         }
 
         async function enviarAhora(){
-            if(!confirm('Vas a enviar este correo DE VERDAD por email a los destinatarios guardados en la pestaña Destinatarios. ¿Confirmas?')) return;
+            // Guardar SIEMPRE primero lo que hay en pantalla — evita enviar una version
+            // vieja si el usuario edito los campos sin pulsar "Guardar destinatarios".
+            const meta = await persistDestinatarios();
+            const unicos = [...new Set([...(meta.destinatarios_to||[]), ...(meta.destinatarios_cc||[]), ...(meta.destinatarios_bcc||[])])];
+            if(unicos.length===0){ alert('No hay destinatarios. Rellena To/CC/CCO antes de enviar.'); return; }
+            const lista = unicos.map(e=>'• '+e).join('\n');
+            if(!confirm(`Vas a enviar este correo DE VERDAD a ${unicos.length} destinatario(s):\n\n${lista}\n\n¿Confirmas?`)) return;
             try{
                 const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/enviar`,{method:'POST',credentials:'include'});
                 if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.detail||res.status); }
