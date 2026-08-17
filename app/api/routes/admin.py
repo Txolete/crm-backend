@@ -374,6 +374,33 @@ def encrypt_existing_pii(
     return {"dry_run": not commit, "total_a_cifrar": total_enc, "detalle": report}
 
 
+@router.get("/system/db-schema")
+def db_schema(
+    current_user: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """
+    Diagnostico de solo lectura: tablas/columnas reales en la BD + revision de
+    alembic_version. Para investigar desfases entre el historial de migraciones
+    y el esquema real (create_all crea tablas nuevas en cada deploy, lo que puede
+    disimular que alembic no ha llegado a aplicar algunas migraciones).
+    """
+    conn = db.connection()
+    rows = conn.execute(text(
+        "SELECT table_name, column_name FROM information_schema.columns "
+        "WHERE table_schema='public' ORDER BY table_name, ordinal_position"
+    )).fetchall()
+    schema = {}
+    for t, c in rows:
+        schema.setdefault(t, []).append(c)
+    try:
+        version_rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+        version = [v[0] for v in version_rows]
+    except Exception as e:
+        version = f"error: {e}"
+    return {"alembic_version": version, "tables": schema}
+
+
 @router.post("/system/run-migrations")
 def run_migrations(
     current_user: User = Depends(require_role("admin")),
