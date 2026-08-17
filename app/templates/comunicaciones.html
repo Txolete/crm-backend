@@ -291,7 +291,7 @@
             const excluidos=c.excluidos||[];
 
             panel.innerHTML=`
-                ${phs.length?`<div class="placeholder-warn mb-2"><i class="bi bi-exclamation-triangle"></i> Hay datos sin confirmar (${phs.map(esc).join(', ')}). Resuélvelos antes de enviar.</div>`:''}
+                ${phs.length?`<div class="placeholder-warn mb-2"><i class="bi bi-exclamation-triangle"></i> Hay datos sin confirmar (${phs.map(esc).join(', ')}). No hay un botón de "confirmar": edita el texto marcado directamente en el bloque correspondiente más abajo (pestaña "Editar bloques", campo Título o Cuerpo — sustituye el ⟨...⟩ por el dato real) y pulsa "Guardar cambios". Si es la norma, también puedes rellenar el campo "Norma" en el desarrollo (panel izquierdo) y volver a pulsar "Adaptar con IA" para regenerar sin el placeholder.</div>`:''}
                 <div class="mb-2">
                     <label class="form-label small">Asunto</label>
                     <input type="text" class="form-control" id="sal-asunto" value="${esc(meta.asunto||c.asunto||'')}">

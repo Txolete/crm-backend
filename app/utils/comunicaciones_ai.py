@@ -29,7 +29,10 @@ HERO / INTRO: genera un campo "intro": 1-2 frases de apertura que enganchen al c
 
 ESTRUCTURA DE CADA ITEM: un "titulo" de beneficio de menos de 10 palabras + un "cuerpo" de 1 o 2 frases. Brevedad agresiva, pero con empaque: el título debe poder leerse solo y vender el beneficio; el cuerpo aterriza el qué-ganas con concreción (tiempo ahorrado, riesgo evitado, dinero protegido).
 
-CONSOLIDACIÓN: si dos o más desarrollos tienen "relacionado_con" entre sí o son claramente lo mismo, fúndelos en un único item.
+CONSOLIDACIÓN Y CONTINUIDAD: cuando un desarrollo trae "relacionado_con_titulo" (el desarrollo del que es evolución), decide según "relacionado_ya_comunicado":
+- Si ese desarrollo relacionado TAMBIÉN está en este mismo lote (aparece con ese mismo título entre los desarrollos recibidos) o son claramente la misma historia, fúndelos en un único item — no los cuentes dos veces.
+- Si "relacionado_ya_comunicado" es true, ese desarrollo YA se le contó al cliente en una comunicación anterior: no repitas la historia desde cero. Escribe este item como continuación/ampliación breve apoyándote en "relacionado_con_titulo" (p. ej. "Seguimos ampliando lo que ya te contamos sobre X: ahora también...", "Va un paso más allá de lo que vimos con X:..."), dando por hecho que el cliente ya lo conoce.
+- Si no está en este lote y "relacionado_ya_comunicado" es false, trátalo como un desarrollo normal (al cliente aún no se le ha contado nada de esa historia).
 
 NO INVENTES. Si para contar bien el valor te falta un dato que no se deduce de las observaciones (la norma exacta, el beneficio concreto, a qué perfil de cliente aplica), NO te lo inventes: ponlo entre ⟨ ⟩ y añádelo a "necesita_confirmacion". Nunca inventes normas, artículos, fechas, cifras ni efectos legales.
 

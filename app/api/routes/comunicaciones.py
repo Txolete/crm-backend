@@ -386,8 +386,15 @@ def update_desarrollo(
     )
 
 
-def _desarrollo_to_ai_dict(d: Desarrollo) -> dict:
-    return {
+def _desarrollo_to_ai_dict(d: Desarrollo, db: Session) -> dict:
+    """
+    El id interno de relacionado_con no dice nada a la IA: si el desarrollo tiene
+    padre (via bomp_id, ver import), se resuelve aqui a titulo/observaciones + si
+    ese padre ya se le comunico al cliente (para que la IA fusione ambos en un
+    unico item si van en el mismo lote, o escriba el segundo como continuacion
+    si el primero ya se envio).
+    """
+    base = {
         "id": d.id,
         "titulo_crudo": d.titulo_crudo,
         "tipo": d.tipo,
@@ -396,9 +403,25 @@ def _desarrollo_to_ai_dict(d: Desarrollo) -> dict:
         "origen": d.origen,
         "observaciones": d.observaciones,
         "mantenimiento": bool(d.mantenimiento),
-        "relacionado_con": d.relacionado_con,
         "norma": d.norma,
     }
+    if d.relacionado_con:
+        parent = db.query(Desarrollo).filter(Desarrollo.id == d.relacionado_con).first()
+        if parent:
+            ya_comunicado = (
+                db.query(SalidaCanal)
+                .filter(
+                    SalidaCanal.publicacion_id == parent.publicacion_id,
+                    SalidaCanal.canal == "correo",
+                    SalidaCanal.estado == "publicado",
+                )
+                .first()
+                is not None
+            )
+            base["relacionado_con_titulo"] = parent.titulo_crudo
+            base["relacionado_con_observaciones"] = parent.observaciones
+            base["relacionado_ya_comunicado"] = ya_comunicado
+    return base
 
 
 def _get_or_create_salida(db: Session, publicacion_id: str, canal: str = "correo") -> SalidaCanal:
@@ -474,7 +497,7 @@ def adaptar_correo_endpoint(
         calibracion_extra=(activa.calibracion if activa else None),
     )
     try:
-        contenido = adaptar_correo([_desarrollo_to_ai_dict(d) for d in para_correo], system_prompt=sys_prompt)
+        contenido = adaptar_correo([_desarrollo_to_ai_dict(d, db) for d in para_correo], system_prompt=sys_prompt)
     except Exception as e:
         logger.error(f"[comunicaciones] adaptar IA error: {e}")
         raise HTTPException(status_code=502, detail=f"Error en la IA: {e}")
