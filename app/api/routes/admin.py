@@ -374,6 +374,34 @@ def encrypt_existing_pii(
     return {"dry_run": not commit, "total_a_cifrar": total_enc, "detalle": report}
 
 
+@router.post("/system/run-migrations")
+def run_migrations(
+    current_user: User = Depends(require_role("admin")),
+):
+    """
+    Ejecuta `alembic upgrade head` desde DENTRO del contenedor. Util cuando el
+    pre-deploy configurado en Railway no ha llegado a aplicar las migraciones
+    (síntoma: errores "column ... does not exist" tras un deploy) — desde la
+    máquina local no se puede correr alembic directamente porque el host de
+    Postgres interno de Railway no resuelve fuera de su red.
+    """
+    from alembic.config import Config
+    from alembic import command
+    import io
+    import contextlib
+
+    cfg = Config("alembic.ini")
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            command.upgrade(cfg, "head")
+    except Exception as e:
+        logger.error(f"[admin] run-migrations fallo: {e}\n{buf.getvalue()}")
+        raise HTTPException(status_code=500, detail=f"Fallo al migrar: {e}")
+    logger.info(f"[admin] migraciones aplicadas por {current_user.email}")
+    return {"message": "Migraciones aplicadas hasta head", "output": buf.getvalue()}
+
+
 @router.post("/security/test-smtp")
 def test_smtp(
     current_user: User = Depends(require_role("admin")),
