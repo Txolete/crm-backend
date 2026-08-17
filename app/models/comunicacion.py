@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Text, Integer, ForeignKey
+from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.database import Base, UTCDateTime
 
@@ -28,6 +29,11 @@ class Desarrollo(Base):
     id = Column(String, primary_key=True)
     publicacion_id = Column(String, ForeignKey("publicaciones.id"), nullable=False, index=True)
 
+    # ID original del desarrollo en BOMP (columna "ID" del Excel). Nullable porque puede
+    # haber desarrollos creados a mano sin origen en BOMP. Unique para no duplicar al
+    # reimportar el mismo desarrollo en una publicación distinta.
+    bomp_id = Column(Integer, nullable=True, unique=True, index=True)
+
     # Campos en crudo del ERP (Excel: Actualización, Tipo, Fecha, Observaciones, Módulo, Origen, Proyecto)
     titulo_crudo = Column(String, nullable=False)
     tipo = Column(String, nullable=True)         # Nueva funcionalidad | Mejora... | Adaptación regulatoria | Corrección de errores/bugs
@@ -39,12 +45,22 @@ class Desarrollo(Base):
 
     # Campos que se rellenan en el CRM
     norma = Column(String, nullable=True)               # solo si tipo = Adaptación regulatoria
-    mantenimiento = Column(Integer, nullable=False, default=0)  # 0/1 → resumen sobrio, no titular
-    relacionado_con = Column(String, nullable=True)     # enlaza evolutivos para consolidar
+    # 0/1 → desarrollo interno/técnico, resumen sobrio, no titular. Los marcados como
+    # mantenimiento se excluyen por defecto (incluir=0) de las comunicaciones a clientes;
+    # el socio puede reactivarlos manualmente uno a uno desde la ficha.
+    mantenimiento = Column(Integer, nullable=False, default=0)
+    # Self-FK al desarrollo "padre" del que es evolución/consolidación. Se resuelve
+    # automáticamente en el import por bomp_id (columna "ID del desarrollo relacionado").
+    relacionado_con = Column(String, ForeignKey("desarrollos.id"), nullable=True)
     canales = Column(String, nullable=True)             # CSV: "correo,linkedin"
     incluir = Column(Integer, nullable=False, default=1)  # el socio marca si entra en la comunicación
 
     orden = Column(Integer, nullable=True)
+
+    desarrollo_relacionado = relationship(
+        "Desarrollo", remote_side=[id], foreign_keys=[relacionado_con],
+        backref="desarrollos_posteriores",
+    )
 
 
 class ComunicacionPrompt(Base):

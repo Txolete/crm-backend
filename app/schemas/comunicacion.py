@@ -3,9 +3,17 @@ from typing import Optional, List, Any
 from datetime import datetime
 
 
+class DesarrolloRelacionado(BaseModel):
+    id: str
+    publicacion_id: str
+    bomp_id: Optional[int] = None
+    titulo_crudo: str
+
+
 class DesarrolloResponse(BaseModel):
     id: str
     publicacion_id: str
+    bomp_id: Optional[int] = None
     titulo_crudo: str
     tipo: Optional[str] = None
     fecha: Optional[str] = None
@@ -19,6 +27,8 @@ class DesarrolloResponse(BaseModel):
     canales: Optional[str] = None
     incluir: bool = True
     orden: Optional[int] = None
+    version_previa: Optional[DesarrolloRelacionado] = None
+    versiones_posteriores: List[DesarrolloRelacionado] = []
 
     class Config:
         from_attributes = True

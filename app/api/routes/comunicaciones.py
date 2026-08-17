@@ -20,7 +20,7 @@ from app.models.user import User
 from app.models.account import Account, Contact, ContactChannel
 from app.models.comunicacion import Publicacion, Desarrollo, SalidaCanal, ComunicacionPrompt
 from app.schemas.comunicacion import (
-    DesarrolloResponse, DesarrolloUpdate,
+    DesarrolloResponse, DesarrolloRelacionado, DesarrolloUpdate,
     PublicacionResponse, PublicacionListResponse, PublicacionDetailResponse,
     IngestaResponse, SalidaCanalResponse, SalidaCanalUpdate,
     PromptResponse, PromptListResponse, PromptCreate, PromptUpdate, FeedbackItem,
@@ -50,11 +50,36 @@ COLUMN_MAP = {
     "modulo": "modulo",
     "origen": "origen",
     "proyecto": "proyecto",
+    "id": "bomp_id_raw",
+    "mantenimiento": "mantenimiento_raw",
+    "id del desarrollo relacionado": "related_bomp_id_raw",
 }
+
+_MANTENIMIENTO_TRUE = {"si", "sí", "yes", "true", "1"}
 
 
 def _norm_header(h) -> str:
     return str(h or "").strip().lower()
+
+
+def _parse_mantenimiento(raw) -> bool:
+    if raw is None:
+        return False
+    return str(raw).strip().lower() in _MANTENIMIENTO_TRUE
+
+
+def _parse_int(raw):
+    if raw is None or isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        return int(raw)
+    s = str(raw).strip()
+    if not s:
+        return None
+    try:
+        return int(float(s))
+    except ValueError:
+        return None
 
 
 @router.get("/page", response_class=HTMLResponse)
@@ -117,7 +142,17 @@ async def ingesta_excel(
     db.add(pub)
     db.flush()
 
+    # Desarrollos ya existentes en el CRM (de publicaciones anteriores), indexados por
+    # bomp_id: sirve tanto para no duplicar al reimportar como para resolver relaciones
+    # con desarrollos "padre" que llegaron en un Excel anterior.
+    existing_by_bomp_id = {
+        d.bomp_id: d for d in db.query(Desarrollo).filter(Desarrollo.bomp_id.isnot(None)).all()
+    }
+    new_by_bomp_id = {}       # bomp_id -> Desarrollo creado en ESTE import (aun sin flush)
+    pending_relations = []    # [(Desarrollo, related_bomp_id), ...] a resolver tras el bucle
+
     n = 0
+    n_omitidos = 0
     for ridx, row in enumerate(rows[1:], start=1):
         def cell(field):
             idx = col_idx.get(field)
@@ -130,13 +165,22 @@ async def ingesta_excel(
         if titulo is None or str(titulo).strip() == "":
             continue  # saltar filas vacías
 
+        bomp_id = _parse_int(cell("bomp_id_raw"))
+        if bomp_id is not None and (bomp_id in existing_by_bomp_id or bomp_id in new_by_bomp_id):
+            n_omitidos += 1
+            logger.warning(f"[comunicaciones] fila {ridx}: bomp_id {bomp_id} ya existe en el CRM, se omite (no se duplica)")
+            continue
+
         fecha_val = cell("fecha")
         if fecha_val is not None and hasattr(fecha_val, "strftime"):
             fecha_val = fecha_val.strftime("%Y-%m-%d")
 
+        es_mantenimiento = _parse_mantenimiento(cell("mantenimiento_raw"))
+
         d = Desarrollo(
             id=generate_id(),
             publicacion_id=pub.id,
+            bomp_id=bomp_id,
             titulo_crudo=str(titulo).strip(),
             tipo=(str(cell("tipo")).strip() if cell("tipo") else None),
             fecha=(str(fecha_val).strip() if fecha_val else None),
@@ -144,16 +188,35 @@ async def ingesta_excel(
             modulo=(str(cell("modulo")).strip() if cell("modulo") else None),
             origen=(str(cell("origen")).strip() if cell("origen") else None),
             proyecto=(str(cell("proyecto")).strip() if cell("proyecto") else None),
-            mantenimiento=0,
+            mantenimiento=1 if es_mantenimiento else 0,
             canales="correo",   # por defecto candidato a correo; el socio ajusta
-            incluir=1,
+            # Mantenimiento no entra por defecto en las comunicaciones a clientes; el
+            # socio lo reactiva manualmente desde la ficha si hace falta.
+            incluir=0 if es_mantenimiento else 1,
             orden=ridx,
         )
         db.add(d)
         n += 1
+        if bomp_id is not None:
+            new_by_bomp_id[bomp_id] = d
+
+        related_bomp_id = _parse_int(cell("related_bomp_id_raw"))
+        if related_bomp_id is not None:
+            pending_relations.append((d, related_bomp_id))
+
+    for d, related_bomp_id in pending_relations:
+        parent = new_by_bomp_id.get(related_bomp_id) or existing_by_bomp_id.get(related_bomp_id)
+        if not parent:
+            logger.warning(
+                f"[comunicaciones] BOMP {d.bomp_id}: relacionado con {related_bomp_id} "
+                f"pero no existe en el CRM todavía"
+            )
+            continue
+        d.relacionado_con = parent.id
+        logger.info(f"[comunicaciones] vinculado BOMP {d.bomp_id} -> BOMP {parent.bomp_id}")
 
     db.commit()
-    logger.info(f"[comunicaciones] ingesta excel pub={pub.id} desarrollos={n}")
+    logger.info(f"[comunicaciones] ingesta excel pub={pub.id} desarrollos={n} omitidos={n_omitidos}")
     return IngestaResponse(publicacion_id=pub.id, n_desarrollos=n, version_erp=pub.version_erp)
 
 
@@ -246,20 +309,50 @@ def get_publicacion(
         .all()
     )
     n = len(desarrollos)
+
+    # Resolver relaciones (padre/hijos) buscando en TODO el CRM, no solo en esta
+    # publicación: el desarrollo relacionado puede venir de una tanda anterior o posterior.
+    dev_ids = [d.id for d in desarrollos]
+    parent_ids = {d.relacionado_con for d in desarrollos if d.relacionado_con}
+    parents_by_id = {}
+    if parent_ids:
+        for par in db.query(Desarrollo).filter(Desarrollo.id.in_(parent_ids)).all():
+            parents_by_id[par.id] = par
+    children_by_parent_id = {}
+    if dev_ids:
+        for child in db.query(Desarrollo).filter(Desarrollo.relacionado_con.in_(dev_ids)).all():
+            children_by_parent_id.setdefault(child.relacionado_con, []).append(child)
+
+    def _to_response(d: Desarrollo) -> DesarrolloResponse:
+        version_previa = None
+        if d.relacionado_con:
+            par = parents_by_id.get(d.relacionado_con)
+            if par:
+                version_previa = DesarrolloRelacionado(
+                    id=par.id, publicacion_id=par.publicacion_id,
+                    bomp_id=par.bomp_id, titulo_crudo=par.titulo_crudo,
+                )
+        versiones_posteriores = [
+            DesarrolloRelacionado(
+                id=c.id, publicacion_id=c.publicacion_id,
+                bomp_id=c.bomp_id, titulo_crudo=c.titulo_crudo,
+            ) for c in children_by_parent_id.get(d.id, [])
+        ]
+        return DesarrolloResponse(
+            id=d.id, publicacion_id=d.publicacion_id, bomp_id=d.bomp_id, titulo_crudo=d.titulo_crudo,
+            tipo=d.tipo, fecha=d.fecha, observaciones=d.observaciones, modulo=d.modulo,
+            origen=d.origen, proyecto=d.proyecto, norma=d.norma,
+            mantenimiento=bool(d.mantenimiento), relacionado_con=d.relacionado_con,
+            canales=d.canales, incluir=bool(d.incluir), orden=d.orden,
+            version_previa=version_previa, versiones_posteriores=versiones_posteriores,
+        )
+
     return PublicacionDetailResponse(
         publicacion=PublicacionResponse(
             id=p.id, version_erp=p.version_erp, fecha_ingesta=p.fecha_ingesta,
             estado=p.estado, n_desarrollos=n,
         ),
-        desarrollos=[
-            DesarrolloResponse(
-                id=d.id, publicacion_id=d.publicacion_id, titulo_crudo=d.titulo_crudo,
-                tipo=d.tipo, fecha=d.fecha, observaciones=d.observaciones, modulo=d.modulo,
-                origen=d.origen, proyecto=d.proyecto, norma=d.norma,
-                mantenimiento=bool(d.mantenimiento), relacionado_con=d.relacionado_con,
-                canales=d.canales, incluir=bool(d.incluir), orden=d.orden,
-            ) for d in desarrollos
-        ],
+        desarrollos=[_to_response(d) for d in desarrollos],
     )
 
 
@@ -285,7 +378,7 @@ def update_desarrollo(
     db.commit()
     db.refresh(d)
     return DesarrolloResponse(
-        id=d.id, publicacion_id=d.publicacion_id, titulo_crudo=d.titulo_crudo,
+        id=d.id, publicacion_id=d.publicacion_id, bomp_id=d.bomp_id, titulo_crudo=d.titulo_crudo,
         tipo=d.tipo, fecha=d.fecha, observaciones=d.observaciones, modulo=d.modulo,
         origen=d.origen, proyecto=d.proyecto, norma=d.norma,
         mantenimiento=bool(d.mantenimiento), relacionado_con=d.relacionado_con,

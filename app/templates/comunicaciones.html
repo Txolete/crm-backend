@@ -18,6 +18,8 @@
         .peso-badge { font-size:.7rem; text-transform:uppercase; font-weight:700; padding:2px 8px; border-radius:12px; color:#fff; }
         .peso-regulatorio { background:#F59E0B; } .peso-hito { background:#004975; }
         .peso-mejora { background:#00B4D8; } .peso-correccion { background:#64748B; }
+        .peso-mantenimiento { background:#fd7e14; }
+        .bomp-id-badge { font-size:.7rem; color:#64748B; font-weight:600; }
         .dev-row.excluido { opacity:.5; }
         .block-edit { border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:8px; }
         .block-edit textarea { font-size:.85rem; }
@@ -93,6 +95,10 @@
                     <div class="card-sec p-3">
                         <h6><i class="bi bi-card-checklist"></i> Desarrollos (curación)</h6>
                         <p class="text-muted small">Marca cuáles se comunican y, en regulatorios, añade la norma.</p>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="toggle-mant" onchange="renderDevs()">
+                            <label class="form-check-label small" for="toggle-mant">Incluir mantenimiento en la vista</label>
+                        </div>
                         <div id="dev-list"></div>
                     </div>
                 </div>
@@ -207,16 +213,30 @@
         }
 
         function renderDevs(){
+            const showMant=document.getElementById('toggle-mant').checked;
             const el=document.getElementById('dev-list');
-            el.innerHTML=_currentPub.desarrollos.map(d=>{
+            const todos=_currentPub.desarrollos;
+            const devs=todos.filter(d=>showMant||!d.mantenimiento);
+            const nOcultos=todos.length-devs.length;
+            const aviso=nOcultos>0?`<div class="small text-muted mb-2">${nOcultos} desarrollo(s) de mantenimiento oculto(s)</div>`:'';
+            el.innerHTML=aviso+devs.map(d=>{
                 const esReg=(d.tipo||'').toLowerCase().includes('regulat');
+                const relLinks=(d.versiones_posteriores||[]).map(r=>
+                    `<div>↳ Versión posterior: <a href="#" onclick="openDetail('${r.publicacion_id}');return false;">BOMP-${r.bomp_id??'?'} — ${esc(r.titulo_crudo)}</a></div>`
+                ).join('');
                 return `<div class="dev-row block-edit ${d.incluir?'':'excluido'}" data-id="${d.id}">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" ${d.incluir?'checked':''} onchange="toggleIncluir('${d.id}',this.checked)">
-                        <label class="form-check-label"><strong>${esc(d.titulo_crudo)}</strong></label>
+                        <label class="form-check-label">
+                            <strong>${esc(d.titulo_crudo)}</strong>
+                            ${d.bomp_id?`<span class="bomp-id-badge ms-1">BOMP-${d.bomp_id}</span>`:''}
+                            ${d.mantenimiento?'<span class="peso-badge peso-mantenimiento ms-1">Mantenimiento</span>':''}
+                        </label>
                     </div>
                     <div class="small text-muted mt-1">${esc(d.tipo||'')} · ${esc(d.modulo||'')} · ${esc(d.proyecto||'')}</div>
                     ${d.observaciones?`<div class="small mt-1" style="color:#475569;">${esc(d.observaciones)}</div>`:''}
+                    ${d.version_previa?`<div class="small mt-1">↰ Versión previa: <a href="#" onclick="openDetail('${d.version_previa.publicacion_id}');return false;">BOMP-${d.version_previa.bomp_id??'?'} — ${esc(d.version_previa.titulo_crudo)}</a></div>`:''}
+                    ${relLinks?`<div class="small mt-1">${relLinks}</div>`:''}
                     <div class="row g-2 mt-1">
                         <div class="col-7">
                             <input type="text" class="form-control form-control-sm" placeholder="Norma (si es regulatorio)"
