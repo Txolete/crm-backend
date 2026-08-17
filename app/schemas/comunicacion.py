@@ -3,9 +3,17 @@ from typing import Optional, List, Any
 from datetime import datetime
 
 
+class DesarrolloRelacionado(BaseModel):
+    id: str
+    publicacion_id: str
+    bomp_id: Optional[int] = None
+    titulo_crudo: str
+
+
 class DesarrolloResponse(BaseModel):
     id: str
     publicacion_id: str
+    bomp_id: Optional[int] = None
     titulo_crudo: str
     tipo: Optional[str] = None
     fecha: Optional[str] = None
@@ -17,8 +25,13 @@ class DesarrolloResponse(BaseModel):
     mantenimiento: bool = False
     relacionado_con: Optional[str] = None
     canales: Optional[str] = None
-    incluir: bool = True
+    estado_comunicacion: str = "pendiente"  # pendiente | comunicado | no_comunicar
     orden: Optional[int] = None
+    version_previa: Optional[DesarrolloRelacionado] = None
+    versiones_posteriores: List[DesarrolloRelacionado] = []
+    # Solo poblado en el pool (cross-ingesta): de qué ingesta viene este desarrollo.
+    publicacion_version_erp: Optional[str] = None
+    publicacion_fecha_ingesta: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -29,7 +42,7 @@ class DesarrolloUpdate(BaseModel):
     mantenimiento: Optional[bool] = None
     relacionado_con: Optional[str] = None
     canales: Optional[str] = None
-    incluir: Optional[bool] = None
+    estado_comunicacion: Optional[str] = Field(None, pattern="^(pendiente|comunicado|no_comunicar)$")
     titulo_crudo: Optional[str] = None
     observaciones: Optional[str] = None
     orden: Optional[int] = None
@@ -62,24 +75,53 @@ class IngestaResponse(BaseModel):
     version_erp: Optional[str] = None
 
 
-class SalidaCanalResponse(BaseModel):
+class PoolResponse(BaseModel):
+    """Desarrollos pendientes de comunicar, de cualquier ingesta (el pool)."""
+    desarrollos: List[DesarrolloResponse]
+    total: int
+
+
+class ComunicacionResponse(BaseModel):
     id: str
-    publicacion_id: str
     canal: str
+    nombre: Optional[str] = None
     contenido_generado: Optional[Any] = None
     contenido_editado: Optional[Any] = None
     estado: str
     meta: Optional[Any] = None
     fecha_publicacion: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    desarrollos: List[DesarrolloResponse] = []
 
     class Config:
         from_attributes = True
 
 
-class SalidaCanalUpdate(BaseModel):
+class ComunicacionUpdate(BaseModel):
     contenido_editado: Optional[Any] = None
     meta: Optional[Any] = None
     estado: Optional[str] = None
+    nombre: Optional[str] = None
+
+
+class ComunicacionListItem(BaseModel):
+    id: str
+    canal: str
+    nombre: Optional[str] = None
+    estado: str
+    asunto: Optional[str] = None
+    n_desarrollos: int = 0
+    fecha_publicacion: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+class ComunicacionListResponse(BaseModel):
+    comunicaciones: List[ComunicacionListItem]
+    total: int
+
+
+class AdaptarCorreoRequest(BaseModel):
+    desarrollo_ids: List[str] = Field(..., min_length=1)
 
 
 class PromptResponse(BaseModel):

@@ -15,9 +15,12 @@
         .card-sec { background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:1rem; }
         .preview-frame { width:100%; height:640px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; }
         .placeholder-warn { background:#fee2e2; color:#991b1b; padding:8px 12px; border-radius:6px; font-size:.85rem; }
+        .sent-banner { background:#dcfce7; color:#14532d; padding:8px 12px; border-radius:6px; font-size:.85rem; }
         .peso-badge { font-size:.7rem; text-transform:uppercase; font-weight:700; padding:2px 8px; border-radius:12px; color:#fff; }
         .peso-regulatorio { background:#F59E0B; } .peso-hito { background:#004975; }
         .peso-mejora { background:#00B4D8; } .peso-correccion { background:#64748B; }
+        .peso-mantenimiento { background:#fd7e14; }
+        .bomp-id-badge { font-size:.7rem; color:#64748B; font-weight:600; }
         .dev-row.excluido { opacity:.5; }
         .block-edit { border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:8px; }
         .block-edit textarea { font-size:.85rem; }
@@ -36,18 +39,21 @@
         <div class="page-header">
             <div>
                 <h3 class="mb-0">Hub de comunicación</h3>
-                <small class="text-muted">Publica las novedades del ERP como comunicación de valor (canal correo)</small>
+                <small class="text-muted">Pool de desarrollos → comunicación de valor (canal correo)</small>
             </div>
             <div>
-                <button class="btn btn-outline-secondary" onclick="showList()"><i class="bi bi-list-ul"></i> Publicaciones</button>
+                <button class="btn btn-outline-secondary" onclick="showList()"><i class="bi bi-clock-history"></i> Ingestas</button>
+                <button class="btn btn-outline-secondary" onclick="showPool()"><i class="bi bi-collection"></i> Pool</button>
+                <button class="btn btn-outline-secondary" onclick="showComunicaciones()"><i class="bi bi-envelope-paper"></i> Comunicaciones</button>
                 <button class="btn btn-outline-secondary" onclick="openAjustes()"><i class="bi bi-gear"></i> Ajustes IA</button>
-                <button class="btn btn-primary" onclick="showIngesta()"><i class="bi bi-upload"></i> Nueva publicación</button>
+                <button class="btn btn-primary" onclick="showIngesta()"><i class="bi bi-upload"></i> Nueva ingesta</button>
             </div>
         </div>
 
-        <!-- VISTA: Lista de publicaciones -->
+        <!-- VISTA: Lista de ingestas (auditoría) -->
         <div id="view-list">
             <div class="card-sec p-3">
+                <p class="text-muted small mb-2">Registro de cada subida de Excel de BOMP: cuándo se hizo y cuántos desarrollos trajo. Para elegir qué se comunica, ve al <a href="#" onclick="showPool();return false;">Pool</a>.</p>
                 <div id="pub-list"><p class="text-muted text-center py-3">Cargando…</p></div>
             </div>
         </div>
@@ -56,7 +62,7 @@
         <div id="view-ingesta" class="step-hidden">
             <div class="card-sec p-4">
                 <h5>Subir Excel de novedades del ERP</h5>
-                <p class="text-muted small">Columnas esperadas: Actualización, Tipo, Fecha, Observaciones, Módulo, Origen, Proyecto.</p>
+                <p class="text-muted small">Columnas esperadas: ID, Actualización, Tipo, Fecha, Observaciones, Módulo, Origen, Proyecto, Norma, Mantenimiento, ID del desarrollo relacionado.</p>
                 <div class="mb-3">
                     <label class="form-label">Versión / release (opcional)</label>
                     <input type="text" class="form-control" id="ing-version" placeholder="Ej: BOMP v2026.06">
@@ -70,40 +76,76 @@
             </div>
         </div>
 
-        <!-- VISTA: Detalle de publicación (curación + adaptación + preview) -->
-        <div id="view-detail" class="step-hidden">
+        <!-- VISTA: Detalle de una ingesta (curación de norma/mantenimiento, auditoría) -->
+        <div id="view-ingesta-detail" class="step-hidden">
             <div class="card-sec p-3 mb-3">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
-                        <h5 class="mb-0" id="det-version">Publicación</h5>
+                        <h5 class="mb-0" id="det-version">Ingesta</h5>
                         <small class="text-muted" id="det-meta"></small>
                     </div>
                     <div>
-                        <button class="btn btn-link text-secondary" onclick="showList()"><i class="bi bi-arrow-left"></i> Volver</button>
-                        <button class="btn btn-success" id="btn-adaptar" onclick="adaptarIA()">
-                            <i class="bi bi-stars"></i> Adaptar con IA
+                        <button class="btn btn-link text-secondary" onclick="showList()"><i class="bi bi-arrow-left"></i> Volver a ingestas</button>
+                        <button class="btn btn-outline-primary" onclick="showPool()"><i class="bi bi-collection"></i> Ir al pool</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-sec p-3">
+                <p class="text-muted small">Lo que trajo esta ingesta. Ajusta aquí norma/mantenimiento si hace falta. Para elegir qué se comunica (aunque venga de otra ingesta) y generar la comunicación, usa el <strong>Pool</strong>.</p>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="toggle-mant" onchange="renderDevs()">
+                    <label class="form-check-label small" for="toggle-mant">Mostrar los de mantenimiento</label>
+                </div>
+                <div id="dev-list"></div>
+            </div>
+        </div>
+
+        <!-- VISTA: Pool de desarrollos (cross-ingesta) -->
+        <div id="view-pool" class="step-hidden">
+            <div class="card-sec p-3 mb-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-0">Pool de desarrollos</h5>
+                        <small class="text-muted">De todas las ingestas juntos — elige aquí qué se comunica, aunque vengan de subidas distintas</small>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <select class="form-select form-select-sm" style="width:auto;" id="pool-filtro" onchange="loadPool()">
+                            <option value="pendiente">Pendientes</option>
+                            <option value="comunicado">Ya comunicados</option>
+                            <option value="no_comunicar">No comunicar</option>
+                        </select>
+                        <button class="btn btn-success" id="btn-pool-adaptar" onclick="adaptarPoolIA()" disabled>
+                            <i class="bi bi-stars"></i> Adaptar con IA (<span id="pool-sel-count">0</span>)
                         </button>
                     </div>
                 </div>
             </div>
-
-            <div class="row">
-                <!-- Curación: desarrollos en crudo -->
-                <div class="col-lg-5">
-                    <div class="card-sec p-3">
-                        <h6><i class="bi bi-card-checklist"></i> Desarrollos (curación)</h6>
-                        <p class="text-muted small">Marca cuáles se comunican y, en regulatorios, añade la norma.</p>
-                        <div id="dev-list"></div>
-                    </div>
-                </div>
-
-                <!-- Adaptación + preview -->
-                <div class="col-lg-7">
-                    <div class="card-sec p-3" id="salida-panel">
-                        <p class="text-muted text-center py-4">Pulsa <strong>Adaptar con IA</strong> para generar la comunicación.</p>
-                    </div>
-                </div>
+            <div class="card-sec p-3">
+                <div id="pool-list"><p class="text-muted text-center py-3">Cargando…</p></div>
             </div>
+        </div>
+
+        <!-- VISTA: Historial de comunicaciones -->
+        <div id="view-comunicaciones" class="step-hidden">
+            <div class="card-sec p-3">
+                <h5 class="mb-3">Historial de comunicaciones</h5>
+                <div id="com-list"><p class="text-muted text-center py-3">Cargando…</p></div>
+            </div>
+        </div>
+
+        <!-- VISTA: Detalle de comunicación (adaptación + preview + envío) -->
+        <div id="view-comunicacion-detail" class="step-hidden">
+            <div class="card-sec p-3 mb-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-0" id="com-titulo">Comunicación</h5>
+                        <small class="text-muted" id="com-meta"></small>
+                    </div>
+                    <button class="btn btn-link text-secondary" onclick="showComunicaciones()"><i class="bi bi-arrow-left"></i> Volver al historial</button>
+                </div>
+                <div id="com-desarrollos-incluidos" class="small text-muted mt-2"></div>
+            </div>
+            <div class="card-sec p-3" id="salida-panel"></div>
         </div>
     </div>
 
@@ -136,31 +178,31 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let _currentUser = null;
-        let _currentPub = null;     // detalle actual
-        let _currentSalida = null;  // salida correo actual
+        let _currentPub = null;     // detalle de ingesta actual
+        let _currentCom = null;     // comunicacion actual
 
         function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-        function show(id){['view-list','view-ingesta','view-detail'].forEach(v=>document.getElementById(v).classList.add('step-hidden'));document.getElementById(id).classList.remove('step-hidden');}
+        function show(id){['view-list','view-ingesta','view-ingesta-detail','view-pool','view-comunicaciones','view-comunicacion-detail'].forEach(v=>document.getElementById(v).classList.add('step-hidden'));document.getElementById(id).classList.remove('step-hidden');}
         function showList(){show('view-list');loadList();}
         function showIngesta(){show('view-ingesta');document.getElementById('ing-version').value='';document.getElementById('ing-file').value='';}
 
+        // ===== Ingestas (auditoría) =====
         async function loadList(){
             const el=document.getElementById('pub-list');
             el.innerHTML='<p class="text-muted text-center py-3">Cargando…</p>';
             const res=await fetch('/comunicaciones',{credentials:'include'});
             if(!res.ok){el.innerHTML='<div class="alert alert-danger">Error al cargar</div>';return;}
             const d=await res.json();
-            if(!d.publicaciones.length){el.innerHTML='<div class="text-center py-4 text-muted"><i class="bi bi-megaphone" style="font-size:2.5rem;"></i><p class="mt-2">Sin publicaciones. Sube el Excel de novedades del ERP.</p></div>';return;}
+            if(!d.publicaciones.length){el.innerHTML='<div class="text-center py-4 text-muted"><i class="bi bi-megaphone" style="font-size:2.5rem;"></i><p class="mt-2">Sin ingestas. Sube el Excel de novedades del ERP.</p></div>';return;}
             el.innerHTML=`<table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Versión</th><th>Fecha ingesta</th><th>Desarrollos</th><th>Estado</th><th></th></tr></thead>
+                <thead><tr><th>Versión</th><th>Fecha ingesta</th><th>Desarrollos</th><th></th></tr></thead>
                 <tbody>${d.publicaciones.map(p=>`
                     <tr>
                         <td><strong>${esc(p.version_erp||'(sin versión)')}</strong></td>
                         <td>${new Date(p.fecha_ingesta).toLocaleString('es-ES',{dateStyle:'short',timeStyle:'short'})}</td>
                         <td>${p.n_desarrollos}</td>
-                        <td><span class="badge bg-secondary">${esc(p.estado)}</span></td>
                         <td class="text-end">
-                            <button class="btn btn-sm btn-primary" onclick="openDetail('${p.id}')">Abrir</button>
+                            <button class="btn btn-sm btn-primary" onclick="openIngestaDetail('${p.id}')">Abrir</button>
                             <button class="btn btn-sm btn-outline-danger" onclick="delPub('${p.id}')"><i class="bi bi-trash"></i></button>
                         </td>
                     </tr>`).join('')}</tbody></table>`;
@@ -177,57 +219,67 @@
                 const res=await fetch(url,{method:'POST',credentials:'include',body:fd});
                 if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.detail||res.status);}
                 const d=await res.json();
-                openDetail(d.publicacion_id);
+                openIngestaDetail(d.publicacion_id);
             }catch(e){alert('Error: '+e.message);}
             finally{btn.disabled=false;btn.innerHTML='<i class="bi bi-upload"></i> Subir e ingerir';}
         }
 
         async function delPub(id){
-            if(!confirm('Borrar esta publicación y sus desarrollos. ¿Seguro?'))return;
+            if(!confirm('Borrar esta ingesta y sus desarrollos. ¿Seguro?'))return;
             await fetch('/comunicaciones/'+id,{method:'DELETE',credentials:'include'});
             loadList();
         }
 
-        async function openDetail(id){
-            show('view-detail');
-            document.getElementById('salida-panel').innerHTML='<p class="text-muted text-center py-4">Pulsa <strong>Adaptar con IA</strong> para generar la comunicación.</p>';
-            // Resetear el selector de destinatarios: evita arrastrar selecciones de otra publicacion
-            _pickerSelected = new Set();
-            for (const k in _pickerEmails) delete _pickerEmails[k];
-            _destinatariosData = null;
+        async function openIngestaDetail(id){
+            show('view-ingesta-detail');
             const res=await fetch('/comunicaciones/'+id,{credentials:'include'});
-            if(!res.ok){alert('Error al cargar publicación');return;}
+            if(!res.ok){alert('Error al cargar la ingesta');return;}
             _currentPub=await res.json();
-            document.getElementById('det-version').textContent=_currentPub.publicacion.version_erp||'Publicación';
+            document.getElementById('det-version').textContent=_currentPub.publicacion.version_erp||'Ingesta';
             document.getElementById('det-meta').textContent=`${_currentPub.publicacion.n_desarrollos} desarrollos · ingerido ${new Date(_currentPub.publicacion.fecha_ingesta).toLocaleDateString('es-ES')}`;
             renderDevs();
-            // intentar cargar salida correo ya existente
-            const sres=await fetch(`/comunicaciones/${id}/salida/correo`,{credentials:'include'});
-            if(sres.ok){_currentSalida=await sres.json();renderSalida();}
         }
 
         function renderDevs(){
+            const showMant=document.getElementById('toggle-mant').checked;
             const el=document.getElementById('dev-list');
-            el.innerHTML=_currentPub.desarrollos.map(d=>{
+            const todos=_currentPub.desarrollos;
+            const devs=todos.filter(d=>showMant||!d.mantenimiento);
+            const nOcultos=todos.length-devs.length;
+            const aviso=nOcultos>0?`<div class="small text-muted mb-2">${nOcultos} desarrollo(s) de mantenimiento oculto(s)</div>`:'';
+            el.innerHTML=aviso+devs.map(d=>{
                 const esReg=(d.tipo||'').toLowerCase().includes('regulat');
-                return `<div class="dev-row block-edit ${d.incluir?'':'excluido'}" data-id="${d.id}">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" ${d.incluir?'checked':''} onchange="toggleIncluir('${d.id}',this.checked)">
-                        <label class="form-check-label"><strong>${esc(d.titulo_crudo)}</strong></label>
+                const relLinks=(d.versiones_posteriores||[]).map(r=>
+                    `<div>↳ Versión posterior: <a href="#" onclick="event.preventDefault();openIngestaDetail('${r.publicacion_id}')">BOMP-${r.bomp_id??'?'} — ${esc(r.titulo_crudo)}</a></div>`
+                ).join('');
+                return `<div class="dev-row block-edit ${d.estado_comunicacion==='no_comunicar'?'excluido':''}" data-id="${d.id}">
+                    <div>
+                        <strong>${esc(d.titulo_crudo)}</strong>
+                        ${d.bomp_id?`<span class="bomp-id-badge ms-1">BOMP-${d.bomp_id}</span>`:''}
+                        ${d.mantenimiento?'<span class="peso-badge peso-mantenimiento ms-1">Mantenimiento</span>':''}
                     </div>
                     <div class="small text-muted mt-1">${esc(d.tipo||'')} · ${esc(d.modulo||'')} · ${esc(d.proyecto||'')}</div>
                     ${d.observaciones?`<div class="small mt-1" style="color:#475569;">${esc(d.observaciones)}</div>`:''}
+                    ${d.version_previa?`<div class="small mt-1">↰ Versión previa: <a href="#" onclick="event.preventDefault();openIngestaDetail('${d.version_previa.publicacion_id}')">BOMP-${d.version_previa.bomp_id??'?'} — ${esc(d.version_previa.titulo_crudo)}</a></div>`:''}
+                    ${relLinks?`<div class="small mt-1">${relLinks}</div>`:''}
                     <div class="row g-2 mt-1">
-                        <div class="col-7">
+                        <div class="col-5">
                             <input type="text" class="form-control form-control-sm" placeholder="Norma (si es regulatorio)"
                                    value="${esc(d.norma||'')}" ${esReg?'':'style="display:none;"'}
                                    onchange="setNorma('${d.id}',this.value)">
                         </div>
-                        <div class="col-5">
+                        <div class="col-4">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" ${d.mantenimiento?'checked':''} onchange="setMant('${d.id}',this.checked)">
                                 <label class="form-check-label small">Mantenimiento</label>
                             </div>
+                        </div>
+                        <div class="col-3">
+                            <select class="form-select form-select-sm" onchange="setEstadoComunicacionRow('${d.id}',this.value)">
+                                <option value="pendiente" ${d.estado_comunicacion==='pendiente'?'selected':''}>Pendiente</option>
+                                <option value="comunicado" ${d.estado_comunicacion==='comunicado'?'selected':''}>Comunicado</option>
+                                <option value="no_comunicar" ${d.estado_comunicacion==='no_comunicar'?'selected':''}>No comunicar</option>
+                            </select>
                         </div>
                     </div>
                 </div>`;
@@ -237,23 +289,139 @@
         async function patchDev(id,payload){
             await fetch('/comunicaciones/desarrollos/'+id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         }
-        function toggleIncluir(id,v){patchDev(id,{incluir:v});const r=document.querySelector(`.dev-row[data-id="${id}"]`);if(r)r.classList.toggle('excluido',!v);}
         function setNorma(id,v){patchDev(id,{norma:v});}
         function setMant(id,v){patchDev(id,{mantenimiento:v});}
+        async function setEstadoComunicacion(id,v){await patchDev(id,{estado_comunicacion:v});}
+        async function setEstadoComunicacionRow(id,v){
+            await setEstadoComunicacion(id,v);
+            const r=document.querySelector(`.dev-row[data-id="${id}"]`);
+            if(r) r.classList.toggle('excluido', v==='no_comunicar');
+        }
 
-        async function adaptarIA(){
-            const btn=document.getElementById('btn-adaptar');btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm"></span> Adaptando…';
+        // ===== Pool de desarrollos (cross-ingesta) =====
+        let _poolData=null;
+        let _poolSelected=new Set();
+
+        function showPool(){show('view-pool');_poolSelected=new Set();document.getElementById('pool-filtro').value='pendiente';loadPool();}
+
+        async function loadPool(){
+            const estado=document.getElementById('pool-filtro').value;
+            const el=document.getElementById('pool-list');
+            el.innerHTML='<p class="text-muted text-center py-3">Cargando…</p>';
+            const res=await fetch('/comunicaciones/pool?estado='+encodeURIComponent(estado),{credentials:'include'});
+            if(!res.ok){el.innerHTML='<div class="alert alert-danger">Error al cargar</div>';return;}
+            _poolData=await res.json();
+            renderPool();
+        }
+
+        function renderPool(){
+            const estado=document.getElementById('pool-filtro').value;
+            const puedeSeleccionar=estado==='pendiente';
+            document.getElementById('btn-pool-adaptar').style.display=puedeSeleccionar?'inline-block':'none';
+            const el=document.getElementById('pool-list');
+            if(!_poolData.desarrollos.length){el.innerHTML='<p class="text-muted text-center py-4 mb-0">Sin desarrollos en este estado.</p>';updatePoolCount();return;}
+            el.innerHTML=_poolData.desarrollos.map(d=>{
+                const relLinks=(d.versiones_posteriores||[]).map(r=>
+                    `<div>↳ Versión posterior: <a href="#" onclick="event.preventDefault();openIngestaDetail('${r.publicacion_id}')">BOMP-${r.bomp_id??'?'} — ${esc(r.titulo_crudo)}</a></div>`
+                ).join('');
+                const origen=d.publicacion_version_erp||(d.publicacion_fecha_ingesta?new Date(d.publicacion_fecha_ingesta).toLocaleDateString('es-ES'):'ingesta');
+                return `<div class="dev-row block-edit" data-id="${d.id}">
+                    <div class="d-flex align-items-start gap-2">
+                        ${puedeSeleccionar?`<input class="form-check-input mt-1" type="checkbox" ${_poolSelected.has(d.id)?'checked':''} onchange="togglePoolSelect('${d.id}',this.checked)">`:'<span style="width:16px;"></span>'}
+                        <div class="flex-grow-1">
+                            <strong>${esc(d.titulo_crudo)}</strong>
+                            ${d.bomp_id?`<span class="bomp-id-badge ms-1">BOMP-${d.bomp_id}</span>`:''}
+                            <span class="badge bg-light text-dark border ms-1">${esc(origen)}</span>
+                            <div class="small text-muted mt-1">${esc(d.tipo||'')} · ${esc(d.modulo||'')} · ${esc(d.proyecto||'')}</div>
+                            ${d.observaciones?`<div class="small mt-1" style="color:#475569;">${esc(d.observaciones)}</div>`:''}
+                            ${d.version_previa?`<div class="small mt-1">↰ Versión previa: <a href="#" onclick="event.preventDefault();openIngestaDetail('${d.version_previa.publicacion_id}')">BOMP-${d.version_previa.bomp_id??'?'} — ${esc(d.version_previa.titulo_crudo)}</a></div>`:''}
+                            ${relLinks?`<div class="small mt-1">${relLinks}</div>`:''}
+                            <div class="mt-2">
+                                <select class="form-select form-select-sm" style="width:auto;display:inline-block;" onchange="poolSetEstado('${d.id}',this.value)">
+                                    <option value="pendiente" ${d.estado_comunicacion==='pendiente'?'selected':''}>Pendiente</option>
+                                    <option value="comunicado" ${d.estado_comunicacion==='comunicado'?'selected':''}>Comunicado (manual)</option>
+                                    <option value="no_comunicar" ${d.estado_comunicacion==='no_comunicar'?'selected':''}>No comunicar</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            updatePoolCount();
+        }
+
+        function togglePoolSelect(id,v){ if(v) _poolSelected.add(id); else _poolSelected.delete(id); updatePoolCount(); }
+        function updatePoolCount(){
+            const c=document.getElementById('pool-sel-count'); if(c) c.textContent=_poolSelected.size;
+            const btn=document.getElementById('btn-pool-adaptar'); if(btn) btn.disabled=_poolSelected.size===0;
+        }
+        async function poolSetEstado(id,v){
+            await setEstadoComunicacion(id,v);
+            _poolSelected.delete(id);
+            loadPool();
+        }
+
+        async function adaptarPoolIA(){
+            if(_poolSelected.size===0)return;
+            const btn=document.getElementById('btn-pool-adaptar');btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm"></span> Adaptando…';
             try{
-                const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/adaptar-correo`,{method:'POST',credentials:'include'});
+                const res=await fetch('/comunicaciones/adaptar-correo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({desarrollo_ids:[..._poolSelected]})});
                 if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.detail||res.status);}
-                _currentSalida=await res.json();
-                renderSalida();
+                const com=await res.json();
+                _poolSelected=new Set();
+                openComunicacion(com.id);
             }catch(e){alert('Error: '+e.message);}
-            finally{btn.disabled=false;btn.innerHTML='<i class="bi bi-stars"></i> Adaptar con IA';}
+            finally{btn.disabled=false;btn.innerHTML='<i class="bi bi-stars"></i> Adaptar con IA (<span id="pool-sel-count">0</span>)';}
+        }
+
+        // ===== Historial de comunicaciones =====
+        function showComunicaciones(){show('view-comunicaciones');loadComunicacionesList();}
+
+        async function loadComunicacionesList(){
+            const el=document.getElementById('com-list');
+            el.innerHTML='<p class="text-muted text-center py-3">Cargando…</p>';
+            const res=await fetch('/comunicaciones/comunicaciones',{credentials:'include'});
+            if(!res.ok){el.innerHTML='<div class="alert alert-danger">Error al cargar</div>';return;}
+            const d=await res.json();
+            if(!d.comunicaciones.length){el.innerHTML='<div class="text-center py-4 text-muted"><i class="bi bi-envelope" style="font-size:2.5rem;"></i><p class="mt-2">Sin comunicaciones todavía. Ve al Pool para crear una.</p></div>';return;}
+            el.innerHTML=`<table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Asunto</th><th>Desarrollos</th><th>Estado</th><th>Creada</th><th>Enviada</th><th></th></tr></thead>
+                <tbody>${d.comunicaciones.map(c=>`
+                    <tr>
+                        <td><strong>${esc(c.asunto||c.nombre||'(sin asunto)')}</strong></td>
+                        <td>${c.n_desarrollos}</td>
+                        <td><span class="badge bg-${c.estado==='publicado'?'success':c.estado==='adaptado'?'primary':'secondary'}">${esc(c.estado)}</span></td>
+                        <td>${c.created_at?new Date(c.created_at).toLocaleString('es-ES',{dateStyle:'short',timeStyle:'short'}):''}</td>
+                        <td>${c.fecha_publicacion?new Date(c.fecha_publicacion).toLocaleString('es-ES',{dateStyle:'short',timeStyle:'short'}):'—'}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-primary" onclick="openComunicacion('${c.id}')">Abrir</button>
+                            ${c.estado!=='publicado'?`<button class="btn btn-sm btn-outline-danger" onclick="delComunicacion('${c.id}')"><i class="bi bi-trash"></i></button>`:''}
+                        </td>
+                    </tr>`).join('')}</tbody></table>`;
+        }
+
+        async function delComunicacion(id){
+            if(!confirm('Descartar este borrador de comunicación. Sus desarrollos vuelven a estar libres en el pool. ¿Seguro?'))return;
+            await fetch('/comunicaciones/comunicacion/'+id,{method:'DELETE',credentials:'include'});
+            loadComunicacionesList();
+        }
+
+        // ===== Detalle de comunicación (adaptación + preview + envío) =====
+        async function openComunicacion(id){
+            show('view-comunicacion-detail');
+            _pickerSelected=new Set(); for(const k in _pickerEmails) delete _pickerEmails[k]; _destinatariosData=null;
+            const res=await fetch('/comunicaciones/comunicacion/'+id,{credentials:'include'});
+            if(!res.ok){alert('Error al cargar la comunicación');return;}
+            _currentCom=await res.json();
+            const meta=_currentCom.meta||{};
+            document.getElementById('com-titulo').textContent=meta.asunto||'Comunicación';
+            document.getElementById('com-meta').textContent=`${_currentCom.desarrollos.length} desarrollos · ${_currentCom.estado}`;
+            document.getElementById('com-desarrollos-incluidos').innerHTML='Incluye: '+_currentCom.desarrollos.map(d=>`BOMP-${d.bomp_id??'?'} ${esc(d.titulo_crudo)}`).join(' · ');
+            renderComunicacion();
         }
 
         function getContenido(){
-            return _currentSalida.contenido_editado||_currentSalida.contenido_generado||{items:[]};
+            return _currentCom.contenido_editado||_currentCom.contenido_generado||{items:[]};
         }
 
         function detectPlaceholders(c){
@@ -262,16 +430,18 @@
             return [...new Set(m)];
         }
 
-        function renderSalida(){
+        function renderComunicacion(){
             const panel=document.getElementById('salida-panel');
             const c=getContenido();
-            const meta=_currentSalida.meta||{};
+            const meta=_currentCom.meta||{};
             const phs=detectPlaceholders(c);
             const items=c.items||[];
             const excluidos=c.excluidos||[];
+            const yaEnviada=_currentCom.estado==='publicado';
 
             panel.innerHTML=`
-                ${phs.length?`<div class="placeholder-warn mb-2"><i class="bi bi-exclamation-triangle"></i> Hay datos sin confirmar (${phs.map(esc).join(', ')}). Resuélvelos antes de enviar.</div>`:''}
+                ${yaEnviada?`<div class="sent-banner mb-2"><i class="bi bi-check2-circle"></i> Enviada el ${_currentCom.fecha_publicacion?new Date(_currentCom.fecha_publicacion).toLocaleString('es-ES'):''}.</div>`:''}
+                ${phs.length?`<div class="placeholder-warn mb-2"><i class="bi bi-exclamation-triangle"></i> Hay datos sin confirmar (${phs.map(esc).join(', ')}). No hay un botón de "confirmar": edita el texto marcado directamente en el bloque correspondiente más abajo (pestaña "Editar bloques", campo Título o Cuerpo — sustituye el ⟨...⟩ por el dato real) y pulsa "Guardar cambios". Si es la norma, también puedes rellenar el campo "Norma" del desarrollo (desde su ingesta o el pool) y volver a generar la comunicación.</div>`:''}
                 <div class="mb-2">
                     <label class="form-label small">Asunto</label>
                     <input type="text" class="form-control" id="sal-asunto" value="${esc(meta.asunto||c.asunto||'')}">
@@ -331,8 +501,9 @@
                     <button class="btn btn-outline-secondary" onclick="copiarHTML()" ${phs.length?'disabled':''}><i class="bi bi-code-slash"></i> Copiar código HTML</button>
                     <button class="btn btn-success" onclick="descargarEml()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-download"></i> Descargar .eml (Outlook)</button>
                     <button class="btn btn-danger" onclick="enviarAhora()" ${phs.length?'disabled title="Resuelve los datos sin confirmar"':''}><i class="bi bi-send-fill"></i> Enviar ahora (real)</button>
+                    <button class="btn btn-outline-success" onclick="marcarEnviadaManual()" ${yaEnviada?'disabled':''} title="Úsalo si has enviado copiando el correo o con el .eml, no con 'Enviar ahora'"><i class="bi bi-check2-circle"></i> Marcar como enviada (manual)</button>
                 </div>
-                <p class="text-muted small mt-1">"Con formato": pégalo directamente en un correo nuevo de Outlook/Gmail (sale maquetado). El .eml lo abres como borrador. "Enviar ahora" manda el correo de verdad por SMTP a los destinatarios guardados — revísalos antes. Nota: Outlook de escritorio puede mostrar las etiquetas con esquinas cuadradas (no soporta bordes redondeados).</p>
+                <p class="text-muted small mt-1">"Con formato": pégalo directamente en un correo nuevo de Outlook/Gmail (sale maquetado). El .eml lo abres como borrador. "Enviar ahora" manda el correo de verdad por SMTP. Si lo mandas por otra vía (copia/pega o .eml), usa "Marcar como enviada" para que el CRM se entere — si no, seguirá apareciendo como pendiente en el pool. Nota: Outlook de escritorio puede mostrar las etiquetas con esquinas cuadradas (no soporta bordes redondeados).</p>
             `;
             loadPreview();
         }
@@ -348,21 +519,21 @@
         async function loadPreview(){
             const iframe=document.getElementById('preview-iframe');
             if(!iframe)return;
-            const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/html`,{credentials:'include'});
+            const res=await fetch(`/comunicaciones/comunicacion/${_currentCom.id}/correo/html`,{credentials:'include'});
             if(res.ok){iframe.srcdoc=await res.text();}
         }
 
         // edición local del contenido
-        function setItem(i,k,v){const c=getContenido();c.items[i][k]=v;_currentSalida.contenido_editado=c;}
-        function delItem(i){const c=getContenido();c.items.splice(i,1);_currentSalida.contenido_editado=c;renderSalida();}
-        function setMantResumen(v){const c=getContenido();c.mantenimiento_resumen=v;_currentSalida.contenido_editado=c;}
+        function setItem(i,k,v){const c=getContenido();c.items[i][k]=v;_currentCom.contenido_editado=c;}
+        function delItem(i){const c=getContenido();c.items.splice(i,1);_currentCom.contenido_editado=c;renderComunicacion();}
+        function setMantResumen(v){const c=getContenido();c.mantenimiento_resumen=v;_currentCom.contenido_editado=c;}
 
         async function saveContenido(){
             const c=getContenido();
-            const meta=_currentSalida.meta||{};
+            const meta=_currentCom.meta||{};
             meta.asunto=document.getElementById('sal-asunto').value;
-            await fetch('/comunicaciones/salida/'+_currentSalida.id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({contenido_editado:c,meta})});
-            _currentSalida.meta=meta;
+            await fetch('/comunicaciones/comunicacion/'+_currentCom.id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({contenido_editado:c,meta})});
+            _currentCom.meta=meta;
             alert('Guardado');
             loadPreview();
         }
@@ -373,14 +544,14 @@
         // saveDest() y enviarAhora() la comparten para que nunca haya desfase
         // entre "lo que veo" y "lo que se guarda / se envia".
         async function persistDestinatarios(){
-            const meta=_currentSalida.meta||{};
+            const meta=_currentCom.meta||{};
             meta.destinatarios_to=parseEmails(document.getElementById('dest-to').value);
             meta.destinatarios_cc=parseEmails(document.getElementById('dest-cc').value);
             meta.destinatarios_bcc=parseEmails(document.getElementById('dest-bcc').value);
             meta.saludo=document.getElementById('dest-saludo').value.trim()||'Hola';
             meta.asunto=document.getElementById('sal-asunto').value;
-            await fetch('/comunicaciones/salida/'+_currentSalida.id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({meta})});
-            _currentSalida.meta=meta;
+            await fetch('/comunicaciones/comunicacion/'+_currentCom.id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({meta})});
+            _currentCom.meta=meta;
             return meta;
         }
 
@@ -390,12 +561,12 @@
         }
 
         async function copiarHTML(){
-            const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/html`,{credentials:'include'});
+            const res=await fetch(`/comunicaciones/comunicacion/${_currentCom.id}/correo/html`,{credentials:'include'});
             const html=await res.text();
             navigator.clipboard.writeText(html).then(()=>alert('Código HTML copiado al portapapeles'),()=>alert('No se pudo copiar'));
         }
         async function copiarFormato(){
-            const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/html`,{credentials:'include'});
+            const res=await fetch(`/comunicaciones/comunicacion/${_currentCom.id}/correo/html`,{credentials:'include'});
             const html=await res.text();
             try{
                 const item=new ClipboardItem({
@@ -403,13 +574,13 @@
                     'text/plain':new Blob([html],{type:'text/plain'})
                 });
                 await navigator.clipboard.write([item]);
-                showFb('Correo copiado con formato — pégalo en un correo nuevo de Outlook/Gmail');
+                showFb('Correo copiado con formato — pégalo en un correo nuevo de Outlook/Gmail. Recuerda "Marcar como enviada" cuando lo mandes.');
             }catch(e){
                 alert('Tu navegador no permite copiar con formato. Usa "Descargar .eml" o "Copiar código HTML".');
             }
         }
         function descargarEml(){
-            window.location.href=`/comunicaciones/${_currentPub.publicacion.id}/correo/eml`;
+            window.location.href=`/comunicaciones/comunicacion/${_currentCom.id}/correo/eml`;
         }
 
         async function enviarAhora(){
@@ -425,13 +596,27 @@
             const detalle = bloque('PARA', to) + bloque('CC', cc) + bloque('CCO', bcc);
             if(!confirm(`Vas a enviar este correo DE VERDAD a ${unicos.length} destinatario(s) único(s):\n\n${detalle}¿Confirmas?`)) return;
             try{
-                const res=await fetch(`/comunicaciones/${_currentPub.publicacion.id}/correo/enviar`,{method:'POST',credentials:'include'});
+                const res=await fetch(`/comunicaciones/comunicacion/${_currentCom.id}/correo/enviar`,{method:'POST',credentials:'include'});
                 if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.detail||res.status); }
                 const d=await res.json();
                 showFb(d.message||'Enviado');
                 alert(d.message||'Enviado correctamente');
+                openComunicacion(_currentCom.id);
             }catch(e){
                 alert('No se pudo enviar: '+e.message);
+            }
+        }
+
+        async function marcarEnviadaManual(){
+            if(!confirm('¿Confirmas que YA has enviado este correo (copiando el HTML o con el .eml) y quieres marcarlo como enviado en el CRM? Sus desarrollos pasarán a "comunicado".'))return;
+            try{
+                const res=await fetch(`/comunicaciones/comunicacion/${_currentCom.id}/marcar-enviada`,{method:'POST',credentials:'include'});
+                if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.detail||res.status); }
+                _currentCom=await res.json();
+                showFb('Marcada como enviada');
+                renderComunicacion();
+            }catch(e){
+                alert('No se pudo marcar: '+e.message);
             }
         }
 
@@ -576,7 +761,7 @@
                 if(!r.ok){window.location.href='/login';return;}
                 _currentUser=await r.json();
                 if(_currentUser.role!=='admin'){document.querySelector('.main-container').innerHTML='<div class="alert alert-danger m-4">Solo administradores.</div>';return;}
-                loadList();
+                showPool();
             }catch{window.location.href='/login';}
         })();
     </script>
