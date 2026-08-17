@@ -411,6 +411,14 @@ def run_migrations(
     (síntoma: errores "column ... does not exist" tras un deploy) — desde la
     máquina local no se puede correr alembic directamente porque el host de
     Postgres interno de Railway no resuelve fuera de su red.
+
+    NOTA (2026-08-17): alembic_version llevaba estancado en h7c8d9e0f1g2 desde
+    hace tiempo — el pre-deploy de Railway no ha estado aplicando migraciones de
+    verdad, y lo que ha mantenido las tablas nuevas al dia es create_all() en
+    cada arranque (crea tablas que faltan, pero nunca anade columnas a tablas
+    que ya existian). Por eso este endpoint puede fallar con "DuplicateTable" al
+    intentar recrear tablas que create_all ya creo. Ver /system/reconcile-schema
+    para el parche puntual que se aplico para este desfase concreto.
     """
     from alembic.config import Config
     from alembic import command
@@ -427,6 +435,70 @@ def run_migrations(
         raise HTTPException(status_code=500, detail=f"Fallo al migrar: {e}")
     logger.info(f"[admin] migraciones aplicadas por {current_user.email}")
     return {"message": "Migraciones aplicadas hasta head", "output": buf.getvalue()}
+
+
+@router.post("/system/reconcile-schema")
+def reconcile_schema(
+    current_user: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """
+    Parche puntual (2026-08-17) para el desfase real detectado en produccion:
+    alembic_version estaba en h7c8d9e0f1g2 pero create_all() ya habia creado
+    todas las tablas nuevas de migraciones posteriores (con la forma que tenia
+    el modelo cuando cada tabla se creo por primera vez). Lo unico que de verdad
+    faltaba eran columnas anadidas via ALTER a tablas que YA existian antes de
+    esa tabla nueva:
+      - tasks.created_by_user_id (i8d9e0f1g2h3)
+      - desarrollos.bomp_id, desarrollos.estado_comunicacion,
+        FK relacionado_con -> desarrollos.id (r7m8n9o0p1q2 / s8n9o0p1q2r3)
+    (users.email_signature y emails_sent.cc_emails/bcc_emails ya estaban bien,
+    verificado antes de escribir esto.)
+
+    Idempotente (todo con IF NOT EXISTS / comprobacion previa). Al final deja
+    alembic_version en head para que el historial vuelva a ser fiable.
+    """
+    conn = db.connection()
+    statements = [
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by_user_id VARCHAR REFERENCES users(id)",
+        "ALTER TABLE desarrollos ADD COLUMN IF NOT EXISTS bomp_id INTEGER",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_desarrollos_bomp_id ON desarrollos (bomp_id)",
+        "ALTER TABLE desarrollos ADD COLUMN IF NOT EXISTS estado_comunicacion VARCHAR NOT NULL DEFAULT 'pendiente'",
+        "UPDATE desarrollos SET estado_comunicacion = 'no_comunicar' WHERE mantenimiento = 1 AND estado_comunicacion <> 'no_comunicar'",
+    ]
+    applied = []
+    try:
+        for stmt in statements:
+            conn.execute(text(stmt))
+            applied.append(stmt)
+
+        # Postgres no soporta "ADD CONSTRAINT IF NOT EXISTS" para FKs con nombre;
+        # se comprueba antes en pg_constraint.
+        fk_exists = conn.execute(text(
+            "SELECT 1 FROM pg_constraint WHERE conname = 'fk_desarrollos_relacionado_con'"
+        )).first()
+        if not fk_exists:
+            conn.execute(text(
+                "ALTER TABLE desarrollos ADD CONSTRAINT fk_desarrollos_relacionado_con "
+                "FOREIGN KEY (relacionado_con) REFERENCES desarrollos(id)"
+            ))
+            applied.append("fk_desarrollos_relacionado_con creada")
+        else:
+            applied.append("fk_desarrollos_relacionado_con ya existia")
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[admin] reconcile-schema fallo: {e}")
+        raise HTTPException(status_code=500, detail=f"Fallo al reconciliar: {e}")
+
+    from alembic.config import Config
+    from alembic import command
+    cfg = Config("alembic.ini")
+    command.stamp(cfg, "head")
+
+    logger.info(f"[admin] reconcile-schema aplicado por {current_user.email}")
+    return {"message": "Esquema reconciliado; alembic_version en head", "aplicado": applied}
 
 
 @router.post("/security/test-smtp")
