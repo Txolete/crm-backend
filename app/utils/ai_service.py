@@ -22,6 +22,7 @@ El resto del código (endpoints, frontend, BD) no cambia nada.
 from __future__ import annotations
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from datetime import date
 from typing import Optional
@@ -220,6 +221,10 @@ Responde siempre en español. Sé directo y accionable."""
         El response_id se guarda en BD y se pasa como previous_response_id
         en la siguiente llamada para mantener contexto entre análisis.
         """
+        # gpt-5.5 y toda la familia gpt-6* rechazan `temperature` (400 "Unsupported
+        # parameter", verificado contra la API). Para esos modelos no se manda.
+        send_temperature = not re.match(r"^gpt-(5\.[5-9]|[6-9])", self._model)
+
         # Responses API — disponible desde openai 1.66.0
         if hasattr(self._client, "responses"):
             kwargs = {
@@ -227,8 +232,9 @@ Responde siempre en español. Sé directo y accionable."""
                 "instructions": system_prompt,
                 "input": user_message,
                 "max_output_tokens": max_tokens,
-                "temperature": temperature,
             }
+            if send_temperature:
+                kwargs["temperature"] = temperature
             # Encadenar con respuesta anterior si el ID es válido (formato "resp_...")
             if previous_response_id and previous_response_id.startswith("resp_"):
                 kwargs["previous_response_id"] = previous_response_id
@@ -240,15 +246,17 @@ Responde siempre en español. Sé directo y accionable."""
         # Fallback: Chat Completions (openai <1.66.0)
         logger.warning("[AI] Responses API no disponible — usando Chat Completions (actualiza openai>=1.66.0)")
         import hashlib
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
+        chat_kwargs = {
+            "model": self._model,
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user",   "content": user_message},
             ],
-            temperature=temperature,
-            max_completion_tokens=max_tokens,
-        )
+            "max_completion_tokens": max_tokens,
+        }
+        if send_temperature:
+            chat_kwargs["temperature"] = temperature
+        response = self._client.chat.completions.create(**chat_kwargs)
         text = response.choices[0].message.content.strip()
         synthetic_id = f"chat_{hashlib.md5(user_message[:80].encode()).hexdigest()[:16]}"
         return text, synthetic_id
