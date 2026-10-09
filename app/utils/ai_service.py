@@ -22,6 +22,7 @@ El resto del código (endpoints, frontend, BD) no cambia nada.
 from __future__ import annotations
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from datetime import date
 from typing import Optional
@@ -220,9 +221,9 @@ Responde siempre en español. Sé directo y accionable."""
         El response_id se guarda en BD y se pasa como previous_response_id
         en la siguiente llamada para mantener contexto entre análisis.
         """
-        # gpt-5.5 solo admite temperature=1 (el valor por defecto): si se envia otro,
-        # la API devuelve 400. Para esos modelos no se manda el parametro.
-        send_temperature = not self._model.startswith("gpt-5.5")
+        # gpt-5.5 y toda la familia gpt-6* rechazan `temperature` (400 "Unsupported
+        # parameter", verificado contra la API). Para esos modelos no se manda.
+        send_temperature = not re.match(r"^gpt-(5\.[5-9]|[6-9])", self._model)
 
         # Responses API — disponible desde openai 1.66.0
         if hasattr(self._client, "responses"):
