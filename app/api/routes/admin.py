@@ -6,6 +6,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
+from pydantic import BaseModel, Field
+from typing import List
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import (
@@ -399,6 +401,126 @@ def db_schema(
     except Exception as e:
         version = f"error: {e}"
     return {"alembic_version": version, "tables": schema}
+
+
+@router.get("/system/closed-won-audit")
+def closed_won_audit(
+    month: str = Query(..., pattern=r"^\d{4}-\d{2}$", description="Mes (YYYY-MM) en el que figuran cerradas"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """
+    Solo lectura. Lista las oportunidades ganadas cuyo close_date cae en `month` y,
+    para cada una, la evidencia de cuándo se cerró de verdad (audit_log y actividades
+    "ganada"). Sirve para detectar cierres que se movieron por error al mes actual al
+    editar la ficha (bug corregido) y recuperar la fecha original.
+    """
+    import json
+    from calendar import monthrange
+    from datetime import datetime, timezone
+    from app.models.opportunity import Opportunity, Activity
+    from app.models.account import Account
+    from app.models.audit import AuditLog
+
+    y, m = (int(x) for x in month.split("-"))
+    start = datetime(y, m, 1, tzinfo=timezone.utc)
+    end = datetime(y, m, monthrange(y, m)[1], 23, 59, 59, tzinfo=timezone.utc)
+    opps = (
+        db.query(Opportunity)
+        .filter(Opportunity.close_outcome == "won", Opportunity.close_date >= start, Opportunity.close_date <= end)
+        .all()
+    )
+
+    def _load(s):
+        try:
+            return json.loads(s) if s else {}
+        except Exception:
+            return {}
+
+    result = []
+    for o in opps:
+        acc = db.query(Account).filter(Account.id == o.account_id).first()
+        audits = (
+            db.query(AuditLog)
+            .filter(AuditLog.entity == "opportunities", AuditLog.entity_id == o.id)
+            .order_by(AuditLog.timestamp.asc()).all()
+        )
+        audit_rows, candidates = [], []
+        for a in audits:
+            after = _load(a.after_json)
+            audit_rows.append({"action": a.action, "timestamp": a.timestamp, "after": after})
+            if a.action == "close_won" and after.get("close_date"):
+                candidates.append(str(after["close_date"]))
+        acts = (
+            db.query(Activity)
+            .filter(Activity.opportunity_id == o.id, Activity.type == "won")
+            .order_by(Activity.occurred_at.asc()).all()
+        )
+        for ac in acts:
+            candidates.append(ac.occurred_at.isoformat())
+        original = min(candidates) if candidates else None
+        result.append({
+            "opportunity_id": o.id,
+            "name": o.name,
+            "account": acc.name if acc else None,
+            "close_date_actual": o.close_date,
+            "won_value_eur": o.won_value_eur,
+            "expected_value_eur": o.expected_value_eur,
+            "fecha_original_sugerida": original,
+            "sospechosa": bool(original and not original.startswith(month)),
+            "actividades_ganada": [{"occurred_at": ac.occurred_at, "summary": ac.summary} for ac in acts],
+            "audit_log": audit_rows,
+        })
+    result.sort(key=lambda r: (not r["sospechosa"], r["account"] or ""))
+    return {"month": month, "total": len(result), "sospechosas": sum(1 for r in result if r["sospechosa"]), "oportunidades": result}
+
+
+class RestoreCloseDateItem(BaseModel):
+    opportunity_id: str
+    close_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class RestoreCloseDatesRequest(BaseModel):
+    items: List[RestoreCloseDateItem]
+
+
+@router.post("/system/restore-close-dates")
+def restore_close_dates(
+    payload: RestoreCloseDatesRequest,
+    commit: bool = Query(False, description="false = simulacion; true = aplica"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """
+    Restaura el close_date de oportunidades ganadas (solo cambia la fecha; no toca
+    importes). Simulación por defecto. Cada cambio aplicado queda en audit_log.
+    """
+    from datetime import datetime, timezone
+    from app.models.opportunity import Opportunity
+
+    report = []
+    for item in payload.items:
+        o = db.query(Opportunity).filter(Opportunity.id == item.opportunity_id).first()
+        if not o:
+            raise HTTPException(status_code=404, detail=f"Oportunidad no encontrada: {item.opportunity_id}")
+        if o.close_outcome != "won":
+            raise HTTPException(status_code=400, detail=f"{o.name or o.id} no está ganada (close_outcome={o.close_outcome})")
+        y, m, d = (int(x) for x in item.close_date.split("-"))
+        # 12:00 UTC: evita que un desfase horario mueva la fecha de mes
+        new_date = datetime(y, m, d, 12, 0, tzinfo=timezone.utc)
+        report.append({"opportunity_id": o.id, "name": o.name, "antes": o.close_date, "despues": new_date})
+        if commit:
+            create_audit_log(
+                db=db, entity="opportunities", entity_id=o.id, action="restore_close_date",
+                user_id=current_user.id,
+                before_data={"close_date": o.close_date}, after_data={"close_date": new_date},
+            )
+            o.close_date = new_date
+            o.updated_at = get_utc_now()
+    if commit:
+        db.commit()
+    logger.info(f"[admin] restore-close-dates commit={commit} n={len(report)} por {current_user.email}")
+    return {"dry_run": not commit, "cambios": report}
 
 
 @router.post("/system/run-migrations")

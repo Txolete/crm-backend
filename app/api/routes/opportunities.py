@@ -316,10 +316,16 @@ def update_opportunity(
             stage_changed = True
             old_stage_id = opportunity.stage_id
         opportunity.stage_id = opportunity_data.stage_id
-        
-        # Check if new stage is terminal (won/lost) - AUTO-CLOSE
+
+        # Auto-cierre / reapertura SOLO si el stage ha cambiado de verdad. La ficha manda
+        # siempre stage_id al guardar (aunque no se toque); sin esta guarda, editar el
+        # valor de una oportunidad ya ganada volvia a "cerrarla" y reescribia close_date
+        # con la fecha de hoy, moviendo el cierre al mes actual.
         from app.models.config import CfgStage
-        new_stage = db.query(CfgStage).filter(CfgStage.id == opportunity_data.stage_id).first()
+        new_stage = (
+            db.query(CfgStage).filter(CfgStage.id == opportunity_data.stage_id).first()
+            if stage_changed else None
+        )
         if new_stage and new_stage.outcome in ('won', 'lost'):
             # Auto-close the opportunity
             opportunity.close_outcome = new_stage.outcome
@@ -359,15 +365,23 @@ def update_opportunity(
             if field == "status":
                 logger.info(f"[STATUS] Opportunity {opportunity.id} status changed to {update_fields[field]}")
     
+    # Oportunidad ganada: el KPI de EUR cerrado suma won_value_eur, no expected_value_eur.
+    # Si se corrige el valor desde la ficha, el importe cerrado tiene que seguirlo.
+    if (opportunity.close_outcome == 'won'
+            and 'expected_value_eur' in update_fields
+            and opportunity.expected_value_eur != before_data["expected_value_eur"]):
+        opportunity.won_value_eur = opportunity.expected_value_eur
+        logger.info(f"[WON-VALUE] Opportunity {opportunity.id} won_value_eur sincronizado a {opportunity.won_value_eur}")
+
     opportunity.updated_at = get_utc_now()
-    
+
     # Store after state
     after_data = {
         "stage_id": opportunity.stage_id,
         "expected_value_eur": opportunity.expected_value_eur,
         "owner_user_id": opportunity.owner_user_id
     }
-    
+
     # Audit log
     action = "move_stage" if stage_changed else "update"
     create_audit_log(
