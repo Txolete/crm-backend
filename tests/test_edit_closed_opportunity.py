@@ -164,3 +164,39 @@ def test_restore_rejects_open_opportunity(client, db_session, setup):
     r = client.post("/admin/system/restore-close-dates?commit=true",
                     json={"items": [{"opportunity_id": opp.id, "close_date": "2026-06-15"}]})
     assert r.status_code == 400
+
+
+def test_restore_sets_value_and_date_together(client, db_session, setup):
+    opp, _, _ = setup
+    _simulate_moved_close(db_session, opp)
+    opp.expected_value_eur, opp.won_value_eur = 2749.99, 2250.0
+    db_session.flush()
+    payload = {"items": [{"opportunity_id": opp.id, "close_date": "2026-06-19", "value_eur": 2750.0}]}
+
+    dry = client.post("/admin/system/restore-close-dates", json=payload).json()
+    assert dry["dry_run"] is True
+    assert dry["cambios"][0]["despues"]["won_value_eur"] == 2750.0
+    db_session.refresh(opp)
+    assert opp.won_value_eur == 2250.0, "la simulacion no cambia nada"
+
+    assert client.post("/admin/system/restore-close-dates?commit=true", json=payload).status_code == 200
+    db_session.refresh(opp)
+    assert (opp.close_date.month, opp.close_date.day) == (6, 19)
+    assert opp.won_value_eur == 2750.0 and opp.expected_value_eur == 2750.0
+
+
+def test_restore_value_only_keeps_close_date(client, db_session, setup):
+    opp, _, _ = setup
+    before = opp.close_date
+    r = client.post("/admin/system/restore-close-dates?commit=true",
+                    json={"items": [{"opportunity_id": opp.id, "value_eur": 2750.0}]})
+    assert r.status_code == 200, r.text
+    db_session.refresh(opp)
+    assert _same_naive_utc(opp.close_date, before)
+    assert opp.won_value_eur == 2750.0
+
+
+def test_restore_requires_at_least_one_field(client, db_session, setup):
+    opp, _, _ = setup
+    r = client.post("/admin/system/restore-close-dates?commit=true", json={"items": [{"opportunity_id": opp.id}]})
+    assert r.status_code == 400
