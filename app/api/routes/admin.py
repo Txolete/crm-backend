@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import (
@@ -477,7 +477,11 @@ def closed_won_audit(
 
 class RestoreCloseDateItem(BaseModel):
     opportunity_id: str
-    close_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    close_date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    # Si se indica, fija el valor de la oportunidad ganada: tanto el importe cerrado
+    # (won_value_eur, el que suma el KPI) como el esperado, para que la ficha y el KPI
+    # no se contradigan.
+    value_eur: Optional[float] = Field(None, ge=0)
 
 
 class RestoreCloseDatesRequest(BaseModel):
@@ -492,8 +496,10 @@ def restore_close_dates(
     current_user: User = Depends(require_role("admin")),
 ):
     """
-    Restaura el close_date de oportunidades ganadas (solo cambia la fecha; no toca
-    importes). Simulación por defecto. Cada cambio aplicado queda en audit_log.
+    Corrige oportunidades ganadas dañadas por el bug de edición de la ficha: restaura
+    el close_date y/o fija el valor (importe cerrado + esperado). Cada campo es opcional
+    por oportunidad, pero hay que indicar al menos uno. Simulación por defecto. Cada
+    cambio aplicado queda en audit_log.
     """
     from datetime import datetime, timezone
     from app.models.opportunity import Opportunity
@@ -505,17 +511,27 @@ def restore_close_dates(
             raise HTTPException(status_code=404, detail=f"Oportunidad no encontrada: {item.opportunity_id}")
         if o.close_outcome != "won":
             raise HTTPException(status_code=400, detail=f"{o.name or o.id} no está ganada (close_outcome={o.close_outcome})")
-        y, m, d = (int(x) for x in item.close_date.split("-"))
-        # 12:00 UTC: evita que un desfase horario mueva la fecha de mes
-        new_date = datetime(y, m, d, 12, 0, tzinfo=timezone.utc)
-        report.append({"opportunity_id": o.id, "name": o.name, "antes": o.close_date, "despues": new_date})
+        if item.close_date is None and item.value_eur is None:
+            raise HTTPException(status_code=400, detail=f"{o.name or o.id}: indica close_date y/o value_eur")
+
+        before = {"close_date": o.close_date, "won_value_eur": o.won_value_eur, "expected_value_eur": o.expected_value_eur}
+        after = dict(before)
+        if item.close_date is not None:
+            y, m, d = (int(x) for x in item.close_date.split("-"))
+            # 12:00 UTC: evita que un desfase horario mueva la fecha de mes
+            after["close_date"] = datetime(y, m, d, 12, 0, tzinfo=timezone.utc)
+        if item.value_eur is not None:
+            after["won_value_eur"] = item.value_eur
+            after["expected_value_eur"] = item.value_eur
+        report.append({"opportunity_id": o.id, "name": o.name, "antes": before, "despues": after})
         if commit:
             create_audit_log(
-                db=db, entity="opportunities", entity_id=o.id, action="restore_close_date",
-                user_id=current_user.id,
-                before_data={"close_date": o.close_date}, after_data={"close_date": new_date},
+                db=db, entity="opportunities", entity_id=o.id, action="restore_close_data",
+                user_id=current_user.id, before_data=before, after_data=after,
             )
-            o.close_date = new_date
+            o.close_date = after["close_date"]
+            o.won_value_eur = after["won_value_eur"]
+            o.expected_value_eur = after["expected_value_eur"]
             o.updated_at = get_utc_now()
     if commit:
         db.commit()
